@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
+import { config } from "../config";
 
-const PROXY_KEY = process.env.PROXY_KEY;
+const PROXY_KEY = config.proxyKey;
 
 export const auth = (req: Request, res: Response, next: NextFunction) => {
   if (!PROXY_KEY) {

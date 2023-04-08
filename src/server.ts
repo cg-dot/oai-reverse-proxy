@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config();
+import { config } from "./config";
 import express from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
@@ -8,7 +7,7 @@ import { keys } from "./keys";
 import { proxyRouter } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
 
-const PORT = process.env.PORT || 7860;
+const PORT = config.port;
 
 const app = express();
 // middleware
