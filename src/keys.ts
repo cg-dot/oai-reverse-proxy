@@ -15,7 +15,7 @@ type KeySchema = {
 };
 
 /** Runtime information about a key. */
-type Key = KeySchema & {
+export type Key = KeySchema & {
   /** Whether this key is currently disabled. We set this if we get a 429 or 401 response from OpenAI. */
   isDisabled?: boolean;
   /** Threshold at which a warning email will be sent by OpenAI. */
@@ -71,6 +71,17 @@ function list() {
   }));
 }
 
+function disable(key: Key) {
+  const keyFromPool = keyPool.find((k) => k.key === key.key)!;
+  if (keyFromPool.isDisabled) return;
+  keyFromPool.isDisabled = true;
+  logger.warn("Key disabled", { key: key.hash });
+}
+
+function anyAvailable() {
+  return keyPool.some((key) => !key.isDisabled);
+}
+
 function get(model: string) {
   const needsGpt4Key = model.startsWith("gpt-4");
   const availableKeys = keyPool.filter(
@@ -99,4 +110,4 @@ function get(model: string) {
   return oldestKey;
 }
 
-export const keys = { init, list, get };
+export const keys = { init, list, get, anyAvailable, disable };
