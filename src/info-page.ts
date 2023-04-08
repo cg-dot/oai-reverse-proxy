@@ -11,8 +11,8 @@ function getInfoPageHtml(host: string) {
     message: "OpenAI Reverse Proxy",
     uptime: process.uptime(),
     timestamp: Date.now(),
-    kobold: host + "/kobold",
-    openai: host + "/openai",
+    kobold: host + "/proxy/kobold",
+    openai: host + "/proxy/openai",
     keys: {
       all: keylist.length,
       active: keylist.filter((k) => !k.isDisabled).length,

@@ -60,10 +60,6 @@ const handleResponse = (
         errorPayload.proxy_note = message;
       } else if (statusCode === 429) {
         // Rate limit exceeded
-        // Annoyingly they send this for:
-        // - Quota exceeded, key is totally dead
-        // - Rate limit exceeded, key is still good but backoff needed
-        // - Model overloaded, their server is fucked
         if (errorPayload.error?.type === "insufficient_quota") {
           logger.warn(`OpenAI key is exhausted. Keyhash ${req.key?.hash}`);
           keys.disable(req.key!);
@@ -104,9 +100,6 @@ const openaiProxy = createProxyMiddleware({
 
 const openaiRouter = Router();
 openaiRouter.post("/v1/chat/completions", openaiProxy);
-// openaiRouter.post("/v1/completions", openaiProxy);
-// openaiRouter.get("/v1/models", handleModels);
-// openaiRouter.get("/dashboard/billing/usage, handleUsage);
 openaiRouter.use((req, res) => {
   logger.warn(`Blocked openai proxy request: ${req.method} ${req.path}`);
   res.status(404).json({ error: "Not found" });

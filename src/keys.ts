@@ -44,7 +44,7 @@ function init() {
     const decoded = Buffer.from(keyString, "base64").toString();
     keyList = JSON.parse(decoded) as KeySchema[];
   } catch (err) {
-    console.log("Key is not base64-encoded JSON, assuming it's a bare key");
+    logger.info("OPENAI_KEY is not base64-encoded JSON, assuming bare key");
     // We don't actually know if bare keys are paid/GPT-4 so we assume they are
     keyList = [{ key: keyString, isTrial: false, isGpt4: true }];
   }
