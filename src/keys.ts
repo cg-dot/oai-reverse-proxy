@@ -47,7 +47,7 @@ function init() {
     keyList = [{ key: keyString, isTrial: false, isGpt4: true }];
   }
   for (const key of keyList) {
-    keyPool.push({
+    const newKey = {
       ...key,
       isDisabled: false,
       softLimit: 0,
@@ -60,10 +60,12 @@ function init() {
         .update(key.key)
         .digest("hex")
         .slice(0, 6),
-    });
+    };
+    keyPool.push(newKey);
 
-    // TODO: check each key's usage upon startup.
+    logger.info("Key added", { key: newKey.hash });
   }
+  // TODO: check each key's usage upon startup.
 }
 
 function list() {
