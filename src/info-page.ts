@@ -3,7 +3,11 @@ import showdown from "showdown";
 import { keys } from "./keys";
 
 export const handleInfoPage = (req: Request, res: Response) => {
-  res.send(getInfoPageHtml(req.protocol + "://" + req.get("host")));
+  // Huggingface puts spaces behind some cloudflare ssl proxy, so `req.protocol` is `http` but the correct URL is actually `https`
+  const host = req.get("host");
+  const isHuggingface = host?.includes("hf.space");
+  const protocol = isHuggingface ? "https" : req.protocol;
+  res.send(getInfoPageHtml(protocol + "://" + host));
 };
 
 function getInfoPageHtml(host: string) {

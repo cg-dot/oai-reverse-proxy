@@ -15,9 +15,9 @@ Simple reverse proxy server for the OpenAI API.
 If you have an API key you want to share with a friend, you can use this to keep your key safe while still allowing them to generate text with the API.
 
 ## Why?
-OpenAI keys have full permissions to themselves. They can revoke themselves, generate new keys, modify your spend quotas, and so forth. You absolutely should not share them.
+OpenAI keys have full account permissions. They can revoke themselves, generate new keys, modify spend quotas, etc. You absolutely should not share them.
 
-So, if you still want to share access to your key, you can use this to do so safely.  You can also set a separate key just for this proxy server if you want to gatekeep access.
+If you still want to share access to your key, you can put it behind this proxy to ensure it can't be used to do anything but generate text.  You can also set a separate key on the proxy to gatekeep access.
 
 ## How to use
 
