@@ -1,12 +1,13 @@
 import express from "express";
 import cors from "cors";
-import pino from "pino";
 import pinoHttp from "pino-http";
+
+import { logger } from "./logger";
+import { proxy } from "./proxy";
 
 const PORT = process.env.PORT || 7860;
 
 const app = express();
-const logger = pino();
 
 app.use(pinoHttp({ logger }));
 app.use(cors());
@@ -15,10 +16,7 @@ app.use(
   express.urlencoded({ extended: true, limit: "10mb" })
 );
 
-app.get("/", (req, res) => {
-  logger.info("Hello world");
-  res.send("hello :)");
-});
+app.use("/", proxy);
 
 app.use((err: any, _req: unknown, res: express.Response, _next: unknown) => {
   if (err.status) {
