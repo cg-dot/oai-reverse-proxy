@@ -46,5 +46,8 @@ So, if you still want to share access to your key, you can use this to do so saf
 - Your server should automatically deploy when you add the secret, but if not you can select `Factory Reset` from that same Settings menu.
 
 ### 5. Share the link
-- The Service Info screen should show the URL for your server. You can share this with anyone to safely give them access to your OpenAI API key.
-- If you want to protect access to the server, add another secret with the key `PROXY_KEY` using the method as for `OPENAI_KEY`.
+- The Service Info section below should show the URL for your server. You can share this with anyone to safely give them access to your OpenAI API key.
+- Your friend doesn't need any OpenAI API key of their own, they just need your link.
+- However, if you want to protect access to the server, you can add another secret called `PROXY_KEY`.  This key will need to be passed in the Authentication header of every request to the server, just like an OpenAI API key.
+
+**Note:** The `keys` section in the serverinfo screen may not correctly identify keys as trial/paid/GPT-4 unless you use the more advanced configuration described in `.env.example`.

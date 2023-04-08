@@ -13,7 +13,7 @@ function getInfoPageHtml(host: string) {
     uptime: process.uptime(),
     timestamp: Date.now(),
     baseUrl: host,
-    kobold: host + "/proxy/kobold",
+    kobold: host + "/proxy/kobold" + " (not yet implemented)",
     openai: host + "/proxy/openai",
     keys: {
       all: keylist.length,
