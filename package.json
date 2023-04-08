@@ -1,0 +1,22 @@
+{
+  "name": "oai-reverse-proxy",
+  "version": "1.0.0",
+  "description": "Reverse proxy for the OpenAI API",
+  "scripts": {
+    "build": "tsc",
+    "start:dev": "nodemon --watch src --exec ts-node src/server.ts",
+    "start": "node build/server.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "pino-http": "^8.3.3"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  }
+}
