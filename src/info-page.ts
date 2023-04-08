@@ -24,6 +24,7 @@ function getInfoPageHtml(host: string) {
       active: keylist.filter((k) => !k.isDisabled).length,
       trial: keylist.filter((k) => k.isTrial).length,
       gpt4: keylist.filter((k) => k.isGpt4).length,
+      proompts: keylist.reduce((acc, k) => acc + k.promptCount, 0),
     },
   };
 

@@ -26,6 +26,8 @@ export type Key = KeySchema & {
   systemHardLimit?: number;
   /** The current usage of this key. */
   usage?: number;
+  /** The number of prompts that have been sent with this key. */
+  promptCount: number;
   /** The time at which this key was last used. */
   lastUsed: number;
   /** Key hash for displaying usage in the dashboard. */
@@ -57,6 +59,7 @@ function init() {
       systemHardLimit: 0,
       usage: 0,
       lastUsed: 0,
+      promptCount: 0,
       hash: crypto
         .createHash("sha256")
         .update(key.key)
@@ -107,6 +110,7 @@ function get(model: string) {
   const trialKeys = availableKeys.filter((key) => key.isTrial);
   if (trialKeys.length > 0) {
     logger.info({ key: trialKeys[0].hash }, "Using trial key");
+    trialKeys[0].lastUsed = Date.now();
     return trialKeys[0];
   }
 
@@ -117,4 +121,10 @@ function get(model: string) {
   return { ...oldestKey };
 }
 
-export const keys = { init, list, get, anyAvailable, disable };
+function incrementPrompt(keyHash?: string) {
+  if (!keyHash) return;
+  const key = keyPool.find((k) => k.hash === keyHash)!;
+  key.promptCount++;
+}
+
+export const keys = { init, list, get, anyAvailable, disable, incrementPrompt };

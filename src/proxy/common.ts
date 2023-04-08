@@ -59,6 +59,9 @@ export const handleResponse = (
       res.status(statusCode).json(errorPayload);
     });
   } else {
+    // Increment key's usage count
+    keys.incrementPrompt(req.key?.hash);
+
     Object.keys(proxyRes.headers).forEach((key) => {
       res.setHeader(key, proxyRes.headers[key] as string);
     });
