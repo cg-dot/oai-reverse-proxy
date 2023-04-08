@@ -5,6 +5,7 @@ import { logger } from "../logger";
 import { keys } from "../keys";
 
 /** Handle and rewrite response to proxied requests to OpenAI */
+// TODO: This is a mess, fix it
 export const handleResponse = (
   proxyRes: http.IncomingMessage,
   req: Request,

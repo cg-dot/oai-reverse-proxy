@@ -11,7 +11,7 @@ type Config = {
   /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
   modelRateLimit: number; // TODO
   /** Max number of tokens to generate. Requests which specify a higher value will be rewritten to use this value. */
-  maxOutputTokens: number; // TODO
+  maxOutputTokens: number;
   /** Logging threshold. */
   logLevel?: "debug" | "info" | "warn" | "error";
   /** Whether prompts and responses should be logged. */

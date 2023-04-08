@@ -1,36 +1,34 @@
 import { Request, Router } from "express";
 import * as http from "http";
-import { createProxyMiddleware, fixRequestBody } from "http-proxy-middleware";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import { logger } from "../logger";
-import { Key, keys } from "../keys";
 import { handleResponse, onError } from "./common";
+import {
+  addKey,
+  disableStream,
+  finalizeBody,
+  limitOutputTokens,
+} from "./rewriters";
 
-/**
- * Modifies the request body to add a randomly selected API key.
- */
-const rewriteRequest = (proxyReq: http.ClientRequest, req: Request) => {
-  let key: Key;
+const rewriteRequest = (
+  proxyReq: http.ClientRequest,
+  req: Request,
+  res: http.ServerResponse
+) => {
+  const rewriterPipeline = [
+    addKey,
+    disableStream,
+    limitOutputTokens,
+    finalizeBody,
+  ];
 
   try {
-    key = keys.get(req.body?.model || "gpt-3.5")!;
-  } catch (err) {
-    proxyReq.destroy(err as any);
-    return;
-  }
-
-  req.key = key;
-  proxyReq.setHeader("Authorization", `Bearer ${key.key}`);
-
-  if (req.method === "POST" && req.body) {
-    if (req.body?.stream) {
-      req.body.stream = false;
-      const updatedBody = JSON.stringify(req.body);
-      proxyReq.setHeader("Content-Length", Buffer.byteLength(updatedBody));
-      (req as any).rawBody = Buffer.from(updatedBody);
+    for (const rewriter of rewriterPipeline) {
+      rewriter(proxyReq, req, res, {});
     }
-
-    // body-parser and http-proxy-middleware don't play nice together
-    fixRequestBody(proxyReq, req);
+  } catch (error) {
+    logger.error(error, "Error while executing proxy rewriter");
+    proxyReq.destroy(error as Error);
   }
 };
 
