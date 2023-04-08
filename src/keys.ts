@@ -32,7 +32,7 @@ type Key = KeySchema & {
   hash: string;
 };
 
-const keys: Key[] = [];
+const keyPool: Key[] = [];
 
 function init() {
   const keyString = process.env.OPENAI_KEY;
@@ -47,7 +47,7 @@ function init() {
     keyList = [{ key: keyString, isTrial: false, isGpt4: true }];
   }
   for (const key of keyList) {
-    keys.push({
+    keyPool.push({
       ...key,
       isDisabled: false,
       softLimit: 0,
@@ -65,15 +65,15 @@ function init() {
 }
 
 function list() {
-  return keys.map((key) => ({
+  return keyPool.map((key) => ({
     ...key,
     key: undefined,
   }));
 }
 
-function getKey(model: string) {
+function get(model: string) {
   const needsGpt4Key = model.startsWith("gpt-4");
-  const availableKeys = keys.filter(
+  const availableKeys = keyPool.filter(
     (key) => !key.isDisabled && (!needsGpt4Key || key.isGpt4)
   );
   if (availableKeys.length === 0) {
@@ -99,4 +99,4 @@ function getKey(model: string) {
   return oldestKey;
 }
 
-export { init, list, getKey };
+export const keys = { init, list, get };
