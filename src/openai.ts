@@ -45,7 +45,7 @@ const handleResponse = (
       try {
         errorPayload = JSON.parse(body);
       } catch (err) {
-        logger.error(errorPayload.error, { error: err });
+        logger.error({ error: err }, errorPayload.error);
         res.status(statusCode).json(errorPayload);
         return;
       }
@@ -71,8 +71,8 @@ const handleResponse = (
           errorPayload.proxy_note = message;
         } else {
           logger.warn(
-            `OpenAI rate limit exceeded or model overloaded. Keyhash ${req.key?.hash}`,
-            { errorCode: errorPayload.error?.type }
+            { errorCode: errorPayload.error?.type },
+            `OpenAI rate limit exceeded or model overloaded. Keyhash ${req.key?.hash}`
           );
         }
       }

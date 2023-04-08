@@ -1,8 +1,11 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 
 import { logger } from "./logger";
+import { keys } from "./keys";
 import { proxy } from "./proxy";
 
 const PORT = process.env.PORT || 7860;
@@ -18,6 +21,10 @@ app.use(
 
 app.use("/", proxy);
 
+app.use((_req: unknown, res: express.Response) => {
+  res.status(404).json({ error: "Not found" });
+});
+
 app.use((err: any, _req: unknown, res: express.Response, _next: unknown) => {
   if (err.status) {
     res.status(err.status).json({ error: err.message });
@@ -29,4 +36,5 @@ app.use((err: any, _req: unknown, res: express.Response, _next: unknown) => {
 
 app.listen(PORT, () => {
   logger.info(`Server listening on port ${PORT}`);
+  keys.init();
 });

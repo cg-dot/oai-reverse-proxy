@@ -36,13 +36,15 @@ const keyPool: Key[] = [];
 
 function init() {
   const keyString = process.env.OPENAI_KEY;
-  if (!keyString) {
+  if (!keyString?.trim()) {
     throw new Error("OPENAI_KEY environment variable is not set");
   }
   let keyList: KeySchema[];
   try {
-    keyList = JSON.parse(Buffer.from(keyString, "base64").toString());
+    const decoded = Buffer.from(keyString, "base64").toString();
+    keyList = JSON.parse(decoded) as KeySchema[];
   } catch (err) {
+    console.log("Key is not base64-encoded JSON, assuming it's a bare key");
     // We don't actually know if bare keys are paid/GPT-4 so we assume they are
     keyList = [{ key: keyString, isTrial: false, isGpt4: true }];
   }
@@ -63,7 +65,7 @@ function init() {
     };
     keyPool.push(newKey);
 
-    logger.info("Key added", { key: newKey.hash });
+    logger.info({ key: newKey.hash }, "Key added");
   }
   // TODO: check each key's usage upon startup.
 }
@@ -79,7 +81,7 @@ function disable(key: Key) {
   const keyFromPool = keyPool.find((k) => k.key === key.key)!;
   if (keyFromPool.isDisabled) return;
   keyFromPool.isDisabled = true;
-  logger.warn("Key disabled", { key: key.hash });
+  logger.warn({ key: key.hash }, "Key disabled");
 }
 
 function anyAvailable() {
@@ -104,13 +106,13 @@ function get(model: string) {
   // Prioritize trial keys
   const trialKeys = availableKeys.filter((key) => key.isTrial);
   if (trialKeys.length > 0) {
-    logger.info("Using trial key", { key: trialKeys[0].hash });
+    logger.info({ key: trialKeys[0].hash }, "Using trial key");
     return trialKeys[0];
   }
 
   // Otherwise, return the oldest key
   const oldestKey = availableKeys.sort((a, b) => a.lastUsed - b.lastUsed)[0];
-  logger.info("Using key", { key: oldestKey.hash });
+  logger.info({ key: oldestKey.hash }, "Assigning key to request.");
   oldestKey.lastUsed = Date.now();
   return { ...oldestKey };
 }
