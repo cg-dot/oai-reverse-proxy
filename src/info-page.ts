@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import showdown from "showdown";
 import { keys } from "./keys";
 
 export const handleInfoPage = (req: Request, res: Response) => {
@@ -11,6 +12,7 @@ function getInfoPageHtml(host: string) {
     message: "OpenAI Reverse Proxy",
     uptime: process.uptime(),
     timestamp: Date.now(),
+    baseUrl: host,
     kobold: host + "/proxy/kobold",
     openai: host + "/proxy/openai",
     keys: {
@@ -21,15 +23,24 @@ function getInfoPageHtml(host: string) {
     },
   };
 
-  return `<!DOCTYPE html>
+  const readme = require("fs").readFileSync("README.md", "utf8");
+  const readmeBody = readme.split("---")[2];
+  const converter = new showdown.Converter();
+  const html = converter.makeHtml(readmeBody);
+
+  const pageBody = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>OpenAI Reverse Proxy</title>
   </head>
-  <body>
-    <h1>OpenAI Reverse Proxy</h1>
+  <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;"
+    ${html}
+    <hr />
+    <h2>Service Info</h2>
     <pre>${JSON.stringify(info, null, 2)}</pre>
   </body>
 </html>`;
+
+  return pageBody;
 }

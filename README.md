@@ -6,6 +6,7 @@ colorTo: purple
 sdk: docker
 pinned: false
 ---
+<!-- -->
 # OAI Reverse Proxy Server
 
 Simple reverse proxy server for the OpenAI API.
@@ -22,15 +23,28 @@ So, if you still want to share access to your key, you can use this to do so saf
 
 ### 1. Get an API key
 - Go to [OpenAI](https://openai.com/) and sign up for an account.
+
 ### 2. Clone this Huggingface repository to your account
 - Go to [Huggingface](https://huggingface.co/) and sign up for an account.
-- Once logged in, click on the `+` button in the top right corner and select `Duplicate Space`.
+- Once logged in, click on the `+` button in the top right corner and select `Duplicate this Space`.
+
+![Duplicate Space](https://files.catbox.moe/3n6ubn.png)
+
 ### 3. Set your OpenAI API key as a secret
 - Click the Settings button in the top right corner of your repository.
-- Scroll down to the `Secrets` section and click `New Secret`.
-- Enter `OPENAI_API_KEY` as the name and your OpenAI API key as the value.
+- Scroll down to the `Repository Secrets` section and click `New Secret`.
+
+![Secrets](https://files.catbox.moe/irrp2p.png)
+
+- Enter `OPENAI_KEY` as the name and your OpenAI API key as the value.
+
+![New Secret](https://files.catbox.moe/ka6s1a.png)
 
 **Do not paste the key into `server.js`!** That file is public and anyone can see it. Leave it alone; it will load the key from the secret you just created.
+
 ### 4. Deploy the server
-- Click the `Deploy` button in the top right corner of your repository.
+- Your server should automatically deploy when you add the secret, but if not you can select `Factory Reset` from that same Settings menu.
+
 ### 5. Share the link
+- The Service Info screen should show the URL for your server. You can share this with anyone to safely give them access to your OpenAI API key.
+- If you want to protect access to the server, add another secret with the key `PROXY_KEY` using the method as for `OPENAI_KEY`.
