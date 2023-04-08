@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 
 const PROXY_KEY = process.env.PROXY_KEY;
 
-export function auth(req: Request, res: Response, next: NextFunction) {
+export const auth = (req: Request, res: Response, next: NextFunction) => {
   if (!PROXY_KEY) {
     next();
     return;
@@ -13,4 +13,4 @@ export function auth(req: Request, res: Response, next: NextFunction) {
   } else {
     res.status(401).json({ error: "Unauthorized" });
   }
-}
+};

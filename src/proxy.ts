@@ -6,20 +6,13 @@ translated into OpenAI requests. */
 
 import * as express from "express";
 import { auth } from "./auth";
+import { handleInfoPage } from "./info-page";
 import { kobold } from "./kobold";
 import { openai } from "./openai";
 
 const router = express.Router();
 
-router.get("/", (req, res) => {
-  res.json({
-    message: "OpenAI Reverse Proxy",
-    uptime: process.uptime(),
-    timestamp: Date.now(),
-    kobold: req.protocol + "://" + req.get("host") + "/kobold",
-    openai: req.protocol + "://" + req.get("host") + "/openai",
-  });
-});
+router.get("/", handleInfoPage); 
 router.use(auth);
 router.use("/kobold", kobold);
 router.use("/openai", openai);

@@ -61,6 +61,8 @@ function init() {
         .digest("hex")
         .slice(0, 6),
     });
+
+    // TODO: check each key's usage upon startup.
   }
 }
 
