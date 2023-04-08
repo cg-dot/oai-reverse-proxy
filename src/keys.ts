@@ -107,7 +107,8 @@ function get(model: string) {
   // Otherwise, return the oldest key
   const oldestKey = availableKeys.sort((a, b) => a.lastUsed - b.lastUsed)[0];
   logger.info("Using key", { key: oldestKey.hash });
-  return oldestKey;
+  oldestKey.lastUsed = Date.now();
+  return { ...oldestKey };
 }
 
 export const keys = { init, list, get, anyAvailable, disable };
