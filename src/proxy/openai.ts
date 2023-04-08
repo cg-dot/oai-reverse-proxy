@@ -22,16 +22,15 @@ const rewriteRequest = (proxyReq: http.ClientRequest, req: Request) => {
   proxyReq.setHeader("Authorization", `Bearer ${key.key}`);
 
   if (req.method === "POST" && req.body) {
+    if (req.body?.stream) {
+      req.body.stream = false;
+      const updatedBody = JSON.stringify(req.body);
+      proxyReq.setHeader("Content-Length", Buffer.byteLength(updatedBody));
+      (req as any).rawBody = Buffer.from(updatedBody);
+    }
+
     // body-parser and http-proxy-middleware don't play nice together
     fixRequestBody(proxyReq, req);
-  }
-
-  if (req.body?.stream) {
-    req.body.stream = false;
-    const updatedBody = JSON.stringify(req.body);
-    proxyReq.setHeader("Content-Length", Buffer.byteLength(updatedBody));
-    proxyReq.write(updatedBody);
-    proxyReq.end();
   }
 };
 
