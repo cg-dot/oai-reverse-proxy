@@ -19,7 +19,7 @@ function getInfoPageHtml(host: string) {
     uptime: process.uptime(),
     timestamp: Date.now(),
     baseUrl: host,
-    kobold: host + "/proxy/kobold" + " (not yet implemented)",
+    kobold: host + "/proxy/kobold",
     openai: host + "/proxy/openai",
     proompts: keylist.reduce((acc, k) => acc + k.promptCount, 0),
     ...(config.modelRateLimit ? rateLimitInfo : {}),
