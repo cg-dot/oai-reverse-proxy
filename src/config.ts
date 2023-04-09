@@ -14,6 +14,8 @@ type Config = {
   maxOutputTokens: number;
   /** Whether requests containing disallowed characters should be rejected. */
   rejectDisallowed?: boolean;
+  /** Rejection sample rate (0 - 1). Higher values are more strict but increase server load. */
+  rejectSampleRate?: number;
   /** Message to return when rejecting requests. */
   rejectMessage?: string;
   /** Logging threshold. */
@@ -29,6 +31,7 @@ export const config: Config = {
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 2),
   maxOutputTokens: getEnvWithDefault("MAX_OUTPUT_TOKENS", 256),
   rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
+  rejectSampleRate: getEnvWithDefault("REJECT_SAMPLE_RATE", 0.2),
   rejectMessage: getEnvWithDefault(
     "REJECT_MESSAGE",
     "This content violates /aicg/'s acceptable use policy."
