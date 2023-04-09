@@ -4,14 +4,21 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import { logger } from "./logger";
 import { keys } from "./keys";
-import { proxyRouter } from "./proxy/routes";
+import { proxyRouter, rewriteTavernRequests } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
 
 const PORT = config.port;
 
 const app = express();
 // middleware
-app.use(pinoHttp({ logger }));
+app.use("/", rewriteTavernRequests);
+app.use(
+  pinoHttp({
+    logger,
+    // SillyTavern spams the hell out of this endpoint so don't log it
+    autoLogging: { ignore: (req) => req.url === "/proxy/kobold/api/v1/model" },
+  })
+);
 app.use(cors());
 app.use(
   express.json({ limit: "10mb" }),

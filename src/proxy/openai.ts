@@ -1,8 +1,13 @@
-import { Request, Router } from "express";
+import { Request, Response, Router } from "express";
 import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { logger } from "../logger";
-import { handleResponse, onError } from "./common";
+import {
+  handleDownstreamErrors,
+  handleInternalError,
+  incrementKeyUsage,
+  copyHttpHeaders,
+} from "./common";
 import { ipLimiter } from "./rate-limit";
 import {
   addKey,
@@ -35,13 +40,29 @@ const rewriteRequest = (
   }
 };
 
+const handleProxiedResponse = async (
+  proxyRes: http.IncomingMessage,
+  req: Request,
+  res: Response
+) => {
+  try {
+    await handleDownstreamErrors(proxyRes, req, res);
+  } catch (error) {
+    // Handler takes over the response, we're done here.
+    return;
+  }
+  incrementKeyUsage(req);
+  copyHttpHeaders(proxyRes, res);
+  proxyRes.pipe(res);
+};
+
 const openaiProxy = createProxyMiddleware({
   target: "https://api.openai.com",
   changeOrigin: true,
   on: {
     proxyReq: rewriteRequest,
-    proxyRes: handleResponse,
-    error: onError,
+    proxyRes: handleProxiedResponse,
+    error: handleInternalError,
   },
   selfHandleResponse: true,
   logger,
@@ -55,6 +76,5 @@ openaiRouter.use((req, res) => {
   logger.warn(`Blocked openai proxy request: ${req.method} ${req.path}`);
   res.status(404).json({ error: "Not found" });
 });
-
 
 export const openai = openaiRouter;

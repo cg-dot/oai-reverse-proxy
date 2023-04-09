@@ -128,4 +128,19 @@ function incrementPrompt(keyHash?: string) {
   key.promptCount++;
 }
 
-export const keys = { init, list, get, anyAvailable, disable, incrementPrompt };
+function downgradeKey(keyHash?: string) {
+  if (!keyHash) return;
+  logger.warn({ key: keyHash }, "Downgrading key to GPT-3.5.");
+  const key = keyPool.find((k) => k.hash === keyHash)!;
+  key.isGpt4 = false;
+}
+
+export const keys = {
+  init,
+  list,
+  get,
+  anyAvailable,
+  disable,
+  incrementPrompt,
+  downgradeKey,
+};

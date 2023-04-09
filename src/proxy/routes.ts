@@ -15,4 +15,19 @@ router.use(auth);
 router.use("/kobold", kobold);
 router.use("/openai", openai);
 
+// SillyTavern annoyingly just disregards the path in whatever URL users input,
+// so requests come in at /api/v1. We need to rewrite them to
+// /proxy/kobold/api/v1 so the request is routed to the correct handler.
+function rewriteTavernRequests(
+  req: express.Request,
+  _res: express.Response,
+  next: express.NextFunction
+) {
+  if (req.path.startsWith("/api/v1")) {
+    req.url = req.url.replace("/api/v1", "/proxy/kobold/api/v1");
+  }
+  next();
+}
+
+export { rewriteTavernRequests };
 export { router as proxyRouter };

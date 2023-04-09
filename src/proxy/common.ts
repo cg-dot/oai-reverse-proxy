@@ -4,17 +4,22 @@ import * as httpProxy from "http-proxy";
 import { logger } from "../logger";
 import { keys } from "../keys";
 
-const MODEL_ROUTES = ["/v1/chat/completions"];
+export const QUOTA_ROUTES = ["/v1/chat/completions"];
 
-/** Handle and rewrite response to proxied requests to OpenAI */
-// TODO: This is a mess, fix it
-export const handleResponse = (
+/** Check for errors in the response from OpenAI and handle them. */
+// This is a mess of promises, callbacks and event listeners because none of
+// this low-level nodejs http shit is async/await friendly.
+export const handleDownstreamErrors = (
   proxyRes: http.IncomingMessage,
   req: Request,
   res: Response
 ) => {
-  const statusCode = proxyRes.statusCode || 500;
-  if (statusCode >= 400) {
+  const promise = new Promise<void>((resolve, reject) => {
+    const statusCode = proxyRes.statusCode || 500;
+    if (statusCode < 400) {
+      return resolve();
+    }
+
     let body = "";
     proxyRes.on("data", (chunk) => (body += chunk));
     proxyRes.on("end", () => {
@@ -26,10 +31,15 @@ export const handleResponse = (
         : "There are no more keys available.";
       try {
         errorPayload = JSON.parse(body);
-      } catch (err) {
-        logger.error({ error: err }, errorPayload.error);
-        res.json(errorPayload);
-        return;
+      } catch (parseError) {
+        const error = parseError as Error;
+        logger.error({ error }, "Problem parsing error from OpenAI");
+        res.json({
+          error: "Problem parsing error from OpenAI",
+          body: body,
+          trace: error.stack,
+        });
+        return reject(error);
       }
 
       if (statusCode === 401) {
@@ -57,24 +67,34 @@ export const handleResponse = (
             `OpenAI rate limit exceeded or model overloaded. Keyhash ${req.key?.hash}`
           );
         }
+      } else if (statusCode === 404) {
+        // Most likely model not found
+        if (errorPayload.error?.code === "model_not_found") {
+          if (req.key!.isGpt4) {
+            keys.downgradeKey(req.key?.hash);
+          }
+          errorPayload.proxy_note =
+            "This key may have been incorrectly flagged as gpt-4 enabled.";
+        }
+      } else {
+        logger.error(
+          { error: errorPayload },
+          `Unexpected error from OpenAI. Keyhash ${req.key?.hash}`
+        );
       }
-
       res.status(statusCode).json(errorPayload);
+      reject(errorPayload);
     });
-  } else {
-    // Increment key's usage count if request was to a quota'd route
-    if (MODEL_ROUTES.includes(req.path)) {
-      keys.incrementPrompt(req.key?.hash);
-    }
-
-    Object.keys(proxyRes.headers).forEach((key) => {
-      res.setHeader(key, proxyRes.headers[key] as string);
-    });
-    proxyRes.pipe(res);
-  }
+  });
+  return promise;
 };
 
-export const onError: httpProxy.ErrorCallback = (err, _req, res) => {
+/** Handles errors in the request rewrite pipeline before proxying to OpenAI. */
+export const handleInternalError: httpProxy.ErrorCallback = (
+  err,
+  _req,
+  res
+) => {
   logger.error({ error: err }, "Error proxying to OpenAI");
 
   (res as http.ServerResponse).writeHead(500, {
@@ -90,4 +110,19 @@ export const onError: httpProxy.ErrorCallback = (err, _req, res) => {
       },
     })
   );
+};
+
+export const incrementKeyUsage = (req: Request) => {
+  if (QUOTA_ROUTES.includes(req.path)) {
+    keys.incrementPrompt(req.key?.hash);
+  }
+};
+
+export const copyHttpHeaders = (
+  proxyRes: http.IncomingMessage,
+  res: Response
+) => {
+  Object.keys(proxyRes.headers).forEach((key) => {
+    res.setHeader(key, proxyRes.headers[key] as string);
+  });
 };
