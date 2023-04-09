@@ -6,6 +6,7 @@ import { handleResponse, onError } from "./common";
 import { ipLimiter } from "./rate-limit";
 import {
   addKey,
+  languageFilter,
   disableStream,
   finalizeBody,
   limitOutputTokens,
@@ -18,6 +19,7 @@ const rewriteRequest = (
 ) => {
   const rewriterPipeline = [
     addKey,
+    languageFilter,
     disableStream,
     limitOutputTokens,
     finalizeBody,

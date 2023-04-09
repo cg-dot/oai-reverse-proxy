@@ -12,6 +12,10 @@ type Config = {
   modelRateLimit: number;
   /** Max number of tokens to generate. Requests which specify a higher value will be rewritten to use this value. */
   maxOutputTokens: number;
+  /** Whether requests containing disallowed characters should be rejected. */
+  rejectDisallowed?: boolean;
+  /** Message to return when rejecting requests. */
+  rejectMessage?: string;
   /** Logging threshold. */
   logLevel?: "debug" | "info" | "warn" | "error";
   /** Whether prompts and responses should be logged. */
@@ -24,6 +28,11 @@ export const config: Config = {
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 2),
   maxOutputTokens: getEnvWithDefault("MAX_OUTPUT_TOKENS", 256),
+  rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
+  rejectMessage: getEnvWithDefault(
+    "REJECT_MESSAGE",
+    "This content violates /aicg/'s acceptable use policy."
+  ),
   logLevel: getEnvWithDefault("LOG_LEVEL", "info"),
   logPrompts: getEnvWithDefault("LOG_PROMPTS", false),
 } as const;
