@@ -9,7 +9,7 @@ type Config = {
   /** Proxy key. If set, requests must provide this key in the Authorization header to use the proxy. */
   proxyKey?: string;
   /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
-  modelRateLimit: number; // TODO
+  modelRateLimit: number;
   /** Max number of tokens to generate. Requests which specify a higher value will be rewritten to use this value. */
   maxOutputTokens: number;
   /** Logging threshold. */

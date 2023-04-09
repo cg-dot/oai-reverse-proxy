@@ -3,6 +3,7 @@ import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { logger } from "../logger";
 import { handleResponse, onError } from "./common";
+import { ipLimiter } from "./rate-limit";
 import {
   addKey,
   disableStream,
@@ -45,12 +46,13 @@ const openaiProxy = createProxyMiddleware({
 });
 
 const openaiRouter = Router();
-openaiRouter.post("/v1/chat/completions", openaiProxy);
-// openaiRouter.post("/v1/completions", openaiProxy); // TODO: Implement Davinci
 openaiRouter.get("/v1/models", openaiProxy);
+// openaiRouter.post("/v1/completions", openaiProxy); // TODO: Implement Davinci
+openaiRouter.post("/v1/chat/completions", ipLimiter, openaiProxy);
 openaiRouter.use((req, res) => {
   logger.warn(`Blocked openai proxy request: ${req.method} ${req.path}`);
   res.status(404).json({ error: "Not found" });
 });
+
 
 export const openai = openaiRouter;

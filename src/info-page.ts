@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import showdown from "showdown";
-import { listConfig } from "./config";
+import { config, listConfig } from "./config";
 import { keys } from "./keys";
+import { getUniqueIps } from "./proxy/rate-limit";
 
 export const handleInfoPage = (req: Request, res: Response) => {
   // Huggingface puts spaces behind some cloudflare ssl proxy, so `req.protocol` is `http` but the correct URL is actually `https`
@@ -13,6 +14,7 @@ export const handleInfoPage = (req: Request, res: Response) => {
 
 function getInfoPageHtml(host: string) {
   const keylist = keys.list();
+  const rateLimitInfo = { proomptersLastFiveMinutes: getUniqueIps() };
   const info = {
     uptime: process.uptime(),
     timestamp: Date.now(),
@@ -20,6 +22,7 @@ function getInfoPageHtml(host: string) {
     kobold: host + "/proxy/kobold" + " (not yet implemented)",
     openai: host + "/proxy/openai",
     proompts: keylist.reduce((acc, k) => acc + k.promptCount, 0),
+    ...(config.modelRateLimit ? rateLimitInfo : {}),
     keys: {
       all: keylist.length,
       active: keylist.filter((k) => !k.isDisabled).length,

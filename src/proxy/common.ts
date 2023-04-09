@@ -4,6 +4,8 @@ import * as httpProxy from "http-proxy";
 import { logger } from "../logger";
 import { keys } from "../keys";
 
+const MODEL_ROUTES = ["/v1/chat/completions"];
+
 /** Handle and rewrite response to proxied requests to OpenAI */
 // TODO: This is a mess, fix it
 export const handleResponse = (
@@ -60,8 +62,10 @@ export const handleResponse = (
       res.status(statusCode).json(errorPayload);
     });
   } else {
-    // Increment key's usage count
-    keys.incrementPrompt(req.key?.hash);
+    // Increment key's usage count if request was to a quota'd route
+    if (MODEL_ROUTES.includes(req.path)) {
+      keys.incrementPrompt(req.key?.hash);
+    }
 
     Object.keys(proxyRes.headers).forEach((key) => {
       res.setHeader(key, proxyRes.headers[key] as string);
