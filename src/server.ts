@@ -17,6 +17,8 @@ app.use(
   express.json({ limit: "10mb" }),
   express.urlencoded({ extended: true, limit: "10mb" })
 );
+// trust proxy to set x-forwarded-for ips correctly
+app.set("trust proxy", true);
 // routes
 app.get("/", handleInfoPage);
 app.use("/proxy", proxyRouter);
