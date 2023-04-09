@@ -8,7 +8,7 @@ export const QUOTA_ROUTES = ["/v1/chat/completions"];
 
 /** Check for errors in the response from OpenAI and handle them. */
 // This is a mess of promises, callbacks and event listeners because none of
-// this low-level nodejs http shit is async/await friendly.
+// this low-level nodejs http is async/await friendly.
 export const handleDownstreamErrors = (
   proxyRes: http.IncomingMessage,
   req: Request,
@@ -31,15 +31,16 @@ export const handleDownstreamErrors = (
         : "There are no more keys available.";
       try {
         errorPayload = JSON.parse(body);
-      } catch (parseError) {
-        const error = parseError as Error;
-        logger.error({ error }, "Problem parsing error from OpenAI");
-        res.json({
-          error: "Problem parsing error from OpenAI",
+      } catch (parseError: any) {
+        const errorObject = {
+          error: parseError.message,
+          trace:  parseError.stack,
           body: body,
-          trace: error.stack,
-        });
-        return reject(error);
+        }
+        
+        logger.error(errorObject, "Unparseable error from OpenAI");
+        res.json(errorObject);
+        return reject(parseError.message);
       }
 
       if (statusCode === 401) {
