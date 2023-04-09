@@ -11,6 +11,8 @@ pinned: false
 
 Simple reverse proxy server for the OpenAI API.
 
+[![Run on Repl.it](https://replit.com/badge/github/nai-degen/oai-reverse-proxy)](https://replit.com/new/github/nai-degen/oai-reverse-proxy)
+
 ## What is this?
 If you have an API key you want to share with a friend, you can use this to keep your key safe while still allowing them to generate text with the API.
 
@@ -51,3 +53,6 @@ If you still want to share access to your key, you can put it behind this proxy 
 - However, if you want to protect access to the server, you can add another secret called `PROXY_KEY`.  This key will need to be passed in the Authentication header of every request to the server, just like an OpenAI API key.
 
 **Note:** The `keys` section in the serverinfo screen may not correctly identify keys as trial/paid/GPT-4 unless you use the more advanced configuration described in `.env.example`.
+
+
+
