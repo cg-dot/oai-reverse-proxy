@@ -63,6 +63,14 @@ export const ipLimiter = (req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
+  // Exempt Agnai.chat from rate limiting since it's shared between a lot of
+  // users. Dunno how to prevent this from being abused without some sort of
+  // identifier sent from Agnaistic to identify specific users.
+  if (req.ip === "157.230.249.32") {
+    next();
+    return;
+  }
+
   const { remaining, reset } = getStatus(req.ip);
   res.set("X-RateLimit-Limit", config.modelRateLimit.toString());
   res.set("X-RateLimit-Remaining", remaining.toString());
