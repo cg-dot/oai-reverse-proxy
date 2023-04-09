@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import * as http from "http";
+import util from "util";
+import zlib from "zlib";
 import * as httpProxy from "http-proxy";
 import { logger } from "../logger";
 import { keys } from "../keys";
@@ -20,9 +22,20 @@ export const handleDownstreamErrors = (
       return resolve();
     }
 
-    let body = "";
-    proxyRes.on("data", (chunk) => (body += chunk));
-    proxyRes.on("end", () => {
+    let chunks: Buffer[] = [];
+    proxyRes.on("data", (chunk) => chunks.push(chunk));
+    proxyRes.on("end", async () => {
+      let body = Buffer.concat(chunks);
+      const contentEncoding = proxyRes.headers["content-encoding"];
+
+      if (contentEncoding === "gzip") {
+        body = await util.promisify(zlib.gunzip)(body);
+      } else if (contentEncoding === "deflate") {
+        body = await util.promisify(zlib.inflate)(body);
+      }
+
+      const bodyString = body.toString();
+
       let errorPayload: any = {
         error: "Proxy couldn't parse error from OpenAI",
       };
@@ -30,14 +43,14 @@ export const handleDownstreamErrors = (
         ? "You can try again to get a different key."
         : "There are no more keys available.";
       try {
-        errorPayload = JSON.parse(body);
+        errorPayload = JSON.parse(bodyString);
       } catch (parseError: any) {
         const errorObject = {
           error: parseError.message,
-          trace:  parseError.stack,
-          body: body,
-        }
-        
+          trace: parseError.stack,
+          body: bodyString,
+        };
+
         logger.error(errorObject, "Unparseable error from OpenAI");
         res.json(errorObject);
         return reject(parseError.message);

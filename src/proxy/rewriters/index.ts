@@ -7,6 +7,7 @@ export { languageFilter } from "./language-filter";
 export { disableStream } from "./disable-stream";
 export { limitOutputTokens } from "./limit-output-tokens";
 export { finalizeBody } from "./finalize-body";
+export { transformKoboldPayload } from "./transform-kobold-payload";
 
 export type ExpressHttpProxyReqCallback = ProxyReqCallback<
   ClientRequest,

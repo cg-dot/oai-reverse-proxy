@@ -4,6 +4,8 @@ requests to OpenAI API equivalents. */
 import { Request, Response, Router } from "express";
 import http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import util from "util";
+import zlib from "zlib";
 import { logger } from "../logger";
 import {
   copyHttpHeaders,
@@ -17,8 +19,8 @@ import {
   finalizeBody,
   languageFilter,
   limitOutputTokens,
+  transformKoboldPayload,
 } from "./rewriters";
-import { transformKoboldPayload } from "./rewriters/transform-kobold-payload";
 
 export const handleModelRequest = (_req: Request, res: Response) => {
   res.status(200).json({ result: "Connected to OpenAI reverse proxy" });
@@ -68,10 +70,20 @@ const handleProxiedResponse = async (
 
   // For Kobold we need to consume the response body to turn it into a KoboldAI
   // response payload.
-  let body = "";
-  proxyRes.on("data", (chunk) => (body += chunk));
-  proxyRes.on("end", () => {
-    const response = JSON.parse(body);
+  let chunks: Buffer[] = [];
+  proxyRes.on("data", (chunk) => chunks.push(chunk));
+  proxyRes.on("end", async () => {
+    let body = Buffer.concat(chunks);
+    const contentEncoding = proxyRes.headers["content-encoding"];
+
+    if (contentEncoding === "gzip") {
+      body = await util.promisify(zlib.gunzip)(body);
+    } else if (contentEncoding === "deflate") {
+      body = await util.promisify(zlib.inflate)(body);
+    }
+
+    const response = JSON.parse(body.toString());
+
     const koboldResponse = {
       results: [{ text: response.choices[0].message.content }],
     };
