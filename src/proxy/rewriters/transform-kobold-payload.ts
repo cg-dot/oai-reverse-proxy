@@ -79,7 +79,10 @@ export const transformKoboldPayload: ExpressHttpProxyReqCallback = (
   // gpt4, use it, otherwise use gpt3.5-turbo. If the key was incorrectly
   // assigned, we'll get an error from OpenAI but the key will be downgraded
   // for the next request.
-  const model = req.key!.isGpt4 ? "gpt-4" : "gpt-3.5-turbo";
+
+  // const model = req.key!.isGpt4 ? "gpt-4" : "gpt-3.5-turbo"; //TODO: this is fucked, fix it later
+
+  const model = "gpt-3.5-turbo";
   const newBody = {
     model,
     temperature,
