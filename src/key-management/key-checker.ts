@@ -2,8 +2,8 @@ import axios, { AxiosError } from "axios";
 import { logger } from "../logger";
 import type { Key, KeyPool } from "./key-pool";
 
-const ONE_MINUTE = 60 * 1000;
-const FIVE_MINUTES = 5 * ONE_MINUTE;
+const MIN_CHECK_INTERVAL = 30 * 1000; // 30 seconds
+const KEY_CHECK_PERIOD = 5 * 60 * 1000; // 5 minutes
 
 const GET_MODELS_URL = "https://api.openai.com/v1/models";
 const GET_SUBSCRIPTION_URL =
@@ -31,6 +31,7 @@ export class KeyChecker {
   private log = logger.child({ module: "KeyChecker" });
   private timeout?: NodeJS.Timeout;
   private updateKey: typeof KeyPool.prototype.update;
+  private lastCheck = 0;
 
   constructor(keys: Key[], updateKey: typeof KeyPool.prototype.update) {
     this.keys = keys;
@@ -57,12 +58,11 @@ export class KeyChecker {
     const enabledKeys = this.keys.filter((key) => !key.isDisabled);
 
     if (enabledKeys.length === 0) {
-      this.log.warn(
-        "There are no enabled keys. Key checking will be disabled."
-      );
+      this.log.warn("All keys are disabled. Key checker stopping.");
       return;
     }
 
+    // Perform startup checks for any keys that haven't been checked yet.
     const uncheckedKeys = enabledKeys.filter((key) => !key.lastChecked);
     if (uncheckedKeys.length > 0) {
       this.log.info(
@@ -73,30 +73,20 @@ export class KeyChecker {
       return;
     }
 
-    // A check can be performed once per 30 seconds, but no individual key can
-    // be checked more than once every five minutes.
-    const keysToCheck = enabledKeys.filter(
-      (key) => Date.now() - key.lastChecked > FIVE_MINUTES
+    // Don't check any individual key more than once every 5 minutes.
+    // Also, don't check anything more often than once every 30 seconds.
+    const nextCheck = Math.max(
+      this.lastCheck + KEY_CHECK_PERIOD,
+      Date.now() + MIN_CHECK_INTERVAL
     );
 
-    if (keysToCheck.length === 0) {
-      this.timeout = setTimeout(() => this.scheduleNextCheck(), FIVE_MINUTES);
-      return;
-    }
-
-    keysToCheck.sort((a, b) => a.lastChecked - b.lastChecked);
-    const oldestKey = keysToCheck[0];
-
-    const timeUntilNextCheck =
-      FIVE_MINUTES - (Date.now() - oldestKey.lastChecked);
-    this.log.info(
-      { key: oldestKey.hash, seconds: timeUntilNextCheck / 1000 },
-      "Scheduling next check for key."
+    // Schedule the next check for the oldest key.
+    const oldestKey = enabledKeys.reduce((oldest, key) =>
+      key.lastChecked < oldest.lastChecked ? key : oldest
     );
-    this.timeout = setTimeout(
-      () => this.checkKey(oldestKey),
-      timeUntilNextCheck
-    );
+
+    const delay = nextCheck - Date.now();
+    this.timeout = setTimeout(() => this.checkKey(oldestKey), delay);
   }
 
   private async checkKey(key: Key) {
@@ -118,9 +108,12 @@ export class KeyChecker {
       this.updateKey(key.hash, updates);
       this.log.info({ key: key.hash, updates }, "Key check complete.");
     } catch (error) {
+      // touch the key so we don't check it again for a while
+      this.updateKey(key.hash, {});
       this.handleAxiosError(key, error as AxiosError);
     }
 
+    this.lastCheck = Date.now();
     this.scheduleNextCheck();
   }
 
@@ -160,7 +153,7 @@ export class KeyChecker {
           { key: key.hash, error: data },
           "Key is invalid or revoked. Disabling key."
         );
-        key.isDisabled = true;
+        this.updateKey(key.hash, { isDisabled: true });
       } else {
         this.log.error(
           { key: key.hash, status, error: data },

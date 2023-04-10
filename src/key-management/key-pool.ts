@@ -35,7 +35,7 @@ export type Key = {
 
 export type KeyUpdate = Omit<
   Partial<Key>,
-  "key" | "hash" | "isDisabled" | "lastUsed" | "lastChecked" | "promptCount"
+  "key" | "hash" | "lastUsed" | "lastChecked" | "promptCount"
 >;
 
 export class KeyPool {
