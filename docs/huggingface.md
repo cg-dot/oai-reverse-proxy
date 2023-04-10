@@ -24,8 +24,7 @@ RUN apt-get update && \
     apt-get install -y git
 RUN git clone https://github.com/nai-degen/oai-reverse-proxy.git /app
 WORKDIR /app
-RUN git rev-parse HEAD > git-commit-sha.txt
-ENV SHA=$(cat git-commit-sha.txt)
+ENV NODE_ENV=production
 RUN npm install
 COPY . .
 RUN npm run build
@@ -57,7 +56,9 @@ CMD [ "npm", "start" ]
 
 ## Updating the server
 
-You can just restart your server to have it pull the latest version of the code from GitHub.
+To update your server, go to the Settings menu and select `Factory Reboot`.  This will pull the latest version of the code from GitHub and restart the server.
+
+Note that if you just perform a regular Restart, the server will be restarted with the same code that was running before.
 
 ## Customizing the server
 

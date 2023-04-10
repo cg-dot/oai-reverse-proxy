@@ -1,6 +1,8 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+const isDev = process.env.NODE_ENV !== "production";
+
 type Config = {
   /** The port the proxy server will listen on. */
   port: number;
@@ -26,12 +28,14 @@ type Config = {
   checkKeys?: boolean;
 };
 
+// To change configs, create a file called .env in the root directory.
+// See .env.example for an example.
 export const config: Config = {
   port: getEnvWithDefault("PORT", 7860),
   openaiKey: getEnvWithDefault("OPENAI_KEY", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
-  modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 2),
-  maxOutputTokens: getEnvWithDefault("MAX_OUTPUT_TOKENS", 256),
+  modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
+  maxOutputTokens: getEnvWithDefault("MAX_OUTPUT_TOKENS", 300),
   rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
   rejectSampleRate: getEnvWithDefault("REJECT_SAMPLE_RATE", 0.2),
   rejectMessage: getEnvWithDefault(
@@ -39,8 +43,8 @@ export const config: Config = {
     "This content violates /aicg/'s acceptable use policy."
   ),
   logLevel: getEnvWithDefault("LOG_LEVEL", "info"),
-  logPrompts: getEnvWithDefault("LOG_PROMPTS", false),
-  checkKeys: getEnvWithDefault("CHECK_KEYS", true),
+  logPrompts: getEnvWithDefault("LOG_PROMPTS", false), // Not yet implemented
+  checkKeys: getEnvWithDefault("CHECK_KEYS", !isDev),
 } as const;
 
 export const SENSITIVE_KEYS: (keyof Config)[] = ["proxyKey", "openaiKey"];
