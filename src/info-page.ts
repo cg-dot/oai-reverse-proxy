@@ -53,6 +53,7 @@ function getInfoPageHtml(host: string) {
     ...(config.modelRateLimit ? { proomptingNow: getUniqueIps() } : {}),
     keyInfo,
     config: listConfig(),
+    sha: (process.env.SHA?.slice(0, 7) || "dev").toUpperCase(),
   };
 
   const readme = require("fs").readFileSync("README.md", "utf8");

@@ -24,6 +24,8 @@ RUN apt-get update && \
     apt-get install -y git
 RUN git clone https://github.com/nai-degen/oai-reverse-proxy.git /app
 WORKDIR /app
+RUN git rev-parse HEAD > git-commit-sha.txt
+ENV SHA=$(cat git-commit-sha.txt)
 RUN npm install
 COPY . .
 RUN npm run build
