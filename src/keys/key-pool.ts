@@ -2,8 +2,8 @@
 round-robin access to keys. Keys are stored in the OPENAI_KEY environment
 variable, either as a single key, or a base64-encoded JSON array of keys.*/
 import crypto from "crypto";
-import { config } from "./config";
-import { logger } from "./logger";
+import { config } from "../config";
+import { logger } from "../logger";
 
 /** Represents a key stored in the OPENAI_KEY environment variable. */
 type KeySchema = {

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import showdown from "showdown";
 import { config, listConfig } from "./config";
-import { keys } from "./keys";
+import { keys } from "./keys/key-pool";
 import { getUniqueIps } from "./proxy/rate-limit";
 
 export const handleInfoPage = (req: Request, res: Response) => {

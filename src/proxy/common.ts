@@ -4,7 +4,7 @@ import util from "util";
 import zlib from "zlib";
 import * as httpProxy from "http-proxy";
 import { logger } from "../logger";
-import { keys } from "../keys";
+import { keys } from "../keys/key-pool";
 
 export const QUOTA_ROUTES = ["/v1/chat/completions"];
 

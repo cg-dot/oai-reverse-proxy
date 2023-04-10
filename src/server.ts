@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { logger } from "./logger";
-import { keys } from "./keys";
+import { keys } from "./keys/key-pool";
 import { proxyRouter, rewriteTavernRequests } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
 
