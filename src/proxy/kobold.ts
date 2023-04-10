@@ -86,8 +86,22 @@ const handleProxiedResponse = async (
 
     const koboldResponse = {
       results: [{ text: response.choices[0].message.content }],
+      model: response.model,
     };
-    res.status(200).json(koboldResponse);
+
+    // Because we have decompressed the OpenAI response, we need to re-compress it
+    // before sending it to the client.
+    if (contentEncoding === "gzip") {
+      res.set("Content-Encoding", "gzip");
+      res.send(await util.promisify(zlib.gzip)(JSON.stringify(koboldResponse)));
+    } else if (contentEncoding === "deflate") {
+      res.set("Content-Encoding", "deflate");
+      res.send(
+        await util.promisify(zlib.deflate)(JSON.stringify(koboldResponse))
+      );
+    } else {
+      res.send(JSON.stringify(koboldResponse));
+    }
   });
 };
 
