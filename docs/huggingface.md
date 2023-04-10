@@ -58,11 +58,22 @@ You can just restart your server to have it pull the latest version of the code 
 
 ## Customizing the server
 
-The server will be started with some default configuration, but you can override it by adding a `.env` file to your space.  You can use Huggingface's web editor to create a new `.env` file alongside your Dockerfile.
+The server will be started with some default configuration, but you can override it by adding a `.env` file to your space.  You can use Huggingface's web editor to create a new `.env` file alongside your Dockerfile. Huggingface will restart your server automatically when you save the file.
 
-See [.env.example](.env.example) for a list of available configuration options, which include rate limiting, request filtering, logging, and more.
+Here are some example settings:
+```shell
+# Requests per minute per IP address
+MODEL_RATE_LIMIT=2
+# Max tokens to request from OpenAI
+MAX_OUTPUT_TOKENS=256
+LOG_LEVEL=info
+LOG_PROMPTS=false
+# Block prompts containing disallowed characters
+REJECT_DISALLOWED=false
+REJECT_MESSAGE="This content violates /aicg/'s acceptable use policy."
+```
 
-After creating your `.env` file, Huggingface will restart your server automatically.
+See `.env.example` for a full list of available settings, or check `config.ts` for details on what each setting does.
 
 ## Restricting access to the server
 
