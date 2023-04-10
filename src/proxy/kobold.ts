@@ -13,6 +13,7 @@ import {
   handleInternalError,
   incrementKeyUsage,
 } from "./common";
+import { ipLimiter } from "./rate-limit";
 import {
   addKey,
   disableStream,
@@ -123,7 +124,7 @@ const koboldOaiProxy = createProxyMiddleware({
 const koboldRouter = Router();
 koboldRouter.get("/api/v1/model", handleModelRequest);
 koboldRouter.get("/api/v1/config/soft_prompts_list", handleSoftPromptsRequest);
-koboldRouter.post("/api/v1/generate", koboldOaiProxy);
+koboldRouter.post("/api/v1/generate", ipLimiter, koboldOaiProxy);
 koboldRouter.use((req, res) => {
   logger.warn(`Unhandled kobold request: ${req.method} ${req.path}`);
   res.status(404).json({ error: "Not found" });
