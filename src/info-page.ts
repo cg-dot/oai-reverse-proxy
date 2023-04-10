@@ -26,11 +26,17 @@ function getInfoPageHtml(host: string) {
       status: `Still checking ${uncheckedKeys.length} keys...`,
     };
   } else if (config.checkKeys) {
+    const hasGpt4 = keys.some((k) => k.isGpt4);
     keyInfo = {
       ...keyInfo,
       trial: keys.filter((k) => k.isTrial).length,
       gpt4: keys.filter((k) => k.isGpt4).length,
-      remainingQuota: `${Math.round(keyPool.calculateRemainingQuota() * 100)}%`,
+      quotaLeft: {
+        all: `${Math.round(keyPool.remainingQuota() * 100)}%`,
+        ...(hasGpt4
+          ? { gpt4: `${Math.round(keyPool.remainingQuota(true) * 100)}%` }
+          : {}),
+      },
     };
   }
 

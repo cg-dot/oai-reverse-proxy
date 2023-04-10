@@ -121,9 +121,14 @@ export class KeyPool {
     return { ...oldestKey };
   }
 
+  /** Called by the key checker to update key information. */
   public update(keyHash: string, update: KeyUpdate) {
     const keyFromPool = this.keys.find((k) => k.hash === keyHash)!;
     Object.assign(keyFromPool, { ...update, lastChecked: Date.now() });
+    // Disable the key if it's over the hard limit, provi
+    if (update.usage && keyFromPool.usage >= keyFromPool.hardLimit) {
+      this.disable(keyFromPool);
+    }
   }
 
   public disable(key: Key) {
@@ -158,7 +163,7 @@ export class KeyPool {
   }
 
   /** Returns the remaining aggregate quota for all keys as a percentage. */
-  public calculateRemainingQuota(gpt4Only = false) {
+  public remainingQuota(gpt4Only = false) {
     const keys = this.keys.filter((k) => !gpt4Only || k.isGpt4);
     if (keys.length === 0) return 0;
 

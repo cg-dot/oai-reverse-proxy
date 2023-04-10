@@ -24,11 +24,11 @@ RUN apt-get update && \
     apt-get install -y git
 RUN git clone https://github.com/nai-degen/oai-reverse-proxy.git /app
 WORKDIR /app
-ENV NODE_ENV=production
 RUN npm install
-COPY . .
+COPY Dockerfile .env* ./
 RUN npm run build
 EXPOSE 7860
+ENV NODE_ENV=production
 CMD [ "npm", "start" ]
 ```
 - Click "Commit new file to `main`" to save the Dockerfile.
