@@ -26,14 +26,16 @@ type GetUsageResponse = {
   total_usage: number;
 };
 
+type UpdateFn = typeof KeyPool.prototype.update;
+
 export class KeyChecker {
   private readonly keys: Key[];
   private log = logger.child({ module: "KeyChecker" });
   private timeout?: NodeJS.Timeout;
-  private updateKey: typeof KeyPool.prototype.update;
+  private updateKey: UpdateFn;
   private lastCheck = 0;
 
-  constructor(keys: Key[], updateKey: typeof KeyPool.prototype.update) {
+  constructor(keys: Key[], updateKey: UpdateFn) {
     this.keys = keys;
     this.updateKey = updateKey;
   }
