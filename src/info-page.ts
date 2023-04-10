@@ -37,9 +37,7 @@ function getInfoPageHtml(host: string) {
   const info = {
     uptime: process.uptime(),
     timestamp: Date.now(),
-    // Describes the URLs each client app and adapter should use to connect
     appUrls: {
-      baseUrl: host,
       tavern: {
         kobold: host,
         openai: host + "/proxy/openai/v1",
@@ -50,12 +48,12 @@ function getInfoPageHtml(host: string) {
       },
     },
     proompts: keys.reduce((acc, k) => acc + k.promptCount, 0),
-    ...(config.modelRateLimit ? { proomptingNow: getUniqueIps() } : {}),
+    ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
     keyInfo,
     config: listConfig(),
   };
 
-  const readme = require("fs").readFileSync("README.md", "utf8");
+  const readme = require("fs").readFileSync("info-page.md", "utf8");
   const readmeBody = readme.split("---")[2] || readme;
   const converter = new showdown.Converter();
   const html = converter.makeHtml(readmeBody);
