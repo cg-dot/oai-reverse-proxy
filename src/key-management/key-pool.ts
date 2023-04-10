@@ -93,9 +93,9 @@ export class KeyPool {
 
   public get(model: string) {
     const needsGpt4Key = model.startsWith("gpt-4");
-    const availableKeys = this.keys.filter(
-      (key) => !key.isDisabled && (!needsGpt4Key || key.isGpt4)
-    );
+    const availableKeys = this.keys
+      .filter((key) => !key.isDisabled && (!needsGpt4Key || key.isGpt4))
+      .sort((a, b) => a.lastUsed - b.lastUsed);
     if (availableKeys.length === 0) {
       let message = "No keys available. Please add more keys.";
       if (needsGpt4Key) {
@@ -115,7 +115,7 @@ export class KeyPool {
     }
 
     // Otherwise, return the oldest key
-    const oldestKey = availableKeys.sort((a, b) => a.lastUsed - b.lastUsed)[0];
+    const oldestKey = availableKeys[0];
     this.log.info({ key: oldestKey.hash }, "Assigning key to request.");
     oldestKey.lastUsed = Date.now();
     return { ...oldestKey };

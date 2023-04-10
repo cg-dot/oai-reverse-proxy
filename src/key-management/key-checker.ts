@@ -73,16 +73,21 @@ export class KeyChecker {
       return;
     }
 
-    // Don't check any individual key more than once every 5 minutes.
-    // Also, don't check anything more often than once every 30 seconds.
-    const nextCheck = Math.max(
-      this.lastCheck + KEY_CHECK_PERIOD,
-      Date.now() + MIN_CHECK_INTERVAL
-    );
-
     // Schedule the next check for the oldest key.
     const oldestKey = enabledKeys.reduce((oldest, key) =>
       key.lastChecked < oldest.lastChecked ? key : oldest
+    );
+
+    // Don't check any individual key more than once every 5 minutes.
+    // Also, don't check anything more often than once every 30 seconds.
+    const nextCheck = Math.max(
+      oldestKey.lastChecked + KEY_CHECK_PERIOD,
+      this.lastCheck + MIN_CHECK_INTERVAL
+    );
+
+    this.log.info(
+      { key: oldestKey.hash, nextCheck: new Date(nextCheck) },
+      "Scheduling next check."
     );
 
     const delay = nextCheck - Date.now();
@@ -92,21 +97,42 @@ export class KeyChecker {
   private async checkKey(key: Key) {
     this.log.info({ key: key.hash }, "Checking key...");
     try {
-      const [provisionedModels, subscription, usage] = await Promise.all([
-        this.getProvisionedModels(key),
-        this.getSubscription(key),
-        this.getUsage(key),
-      ]);
-      const updates = {
-        isGpt4: provisionedModels.gpt4,
-        isTrial: !subscription.has_payment_method,
-        softLimit: subscription.soft_limit_usd,
-        hardLimit: subscription.hard_limit_usd,
-        systemHardLimit: subscription.system_hard_limit_usd,
-        usage,
-      };
-      this.updateKey(key.hash, updates);
-      this.log.info({ key: key.hash, updates }, "Key check complete.");
+      // During the initial check we need to get the subscription first because
+      // trials have different behavior.
+      if (!key.lastChecked) {
+        const subscription = await this.getSubscription(key);
+        this.updateKey(key.hash, { isTrial: !subscription.has_payment_method });
+        const [provisionedModels, usage] = await Promise.all([
+          this.getProvisionedModels(key),
+          this.getUsage(key),
+        ]);
+        const updates = {
+          isGpt4: provisionedModels.gpt4,
+          softLimit: subscription.soft_limit_usd,
+          hardLimit: subscription.hard_limit_usd,
+          systemHardLimit: subscription.system_hard_limit_usd,
+          usage,
+        };
+        this.updateKey(key.hash, updates);
+      } else {
+        // Don't check provisioned models after the initial check because it's
+        // not likely to change.
+        const [subscription, usage] = await Promise.all([
+          this.getSubscription(key),
+          this.getUsage(key),
+        ]);
+        const updates = {
+          softLimit: subscription.soft_limit_usd,
+          hardLimit: subscription.hard_limit_usd,
+          systemHardLimit: subscription.system_hard_limit_usd,
+          usage,
+        };
+        this.updateKey(key.hash, updates);
+      }
+      this.log.info(
+        { key: key.hash, usage: key.usage, hardLimit: key.hardLimit },
+        "Key check complete."
+      );
     } catch (error) {
       // touch the key so we don't check it again for a while
       this.updateKey(key.hash, {});
