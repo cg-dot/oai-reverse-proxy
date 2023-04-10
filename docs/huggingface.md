@@ -24,9 +24,7 @@ RUN apt-get update && \
     apt-get install -y git
 RUN git clone https://github.com/nai-degen/oai-reverse-proxy.git /app
 WORKDIR /app
-COPY package*.json ./
 RUN npm install
-COPY . .
 RUN npm run build
 EXPOSE 7860
 CMD [ "npm", "start" ]
@@ -51,7 +49,23 @@ CMD [ "npm", "start" ]
 ### 6. Share the link
 - The Service Info section below should show the URL for your server. You can share this with anyone to safely give them access to your OpenAI API key.
 - Your friend doesn't need any OpenAI API key of their own, they just need your link.
-- However, if you want to protect access to the server, you can add another secret called `PROXY_KEY`.  This key will need to be passed in the Authentication header of every request to the server, just like an OpenAI API key.
 
+# Optional
 
+## Updating the server
 
+You can just restart your server to have it pull the latest version of the code from GitHub.
+
+## Customizing the server
+
+The server will be started with some default configuration, but you can override it by adding a `.env` file to your space.  You can use Huggingface's web editor to create a new `.env` file alongside your Dockerfile.
+
+See [.env.example](.env.example) for a list of available configuration options, which include rate limiting, request filtering, logging, and more.
+
+After creating your `.env` file, Huggingface will restart your server automatically.
+
+## Restricting access to the server
+
+If you want to restrict access to the server, you can set a `PROXY_KEY` secret.  This key will need to be passed in the Authentication header of every request to the server, just like an OpenAI API key.
+
+Add this using the same method as the OPENAI_KEY secret above. Don't add this to your `.env` file because that file is public and anyone can see it.
