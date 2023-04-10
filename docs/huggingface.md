@@ -25,6 +25,7 @@ RUN apt-get update && \
 RUN git clone https://github.com/nai-degen/oai-reverse-proxy.git /app
 WORKDIR /app
 RUN npm install
+COPY . .
 RUN npm run build
 EXPOSE 7860
 CMD [ "npm", "start" ]
