@@ -198,10 +198,10 @@ export class KeyChecker {
     // For paid keys, the limit resets every month, so we can use the current
     // month as the start date.
     // For trial keys, the limit does not reset, so we need to use the start
-    // date of the trial. We don't know that but it can be at most 90 days ago.
+    // date of the trial. We use 100 days ago because that is the maximum.
     const today = new Date();
     const startDate = isTrial
-      ? new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000)
+      ? new Date(today.getTime() - 100 * 24 * 60 * 60 * 1000)
       : new Date(today.getFullYear(), today.getMonth(), 1);
     return `start_date=${startDate.toISOString().split("T")[0]}&end_date=${
       today.toISOString().split("T")[0]

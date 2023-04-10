@@ -130,6 +130,9 @@ export class KeyPool {
     const keyFromPool = this.keys.find((k) => k.key === key.key)!;
     if (keyFromPool.isDisabled) return;
     keyFromPool.isDisabled = true;
+    // If it's disabled just set the usage to the hard limit so it doesn't
+    // mess with the aggregate usage.
+    keyFromPool.usage = keyFromPool.hardLimit;
     this.log.warn({ key: key.hash }, "Key disabled");
   }
 
@@ -156,8 +159,7 @@ export class KeyPool {
 
   /** Returns the remaining aggregate quota for all keys as a percentage. */
   public calculateRemainingQuota(gpt4Only = false) {
-    const keys = gpt4Only ? this.keys.filter((k) => k.isGpt4) : this.keys;
-
+    const keys = this.keys.filter((k) => !gpt4Only || k.isGpt4);
     if (keys.length === 0) return 0;
 
     const totalUsage = keys.reduce((acc, key) => {
