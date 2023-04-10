@@ -22,6 +22,8 @@ type Config = {
   logLevel?: "debug" | "info" | "warn" | "error";
   /** Whether prompts and responses should be logged. */
   logPrompts?: boolean; // TODO
+  /** Whether to periodically check keys for usage and validity. */
+  checkKeys?: boolean;
 };
 
 export const config: Config = {
@@ -38,6 +40,7 @@ export const config: Config = {
   ),
   logLevel: getEnvWithDefault("LOG_LEVEL", "info"),
   logPrompts: getEnvWithDefault("LOG_PROMPTS", false),
+  checkKeys: getEnvWithDefault("CHECK_KEYS", true),
 } as const;
 
 export const SENSITIVE_KEYS: (keyof Config)[] = ["proxyKey", "openaiKey"];

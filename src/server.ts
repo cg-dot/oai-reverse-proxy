@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { logger } from "./logger";
-import { keys } from "./keys/key-pool";
+import { keyPool } from "./key-management";
 import { proxyRouter, rewriteTavernRequests } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
 
@@ -44,5 +44,5 @@ app.use((_req: unknown, res: express.Response) => {
 // start server and load keys
 app.listen(PORT, () => {
   logger.info(`Server listening on port ${PORT}`);
-  keys.init();
+  keyPool.init();
 });

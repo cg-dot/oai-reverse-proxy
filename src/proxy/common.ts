@@ -4,7 +4,7 @@ import util from "util";
 import zlib from "zlib";
 import * as httpProxy from "http-proxy";
 import { logger } from "../logger";
-import { keys } from "../keys/key-pool";
+import { keyPool } from "../key-management";
 
 export const QUOTA_ROUTES = ["/v1/chat/completions"];
 
@@ -39,7 +39,7 @@ export const handleDownstreamErrors = (
       let errorPayload: any = {
         error: "Proxy couldn't parse error from OpenAI",
       };
-      const canTryAgain = keys.anyAvailable()
+      const canTryAgain = keyPool.anyAvailable()
         ? "You can try again to get a different key."
         : "There are no more keys available.";
       try {
@@ -61,7 +61,7 @@ export const handleDownstreamErrors = (
         logger.warn(
           `OpenAI key is invalid or revoked. Keyhash ${req.key?.hash}`
         );
-        keys.disable(req.key!);
+        keyPool.disable(req.key!);
         const message = `The OpenAI key is invalid or revoked. ${canTryAgain}`;
         errorPayload.proxy_note = message;
       } else if (statusCode === 429) {
@@ -72,7 +72,7 @@ export const handleDownstreamErrors = (
         // - Model overloaded, their server is overloaded
         if (errorPayload.error?.type === "insufficient_quota") {
           logger.warn(`OpenAI key is exhausted. Keyhash ${req.key?.hash}`);
-          keys.disable(req.key!);
+          keyPool.disable(req.key!);
           const message = `The OpenAI key is exhausted. ${canTryAgain}`;
           errorPayload.proxy_note = message;
         } else {
@@ -85,7 +85,7 @@ export const handleDownstreamErrors = (
         // Most likely model not found
         if (errorPayload.error?.code === "model_not_found") {
           if (req.key!.isGpt4) {
-            keys.downgradeKey(req.key?.hash);
+            keyPool.downgradeKey(req.key?.hash);
           }
           errorPayload.proxy_note =
             "This key may have been incorrectly flagged as gpt-4 enabled.";
@@ -128,7 +128,7 @@ export const handleInternalError: httpProxy.ErrorCallback = (
 
 export const incrementKeyUsage = (req: Request) => {
   if (QUOTA_ROUTES.includes(req.path)) {
-    keys.incrementPrompt(req.key?.hash);
+    keyPool.incrementPrompt(req.key?.hash);
   }
 };
 

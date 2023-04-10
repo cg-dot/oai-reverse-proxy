@@ -1,5 +1,5 @@
 import { Express } from "express-serve-static-core";
-import { Key } from "../keys/key-pool";
+import { Key } from "../key-management/key-pool";
 
 declare global {
   namespace Express {

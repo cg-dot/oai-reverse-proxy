@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import showdown from "showdown";
 import { config, listConfig } from "./config";
-import { keys } from "./keys/key-pool";
+import { keyPool } from "./key-management";
 import { getUniqueIps } from "./proxy/rate-limit";
 
 export const handleInfoPage = (req: Request, res: Response) => {
@@ -13,22 +13,45 @@ export const handleInfoPage = (req: Request, res: Response) => {
 };
 
 function getInfoPageHtml(host: string) {
-  const keylist = keys.list();
-  const rateLimitInfo = { proomptersLastFiveMinutes: getUniqueIps() };
+  const keys = keyPool.list();
+  let keyInfo: Record<string, any> = {
+    all: keys.length,
+    active: keys.filter((k) => !k.isDisabled).length,
+  };
+
+  if (keyPool.anyUnchecked()) {
+    const uncheckedKeys = keys.filter((k) => !k.lastChecked);
+    keyInfo = {
+      ...keyInfo,
+      status: `Still checking ${uncheckedKeys.length} keys...`,
+    };
+  } else if (config.checkKeys) {
+    keyInfo = {
+      ...keyInfo,
+      trial: keys.filter((k) => k.isTrial).length,
+      gpt4: keys.filter((k) => k.isGpt4).length,
+      remainingQuota: `${Math.round(keyPool.calculateRemainingQuota() * 100)}%`,
+    };
+  }
+
   const info = {
     uptime: process.uptime(),
     timestamp: Date.now(),
-    baseUrl: host,
-    kobold: host, // kobold doesn't need the suffix
-    openai: host + "/proxy/openai",
-    proompts: keylist.reduce((acc, k) => acc + k.promptCount, 0),
-    ...(config.modelRateLimit ? rateLimitInfo : {}),
-    keys: {
-      all: keylist.length,
-      active: keylist.filter((k) => !k.isDisabled).length,
-      trial: keylist.filter((k) => k.isTrial).length,
-      gpt4: keylist.filter((k) => k.isGpt4).length,
+    // Describes the URLs each client app and adapter should use to connect
+    appUrls: {
+      baseUrl: host,
+      tavern: {
+        kobold: host,
+        openai: host + "/proxy/openai/v1",
+      },
+      agnaistic: {
+        kobold: host,
+        openai: host + "/proxy/openai",
+      },
     },
+    proompts: keys.reduce((acc, k) => acc + k.promptCount, 0),
+    ...(config.modelRateLimit ? { proomptingNow: getUniqueIps() } : {}),
+    keyInfo,
     config: listConfig(),
   };
 
