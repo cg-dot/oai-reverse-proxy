@@ -14,7 +14,7 @@ This repository can be deployed to a [Huggingface Space](https://huggingface.co/
 ![Create Space](huggingface-createspace.png)
 
 ### 3. Create an empty Dockerfile
-- Once your space is created, you'll see an option to "Create the Dockerfile in your browser".  Click that link.
+- Once your Space is created, you'll see an option to "Create the Dockerfile in your browser".  Click that link.
 
 ![Create Dockerfile](huggingface-dockerfile.png)
 - Paste the following into the text editor and click "Save".
@@ -58,7 +58,7 @@ You can just restart your server to have it pull the latest version of the code 
 
 ## Customizing the server
 
-The server will be started with some default configuration, but you can override it by adding a `.env` file to your space.  You can use Huggingface's web editor to create a new `.env` file alongside your Dockerfile. Huggingface will restart your server automatically when you save the file.
+The server will be started with some default configuration, but you can override it by adding a `.env` file to your Space.  You can use Huggingface's web editor to create a new `.env` file alongside your Dockerfile. Huggingface will restart your server automatically when you save the file.
 
 Here are some example settings:
 ```shell
