@@ -19,7 +19,11 @@ app.use(
     // SillyTavern spams the hell out of this endpoint so don't log it
     autoLogging: { ignore: (req) => req.url === "/proxy/kobold/api/v1/model" },
     redact: {
-      paths: ["req.headers.cookie", 'res.headers["set-cookie"]'],
+      paths: [
+        "req.headers.cookie",
+        'res.headers["set-cookie"]',
+        "req.headers.authorization",
+      ],
       censor: "********",
     },
   })
