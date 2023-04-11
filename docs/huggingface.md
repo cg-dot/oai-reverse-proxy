@@ -22,7 +22,7 @@ This repository can be deployed to a [Huggingface Space](https://huggingface.co/
 FROM node:18-bullseye-slim
 RUN apt-get update && \
     apt-get install -y git
-RUN git clone https://github.com/nai-degen/oai-reverse-proxy.git /app
+RUN git clone https://gitgud.io/khanon/oai-reverse-proxy.git /app
 WORKDIR /app
 RUN npm install
 COPY Dockerfile .env* ./
