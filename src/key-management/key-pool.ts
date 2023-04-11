@@ -6,12 +6,10 @@ import { config } from "../config";
 import { logger } from "../logger";
 import { KeyChecker } from "./key-checker";
 
-// I made too many assumptions about OpenAI being the only provider and now this
-// is a mess with the addition of Anthropic. Server will have to be restricted
-// to operating on one provider at a time until I can refactor this to use
-// some KeyProvider interface.
+// TODO: Made too many assumptions about OpenAI being the only provider and now 
+// this doesn't really work for Anthropic. Create a Provider interface and
+// implement Pool, Checker, and Models for each provider.
 
-// TODO: Move this stuff somewhere else, it's not key management.
 export type Model = OpenAIModel | AnthropicModel;
 export type OpenAIModel =
 | "gpt-3.5-turbo"

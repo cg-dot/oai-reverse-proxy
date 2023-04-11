@@ -70,7 +70,6 @@ const openaiProxy = createProxyMiddleware({
 
 const openaiRouter = Router();
 openaiRouter.get("/v1/models", openaiProxy);
-// openaiRouter.post("/v1/completions", openaiProxy); // TODO: Implement Davinci
 openaiRouter.post("/v1/chat/completions", ipLimiter, openaiProxy);
 openaiRouter.use((req, res) => {
   logger.warn(`Blocked openai proxy request: ${req.method} ${req.path}`);

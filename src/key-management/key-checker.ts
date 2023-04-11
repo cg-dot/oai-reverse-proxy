@@ -172,6 +172,9 @@ export class KeyChecker {
     return data;
   }
 
+  // TODO: This endpoint seems to be very delayed. I think we will need to track
+  // the time it last changed and estimate token usage ourselves in between
+  // changes by inspecting request payloads for prompt and completion tokens.
   private async getUsage(key: Key) {
     const querystring = KeyChecker.getUsageQuerystring(key.isTrial);
     const url = `${GET_USAGE_URL}?${querystring}`;

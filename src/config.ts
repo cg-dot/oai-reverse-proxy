@@ -23,7 +23,7 @@ type Config = {
   /** Logging threshold. */
   logLevel?: "debug" | "info" | "warn" | "error";
   /** Whether prompts and responses should be logged. */
-  logPrompts?: boolean; // TODO
+  logPrompts?: boolean; // TODO: Implement prompt logging once we have persistent storage.
   /** Whether to periodically check keys for usage and validity. */
   checkKeys?: boolean;
 };
