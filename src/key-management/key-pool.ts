@@ -6,6 +6,27 @@ import { config } from "../config";
 import { logger } from "../logger";
 import { KeyChecker } from "./key-checker";
 
+// I made too many assumptions about OpenAI being the only provider and now this
+// is a mess with the addition of Anthropic. Server will have to be restricted
+// to operating on one provider at a time until I can refactor this to use
+// some KeyProvider interface.
+
+// TODO: Move this stuff somewhere else, it's not key management.
+export type Model = OpenAIModel | AnthropicModel;
+export type OpenAIModel =
+| "gpt-3.5-turbo"
+| "gpt-4"
+export type AnthropicModel =
+| "claude-v1"
+| "claude-instant-v1"
+export const SUPPORTED_MODELS: readonly Model[] = [
+  "gpt-3.5-turbo",
+  "gpt-4",
+  "claude-v1",
+  "claude-instant-v1",
+] as const;
+  
+
 export type Key = {
   /** The OpenAI API key itself. */
   key: string;
@@ -91,32 +112,29 @@ export class KeyPool {
     });
   }
 
-  public get(model: string) {
-    const needsGpt4Key = model.startsWith("gpt-4");
+  public get(model: Model) {
+    const needGpt4 = model.startsWith("gpt-4");
     const availableKeys = this.keys
-      .filter((key) => !key.isDisabled && (!needsGpt4Key || key.isGpt4))
+      .filter((key) => !key.isDisabled && (!needGpt4 || key.isGpt4))
       .sort((a, b) => a.lastUsed - b.lastUsed);
     if (availableKeys.length === 0) {
       let message = "No keys available. Please add more keys.";
-      if (needsGpt4Key) {
+      if (needGpt4) {
         message =
-          "No GPT-4 keys available. Please add more keys or use a non-GPT-4 model.";
+          "No GPT-4 keys available. Please add more keys or select a non-GPT-4 model.";
       }
-      this.log.error(message);
       throw new Error(message);
     }
 
     // Prioritize trial keys
     const trialKeys = availableKeys.filter((key) => key.isTrial);
     if (trialKeys.length > 0) {
-      this.log.info({ key: trialKeys[0].hash }, "Using trial key");
       trialKeys[0].lastUsed = Date.now();
       return trialKeys[0];
     }
 
     // Otherwise, return the oldest key
     const oldestKey = availableKeys[0];
-    this.log.info({ key: oldestKey.hash }, "Assigning key to request.");
     oldestKey.lastUsed = Date.now();
     return { ...oldestKey };
   }
