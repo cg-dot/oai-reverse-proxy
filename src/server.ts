@@ -33,7 +33,9 @@ app.use(
   express.json({ limit: "10mb" }),
   express.urlencoded({ extended: true, limit: "10mb" })
 );
-// trust proxy to set x-forwarded-for ips correctly
+// TODO: this works if we're always being deployed to Huggingface but if users
+// deploy this somewhere without a load balancer then incoming requests can
+// spoof the X-Forwarded-For header and bypass the rate limiting.
 app.set("trust proxy", true);
 // routes
 app.get("/", handleInfoPage);

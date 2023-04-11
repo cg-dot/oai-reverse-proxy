@@ -36,25 +36,35 @@ export const handleDownstreamErrors = (
 
       const bodyString = body.toString();
 
-      let errorPayload: any = {
-        error: "Proxy couldn't parse error from OpenAI",
-      };
-      const canTryAgain = keyPool.anyAvailable()
-        ? "You can try again to get a different key."
+      let errorPayload: any = { error: "If you see this, something is wrong." };
+      const availableKeys = keyPool.available();
+      const canTryAgain = Boolean(availableKeys)
+        ? `There are ${availableKeys} more keys available; try your request again.`
         : "There are no more keys available.";
+
       try {
         errorPayload = JSON.parse(bodyString);
       } catch (parseError: any) {
+        const statusMessage = proxyRes.statusMessage || "Unknown error";
+        // Likely Bad Gateway or Gateway Timeout from OpenAI's Cloudflare proxy
+        logger.warn(
+          { statusCode, statusMessage, key: req.key?.hash },
+          "Received non-JSON error response from OpenAI."
+        );
+
         const errorObject = {
+          statusCode,
+          statusMessage: proxyRes.statusMessage,
           error: parseError.message,
-          trace: parseError.stack,
-          body: bodyString,
+          proxy_note: "This is likely a temporary error with OpenAI.",
         };
 
-        logger.error(errorObject, "Unparseable error from OpenAI");
         res.json(errorObject);
         return reject(parseError.message);
       }
+
+      // From here on we know we have a JSON error payload from OpenAI and can
+      // tack on our own error messages to it.
 
       if (statusCode === 401) {
         // Key is invalid or was revoked
@@ -65,37 +75,42 @@ export const handleDownstreamErrors = (
         const message = `The OpenAI key is invalid or revoked. ${canTryAgain}`;
         errorPayload.proxy_note = message;
       } else if (statusCode === 429) {
-        // Rate limit exceeded
-        // Annoyingly they send this for:
-        // - Quota exceeded, key is totally dead
-        // - Rate limit exceeded, key is still good but backoff needed
-        // - Model overloaded, their server is overloaded
+        // One of:
+        // - Quota exceeded (key is dead, disable it)
+        // - Rate limit exceeded (key is fine, just try again)
+        // - Model overloaded (their fault, just try again)
         if (errorPayload.error?.type === "insufficient_quota") {
-          logger.warn(`OpenAI key is exhausted. Keyhash ${req.key?.hash}`);
+          logger.warn(
+            { error: errorPayload, key: req.key?.hash },
+            "OpenAI key quota exceeded."
+          );
           keyPool.disable(req.key!);
-          const message = `The OpenAI key is exhausted. ${canTryAgain}`;
-          errorPayload.proxy_note = message;
+          errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${canTryAgain}`;
         } else {
           logger.warn(
-            { errorCode: errorPayload.error?.type },
-            `OpenAI rate limit exceeded or model overloaded. Keyhash ${req.key?.hash}`
+            { error: errorPayload, key: req.key?.hash },
+            `OpenAI rate limit exceeded or model overloaded.`
           );
+          errorPayload.proxy_note = `This is likely a temporary error with OpenAI. Try again in a few seconds.`;
         }
       } else if (statusCode === 404) {
         // Most likely model not found
         if (errorPayload.error?.code === "model_not_found") {
           if (req.key!.isGpt4) {
             keyPool.downgradeKey(req.key?.hash);
+            errorPayload.proxy_note = `This key was incorrectly assigned to GPT-4. It has been downgraded to Turbo.`;
+          } else {
+            errorPayload.proxy_note = `No model was found for this key.`;
           }
-          errorPayload.proxy_note =
-            "This key may have been incorrectly flagged as gpt-4 enabled.";
         }
       } else {
         logger.error(
-          { error: errorPayload },
-          `Unexpected error from OpenAI. Keyhash ${req.key?.hash}`
+          { error: errorPayload, key: req.key?.hash, statusCode },
+          `Unrecognized error from OpenAI.`
         );
+        errorPayload.proxy_note = `Unrecognized error from OpenAI.`;
       }
+
       res.status(statusCode).json(errorPayload);
       reject(errorPayload);
     });

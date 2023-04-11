@@ -157,8 +157,8 @@ export class KeyPool {
     this.log.warn({ key: key.hash }, "Key disabled");
   }
 
-  public anyAvailable() {
-    return this.keys.some((key) => !key.isDisabled);
+  public available() {
+    return this.keys.filter((k) => !k.isDisabled).length;
   }
 
   public anyUnchecked() {
