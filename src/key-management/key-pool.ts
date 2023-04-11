@@ -141,10 +141,9 @@ export class KeyPool {
   public update(keyHash: string, update: KeyUpdate) {
     const keyFromPool = this.keys.find((k) => k.hash === keyHash)!;
     Object.assign(keyFromPool, { ...update, lastChecked: Date.now() });
-    // Disable the key if it's over the hard limit, provi
-    if (update.usage && keyFromPool.usage >= keyFromPool.hardLimit) {
-      this.disable(keyFromPool);
-    }
+    // if (update.usage && keyFromPool.usage >= keyFromPool.hardLimit) {
+    //   this.disable(keyFromPool);
+    // }
   }
 
   public disable(key: Key) {
