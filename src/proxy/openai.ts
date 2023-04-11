@@ -1,4 +1,4 @@
-import { Request, Response, Router } from "express";
+import { Request, Response, NextFunction, Router } from "express";
 import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { logger } from "../logger";
@@ -69,6 +69,15 @@ const openaiProxy = createProxyMiddleware({
 });
 
 const openaiRouter = Router();
+// Some clients don't include the /v1/ prefix in their requests and users get
+// confused when they get a 404. Just fix the route for them so I don't have to
+// provide a bunch of different routes for each client's idiosyncrasies.
+openaiRouter.use((req, _res, next) => {
+  if (!req.path.startsWith("/v1/")) {
+    req.url = `/v1${req.url}`;
+  }
+  next();
+});
 openaiRouter.get("/v1/models", openaiProxy);
 openaiRouter.post("/v1/chat/completions", ipLimiter, openaiProxy);
 openaiRouter.use((req, res) => {
