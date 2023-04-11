@@ -97,6 +97,14 @@ export class KeyChecker {
   }
 
   private async checkKey(key: Key) {
+    // It's possible this key might have been disabled while we were waiting
+    // for the next check.
+    if (key.isDisabled) {
+      this.log.warn({ key: key.hash }, "Skipping check for disabled key.");
+      this.scheduleNextCheck();
+      return;
+    }
+
     this.log.info({ key: key.hash }, "Checking key...");
     try {
       // During the initial check we need to get the subscription first because
@@ -194,6 +202,15 @@ export class KeyChecker {
         "Network error while checking key."
       );
     }
+  }
+
+  // TODO: Trial key usage reporting is very unreliable and keys with supposedly
+  // no usage are already exhausted.  Instead we should try generating some text
+  // on the first check to quickly determine if the key is alive.
+  private async doTestGeneration(key: Key) {
+    // Generate only a single token with a very short prompt to avoid using
+    // too much of the key's quota.
+    // NYI
   }
 
   static getUsageQuerystring(isTrial: boolean) {
