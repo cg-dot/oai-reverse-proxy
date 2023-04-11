@@ -217,16 +217,22 @@ export class KeyChecker {
   }
 
   static getUsageQuerystring(isTrial: boolean) {
-    // For paid keys, the limit resets every month, so we can use the current
-    // month as the start date.
-    // For trial keys, the limit does not reset, so we need to use the start
-    // date of the trial. We use 100 days ago because that is the maximum.
+    // For paid keys, the limit resets every month, so we can use the first day
+    // of the current month.
+    // For trial keys, the limit does not reset and we don't know when the key
+    // was created, so we use 99 days ago because that's as far back as the API
+    // will let us go.
+
+    // End date needs to be set to the beginning of the next day so that we get
+    // usage for the current day.
+
     const today = new Date();
     const startDate = isTrial
-      ? new Date(today.getTime() - 100 * 24 * 60 * 60 * 1000)
+      ? new Date(today.getTime() - 99 * 24 * 60 * 60 * 1000)
       : new Date(today.getFullYear(), today.getMonth(), 1);
+    const endDate = new Date(today.getTime() + 24 * 60 * 60 * 1000);
     return `start_date=${startDate.toISOString().split("T")[0]}&end_date=${
-      today.toISOString().split("T")[0]
+      endDate.toISOString().split("T")[0]
     }`;
   }
 }
