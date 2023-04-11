@@ -43,15 +43,9 @@ function getInfoPageHtml(host: string) {
   const info = {
     uptime: process.uptime(),
     timestamp: Date.now(),
-    appUrls: {
-      tavern: {
-        kobold: host,
-        openai: host + "/proxy/openai/v1",
-      },
-      agnaistic: {
-        kobold: host,
-        openai: host + "/proxy/openai",
-      },
+    endpoints: {
+      kobold: host,
+      openai: host + "/proxy/openai",
     },
     proompts: keys.reduce((acc, k) => acc + k.promptCount, 0),
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),

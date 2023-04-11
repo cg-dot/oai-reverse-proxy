@@ -6,10 +6,9 @@ colorTo: purple
 sdk: docker
 pinned: false
 ---
-<!-- -->
 # OAI Reverse Proxy
 
-Reverse proxy server for the OpenAI API. Forwards text generation requests while rejecting administrative/billing requests. Includes optional rate limiting and prompt filtering to prevent abuse.
+Reverse proxy server for the OpenAI (and soon Anthropic) APIs. Forwards text generation requests while rejecting administrative/billing requests. Includes optional rate limiting and prompt filtering to prevent abuse.
 
 ### Table of Contents
 - [What is this?](#what-is-this)
@@ -19,16 +18,14 @@ Reverse proxy server for the OpenAI API. Forwards text generation requests while
   - [Deploy to Repl.it (WIP)](#deploy-to-replit-wip)
 
 ## What is this?
-If you have an API key you want to share with a friend, you can use this to keep your key safe while still allowing them to generate text with the API.
-
-You can also use this if you'd like to build a client-side application which uses the OpenAI, but don't want to build your own backend. You should never embed your real OpenAI API key in a client-side application. Instead, you can have your frontend connect to this reverse proxy and forward requests to OpenAI.
+If you would like to provide a friend access to an API via keys you own, you can use this to keep your keys safe while still allowing them to generate text with the API. You can also use this if you'd like to build a client-side application which uses the OpenAI or Anthropic APIs, but don't want to build your own backend. You should never embed your real API keys in a client-side application. Instead, you can have your frontend connect to this reverse proxy and forward requests to the downstream service.
 
 This keeps your keys safe and allows you to use the rate limiting and prompt filtering features of the proxy to prevent abuse.
 
 ## Why?
-OpenAI keys have full account permissions. They can revoke themselves, generate new keys, modify spend quotas, etc. You absolutely should not share them, nor should you embed them in client-side applications as they can be easily stolen.
+OpenAI keys have full account permissions. They can revoke themselves, generate new keys, modify spend quotas, etc. **You absolutely should not share them, post them publicly, nor embed them in client-side applications as they can be easily stolen.**
 
-This proxy only forwards text generation requests to OpenAI and rejects requests which would otherwise modify your account. 
+This proxy only forwards text generation requests to the downstream service and rejects requests which would otherwise modify your account. 
 
 ---
 
