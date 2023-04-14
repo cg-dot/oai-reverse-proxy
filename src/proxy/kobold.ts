@@ -4,14 +4,11 @@ requests to OpenAI API equivalents. */
 import { Request, Response, Router } from "express";
 import http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
-import util from "util";
-import zlib from "zlib";
 import { logger } from "../logger";
 import {
-  copyHttpHeaders,
-  handleDownstreamErrors,
+  createOnProxyResHandler,
   handleInternalError,
-  incrementKeyUsage,
+  ProxyResHandlerWithBody,
 } from "./common";
 import { ipLimiter } from "./rate-limit";
 import {
@@ -55,55 +52,22 @@ const rewriteRequest = (
   }
 };
 
-const handleProxiedResponse = async (
-  proxyRes: http.IncomingMessage,
-  req: Request,
-  res: Response
+const koboldResponseHandler: ProxyResHandlerWithBody = async (
+  _proxyRes,
+  _req,
+  res,
+  body
 ) => {
-  try {
-    await handleDownstreamErrors(proxyRes, req, res);
-  } catch (error) {
-    // Handler takes over the response, we're done here.
-    return;
+  if (typeof body !== "object") {
+    throw new Error("Expected body to be an object");
   }
-  incrementKeyUsage(req);
-  copyHttpHeaders(proxyRes, res);
 
-  // For Kobold we need to consume the response body to turn it into a KoboldAI
-  // response payload.
-  let chunks: Buffer[] = [];
-  proxyRes.on("data", (chunk) => chunks.push(chunk));
-  proxyRes.on("end", async () => {
-    let body = Buffer.concat(chunks);
-    const contentEncoding = proxyRes.headers["content-encoding"];
+  const koboldResponse = {
+    results: [{ text: body.choices[0].message.content }],
+    model: body.model,
+  };
 
-    if (contentEncoding === "gzip") {
-      body = await util.promisify(zlib.gunzip)(body);
-    } else if (contentEncoding === "deflate") {
-      body = await util.promisify(zlib.inflate)(body);
-    }
-
-    const response = JSON.parse(body.toString());
-
-    const koboldResponse = {
-      results: [{ text: response.choices[0].message.content }],
-      model: response.model,
-    };
-
-    // Because we have decompressed the OpenAI response, we need to re-compress it
-    // before sending it to the client.
-    if (contentEncoding === "gzip") {
-      res.set("Content-Encoding", "gzip");
-      res.send(await util.promisify(zlib.gzip)(JSON.stringify(koboldResponse)));
-    } else if (contentEncoding === "deflate") {
-      res.set("Content-Encoding", "deflate");
-      res.send(
-        await util.promisify(zlib.deflate)(JSON.stringify(koboldResponse))
-      );
-    } else {
-      res.send(JSON.stringify(koboldResponse));
-    }
-  });
+  res.send(JSON.stringify(koboldResponse));
 };
 
 const koboldOaiProxy = createProxyMiddleware({
@@ -114,7 +78,7 @@ const koboldOaiProxy = createProxyMiddleware({
   },
   on: {
     proxyReq: rewriteRequest,
-    proxyRes: handleProxiedResponse,
+    proxyRes: createOnProxyResHandler([koboldResponseHandler]),
     error: handleInternalError,
   },
   selfHandleResponse: true,

@@ -1,12 +1,11 @@
-import { Request, Response, NextFunction, Router } from "express";
+import { Request, Response, Router } from "express";
 import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { logger } from "../logger";
 import {
-  handleDownstreamErrors,
+  createOnProxyResHandler,
   handleInternalError,
-  incrementKeyUsage,
-  copyHttpHeaders,
+  ProxyResHandlerWithBody,
 } from "./common";
 import { ipLimiter } from "./rate-limit";
 import {
@@ -40,20 +39,16 @@ const rewriteRequest = (
   }
 };
 
-const handleProxiedResponse = async (
-  proxyRes: http.IncomingMessage,
-  req: Request,
-  res: Response
+const openaiResponseHandler: ProxyResHandlerWithBody = async (
+  _proxyRes,
+  _req,
+  res,
+  body
 ) => {
-  try {
-    await handleDownstreamErrors(proxyRes, req, res);
-  } catch (error) {
-    // Handler takes over the response, we're done here.
-    return;
+  if (typeof body !== "object") {
+    throw new Error("Expected body to be an object");
   }
-  incrementKeyUsage(req);
-  copyHttpHeaders(proxyRes, res);
-  proxyRes.pipe(res);
+  res.status(200).json(body);
 };
 
 const openaiProxy = createProxyMiddleware({
@@ -61,7 +56,7 @@ const openaiProxy = createProxyMiddleware({
   changeOrigin: true,
   on: {
     proxyReq: rewriteRequest,
-    proxyRes: handleProxiedResponse,
+    proxyRes: createOnProxyResHandler([openaiResponseHandler]),
     error: handleInternalError,
   },
   selfHandleResponse: true,

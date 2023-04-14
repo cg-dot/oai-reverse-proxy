@@ -7,124 +7,233 @@ import { logger } from "../logger";
 import { keyPool } from "../key-management";
 
 export const QUOTA_ROUTES = ["/v1/chat/completions"];
+const DECODER_MAP = {
+  gzip: util.promisify(zlib.gunzip),
+  deflate: util.promisify(zlib.inflate),
+  br: util.promisify(zlib.brotliDecompress),
+};
 
-/** Check for errors in the response from OpenAI and handle them. */
-// This is a mess of promises, callbacks and event listeners because none of
-// this low-level nodejs http is async/await friendly.
-export const handleDownstreamErrors = (
+const isSupportedContentEncoding = (
+  contentEncoding: string
+): contentEncoding is keyof typeof DECODER_MAP => {
+  return contentEncoding in DECODER_MAP;
+};
+
+type DecodeResponseBodyHandler = (
   proxyRes: http.IncomingMessage,
   req: Request,
   res: Response
-) => {
-  const promise = new Promise<void>((resolve, reject) => {
-    const statusCode = proxyRes.statusCode || 500;
-    if (statusCode < 400) {
-      return resolve();
-    }
+) => Promise<string | Record<string, any>>;
+export type ProxyResHandlerWithBody = (
+  proxyRes: http.IncomingMessage,
+  req: Request,
+  res: Response,
+  /**
+   * This will be an object if the response content-type is application/json,
+   * otherwise it will be a string.
+   */
+  body: string | Record<string, any>
+) => Promise<void>;
+export type ProxyResMiddleware = ProxyResHandlerWithBody[];
 
+/**
+ * Returns a on.proxyRes handler that executes the given middleware stack after
+ * the common proxy response handlers have processed the response and decoded
+ * the body.  Custom middleware won't execute if the response is determined to
+ * be an error from the downstream service as the response will be taken over
+ * by the common error handler.
+ */
+export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
+  return async (
+    proxyRes: http.IncomingMessage,
+    req: Request,
+    res: Response
+  ) => {
+    let lastMiddlewareName = decodeResponseBody.name;
+    try {
+      const body = await decodeResponseBody(proxyRes, req, res);
+
+      const middlewareStack: ProxyResMiddleware = [
+        handleDownstreamErrors,
+        incrementKeyUsage,
+        copyHttpHeaders,
+        ...middleware,
+      ];
+
+      for (const middleware of middlewareStack) {
+        lastMiddlewareName = middleware.name;
+        await middleware(proxyRes, req, res, body);
+      }
+    } catch (error: any) {
+      // downstream errors will have already been responded to
+      if (res.headersSent) {
+        return;
+      }
+
+      const message = `Error while executing proxy response middleware: ${lastMiddlewareName} (${error.message})`;
+      logger.error(
+        { error, thrownBy: lastMiddlewareName, key: req.key?.hash },
+        message
+      );
+      res
+        .status(500)
+        .json({ error: "Internal server error", proxy_note: message });
+    }
+  };
+};
+
+/**
+ * Handles the response from the downstream service and decodes the body if
+ * necessary.  If the response is JSON, it will be parsed and returned as an
+ * object.  Otherwise, it will be returned as a string.
+ * @throws {Error} Unsupported content-encoding or invalid application/json body
+ */
+const decodeResponseBody: DecodeResponseBodyHandler = async (
+  proxyRes,
+  req,
+  res
+) => {
+  const promise = new Promise<string>((resolve, reject) => {
     let chunks: Buffer[] = [];
     proxyRes.on("data", (chunk) => chunks.push(chunk));
     proxyRes.on("end", async () => {
       let body = Buffer.concat(chunks);
       const contentEncoding = proxyRes.headers["content-encoding"];
 
-      if (contentEncoding === "gzip") {
-        body = await util.promisify(zlib.gunzip)(body);
-      } else if (contentEncoding === "deflate") {
-        body = await util.promisify(zlib.inflate)(body);
+      if (contentEncoding) {
+        if (isSupportedContentEncoding(contentEncoding)) {
+          const decoder = DECODER_MAP[contentEncoding];
+          body = await decoder(body);
+        } else {
+          const errorMessage = `Proxy received response with unsupported content-encoding: ${contentEncoding}`;
+          logger.warn({ contentEncoding, key: req.key?.hash }, errorMessage);
+          res.status(500).json({ error: errorMessage, contentEncoding });
+          return reject(errorMessage);
+        }
       }
-
-      const bodyString = body.toString();
-
-      let errorPayload: any = { error: "If you see this, something is wrong." };
-      const availableKeys = keyPool.available();
-      const canTryAgain = Boolean(availableKeys)
-        ? `There are ${availableKeys} more keys available; try your request again.`
-        : "There are no more keys available.";
 
       try {
-        errorPayload = JSON.parse(bodyString);
-      } catch (parseError: any) {
-        const statusMessage = proxyRes.statusMessage || "Unknown error";
-        // Likely Bad Gateway or Gateway Timeout from OpenAI's Cloudflare proxy
-        logger.warn(
-          { statusCode, statusMessage, key: req.key?.hash },
-          "Received non-JSON error response from OpenAI."
-        );
-
-        const errorObject = {
-          statusCode,
-          statusMessage: proxyRes.statusMessage,
-          error: parseError.message,
-          proxy_note: "This is likely a temporary error with OpenAI.",
-        };
-
-        res.json(errorObject);
-        return reject(parseError.message);
-      }
-
-      // From here on we know we have a JSON error payload from OpenAI and can
-      // tack on our own error messages to it.
-
-      if (statusCode === 401) {
-        // Key is invalid or was revoked
-        logger.warn(
-          `OpenAI key is invalid or revoked. Keyhash ${req.key?.hash}`
-        );
-        keyPool.disable(req.key!);
-        const message = `The OpenAI key is invalid or revoked. ${canTryAgain}`;
-        errorPayload.proxy_note = message;
-      } else if (statusCode === 429) {
-        // One of:
-        // - Quota exceeded (key is dead, disable it)
-        // - Rate limit exceeded (key is fine, just try again)
-        // - Model overloaded (their fault, just try again)
-        if (errorPayload.error?.type === "insufficient_quota") {
-          logger.warn(
-            { error: errorPayload, key: req.key?.hash },
-            "OpenAI key quota exceeded."
-          );
-          keyPool.disable(req.key!);
-          errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${canTryAgain}`;
-        } else {
-          logger.warn(
-            { error: errorPayload, key: req.key?.hash },
-            `OpenAI rate limit exceeded or model overloaded.`
-          );
-          errorPayload.proxy_note = `This is likely a temporary error with OpenAI. Try again in a few seconds.`;
+        if (proxyRes.headers["content-type"]?.includes("application/json")) {
+          const json = JSON.parse(body.toString());
+          return resolve(json);
         }
-      } else if (statusCode === 404) {
-        // Most likely model not found
-        if (errorPayload.error?.code === "model_not_found") {
-          if (req.key!.isGpt4) {
-            keyPool.downgradeKey(req.key?.hash);
-            errorPayload.proxy_note = `This key was incorrectly assigned to GPT-4. It has been downgraded to Turbo.`;
-          } else {
-            errorPayload.proxy_note = `No model was found for this key.`;
-          }
-        }
-      } else {
-        logger.error(
-          { error: errorPayload, key: req.key?.hash, statusCode },
-          `Unrecognized error from OpenAI.`
-        );
-        errorPayload.proxy_note = `Unrecognized error from OpenAI.`;
+        return resolve(body.toString());
+      } catch (error: any) {
+        const errorMessage = `Proxy received response with invalid JSON: ${error.message}`;
+        logger.warn({ error, key: req.key?.hash }, errorMessage);
+        res.status(500).json({ error: errorMessage });
+        return reject(errorMessage);
       }
-
-      res.status(statusCode).json(errorPayload);
-      reject(errorPayload);
     });
   });
   return promise;
 };
 
-/** Handles errors in the request rewrite pipeline before proxying to OpenAI. */
+// TODO: This is too specific to OpenAI's error responses, Anthropic errors
+// will need a different handler.
+/**
+ * Handles non-2xx responses from the downstream service.  If the proxied
+ * response is an error, this will respond to the client with an error payload
+ * and throw an error to stop the middleware stack.
+ * @throws {Error} HTTP error status code from downstream service
+ */
+export const handleDownstreamErrors: ProxyResHandlerWithBody = async (
+  proxyRes,
+  req,
+  res,
+  body
+) => {
+  const statusCode = proxyRes.statusCode || 500;
+  if (statusCode < 400) {
+    return;
+  }
+
+  let errorPayload: Record<string, any>;
+  // Subtract 1 from available keys because if this message is being shown,
+  // it's because the key is about to be disabled.
+  const availableKeys = keyPool.available() - 1;
+  const tryAgainMessage = Boolean(availableKeys)
+    ? `There are ${availableKeys} more keys available; try your request again.`
+    : "There are no more keys available.";
+
+  try {
+    if (typeof body === "object") {
+      errorPayload = body;
+    } else {
+      throw new Error("Received non-JSON error response from downstream.");
+    }
+  } catch (parseError: any) {
+    const statusMessage = proxyRes.statusMessage || "Unknown error";
+    // Likely Bad Gateway or Gateway Timeout from OpenAI's Cloudflare proxy
+    logger.warn(
+      { statusCode, statusMessage, key: req.key?.hash },
+      parseError.message
+    );
+
+    const errorObject = {
+      statusCode,
+      statusMessage: proxyRes.statusMessage,
+      error: parseError.message,
+      proxy_note: `This is likely a temporary error with the downstream service.`,
+    };
+
+    res.status(statusCode).json(errorObject);
+    throw new Error(parseError.message);
+  }
+
+  logger.warn(
+    {
+      statusCode,
+      type: errorPayload.error?.code,
+      errorPayload,
+      key: req.key?.hash,
+    },
+    `Received error response from downstream. (${proxyRes.statusMessage})`
+  );
+
+  if (statusCode === 400) {
+    // Bad request (likely prompt is too long)
+    errorPayload.proxy_note = `OpenAI rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
+  } else if (statusCode === 401) {
+    // Key is invalid or was revoked
+    keyPool.disable(req.key!);
+    errorPayload.proxy_note = `The OpenAI key is invalid or revoked. ${tryAgainMessage}`;
+  } else if (statusCode === 429) {
+    // One of:
+    // - Quota exceeded (key is dead, disable it)
+    // - Rate limit exceeded (key is fine, just try again)
+    // - Model overloaded (their fault, just try again)
+    if (errorPayload.error?.type === "insufficient_quota") {
+      keyPool.disable(req.key!);
+      errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${tryAgainMessage}`;
+    } else {
+      errorPayload.proxy_note = `This is likely a temporary error with OpenAI. Try again in a few seconds.`;
+    }
+  } else if (statusCode === 404) {
+    // Most likely model not found
+    if (errorPayload.error?.code === "model_not_found") {
+      if (req.key!.isGpt4) {
+        keyPool.downgradeKey(req.key?.hash);
+        errorPayload.proxy_note = `This key was incorrectly assigned to GPT-4. It has been downgraded to Turbo.`;
+      } else {
+        errorPayload.proxy_note = `No model was found for this key.`;
+      }
+    }
+  } else {
+    errorPayload.proxy_note = `Unrecognized error from OpenAI.`;
+  }
+
+  res.status(statusCode).json(errorPayload);
+  throw new Error(errorPayload.error?.message);
+};
+
+/** Handles errors in the request rewriter pipeline. */
 export const handleInternalError: httpProxy.ErrorCallback = (
   err,
   _req,
   res
 ) => {
-  logger.error({ error: err }, "Error proxying to OpenAI");
+  logger.error({ error: err }, "Error in proxy request pipeline.");
 
   (res as http.ServerResponse).writeHead(500, {
     "Content-Type": "application/json",
@@ -134,24 +243,29 @@ export const handleInternalError: httpProxy.ErrorCallback = (
       error: {
         type: "proxy_error",
         message: err.message,
-        proxy_note:
-          "Reverse proxy encountered an error before it could reach OpenAI.",
+        stack: err.stack,
+        proxy_note: `Reverse proxy encountered an error before it could reach the downstream API.`,
       },
     })
   );
 };
 
-export const incrementKeyUsage = (req: Request) => {
+const incrementKeyUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
   if (QUOTA_ROUTES.includes(req.path)) {
     keyPool.incrementPrompt(req.key?.hash);
   }
 };
 
-export const copyHttpHeaders = (
-  proxyRes: http.IncomingMessage,
-  res: Response
+const copyHttpHeaders: ProxyResHandlerWithBody = async (
+  proxyRes,
+  _req,
+  res
 ) => {
   Object.keys(proxyRes.headers).forEach((key) => {
+    // Omit content-encoding because we will always decode the response body
+    if (key === "content-encoding") {
+      return;
+    }
     res.setHeader(key, proxyRes.headers[key] as string);
   });
 };

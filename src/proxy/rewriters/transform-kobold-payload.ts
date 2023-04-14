@@ -67,11 +67,19 @@ export const transformKoboldPayload: ExpressHttpProxyReqCallback = (
 ) => {
   const { body } = req;
   const { prompt, max_length, rep_pen, top_p, temperature } = body;
+  
+  if (!max_length) {
+    logger.error("KoboldAI request missing max_length");
+    throw new Error("You must specify a max_length parameter.");
+  }
 
   const promptLines = prompt.split("\n");
   const lastLine = promptLines.pop();
   const messages = [
     { role: "system", content: promptLines.join("\n") },
+    // TODO: technically the last line could be another assistant prompt if the
+    // user requested a multi-turn response. Need to see how Tavern and Agnai
+    // submit such requests.
     { role: "user", content: lastLine },
   ];
 

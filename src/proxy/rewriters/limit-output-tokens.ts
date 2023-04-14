@@ -10,6 +10,14 @@ export const limitOutputTokens: ExpressHttpProxyReqCallback = (
   req
 ) => {
   if (req.method === "POST" && req.body?.max_tokens) {
+    // convert bad or missing input to a MAX_TOKENS
+    if (typeof req.body.max_tokens !== "number") {
+      logger.warn(
+        `Invalid max_tokens value: ${req.body.max_tokens}. Using ${MAX_TOKENS}`
+      );
+      req.body.max_tokens = MAX_TOKENS;
+    }
+
     const originalTokens = req.body.max_tokens;
     req.body.max_tokens = Math.min(req.body.max_tokens, MAX_TOKENS);
     if (originalTokens !== req.body.max_tokens) {
