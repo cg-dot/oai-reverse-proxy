@@ -72,6 +72,11 @@ export function listConfig(): Record<string, string> {
   const result: Record<string, string> = {};
   for (const key of getKeys(config)) {
     const value = config[key]?.toString() || "";
+    
+    if (value === "" || value === "undefined") {
+      continue;
+    }
+    
     if (value && SENSITIVE_KEYS.includes(key)) {
       result[key] = "********";
     } else {
