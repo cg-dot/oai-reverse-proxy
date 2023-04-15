@@ -101,6 +101,12 @@ export class KeyChecker {
     // for the next check.
     if (key.isDisabled) {
       this.log.warn({ key: key.hash }, "Skipping check for disabled key.");
+      // If this is a startup check (key was disabled while we were waiting for
+      // the initial check), we need to set its lastChecked, otherwise we'll
+      // get stuck in a loop.
+      if (!key.lastChecked) {
+        this.updateKey(key.hash, {});
+      }
       this.scheduleNextCheck();
       return;
     }
