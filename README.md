@@ -44,7 +44,3 @@ To run the proxy locally for development or testing, install Node.js >= 18.0.0 a
 4. Start the server in development mode with `npm run start:dev`.
 
 You can also use `npm run start:dev:tsc` to enable project-wide type checking at the cost of slower startup times. `npm run type-check` can be used to run type checking without starting the server.
-
-## Prompt Logging Setup (Optional)
-
-See the [Google Sheets logging](./docs/logging-sheets.md) documentation for instructions on how to set up logging to a Google Sheet.

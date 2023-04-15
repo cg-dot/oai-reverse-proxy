@@ -1,3 +1,8 @@
+# Warning
+**I strongly suggest against using this feature with a Google account that you care about.** Depending on the content of the prompts people submit, Google may flag the spreadsheet as containing inappropriate content. This seems to prevent you from sharing that spreadsheet _or any others on the account. This happened with my throwaway account during testing; the existing shared spreadsheet continues to work but even completely new spreadsheets are flagged and cannot be shared.
+
+I'll be looking into alternative storage backends but you should not use this implementation with a Google account you care about, or even one remotely connected to your main accounts (as Google has a history of linking accounts together via IPs/browser fingerprinting). Use a VPN and completely isolated VM to be safe.
+
 # Configuring Google Sheets Prompt Logging
 This proxy can log incoming prompts and model responses to Google Sheets. Some configuration on the Google side is required to enable this feature. The APIs used are free, but you will need a Google account and a Google Cloud Platform project.
 
@@ -5,9 +10,8 @@ NOTE: Concurrency is not supported. Don't connect two instances of the server to
 
 ## Prerequisites
 - A Google account
+  - **USE A THROWAWAY ACCOUNT!**
 - A Google Cloud Platform project
-
-Note that this process grants the proxy software access to your Google Sheets data for the spreadsheet ID you provide. Use a throwaway spreadsheet/Google Account if you're not comfortable with this.
 
 ### 0. Create a Google Cloud Platform Project
 _A Google Cloud Platform project is required to enable programmatic access to Google Sheets. If you already have a project, skip to the next step. You can also see the [Google Cloud Platform documentation](https://developers.google.com/workspace/guides/create-project) for more information._
@@ -50,3 +54,8 @@ _The service account must be given permission to access the logging spreadsheet.
 - Open the JSON key file in a text editor and copy the value of the `client_email` field.
 - Open the spreadsheet you want to log to, or create a new one, and click **File > Share**.
 - Paste the service account's email address into the **Add people or groups** field. Ensure the service account has **Editor** permissions, then click **Done**.
+
+### 6. Set the spreadsheet ID as a Secret
+_The spreadsheet ID must be set as a secret in the proxy's configuration. The spreadsheet ID can be found in the URL of the spreadsheet. For example, the spreadsheet ID for `https://docs.google.com/spreadsheets/d/1X2Y3Z/edit#gid=0` is `1X2Y3Z`.  The ID isn't necessarily a sensitive value if you intend for the spreadsheet to be public, but it's still recommended to set it as a secret._
+
+- Copy the spreadsheet ID and paste it as the value of the `GOOGLE_SHEETS_SPREADSHEET_ID` secret in the deployment's secrets configuration.
