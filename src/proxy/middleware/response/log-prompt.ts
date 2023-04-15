@@ -19,7 +19,7 @@ export const logPrompt: ProxyResHandlerWithBody = async (
   }
 
   // Only log prompts if we're making a request to a completion endpoint
-  if (!req.originalUrl.startsWith(COMPLETE_ENDPOINT)) {
+  if (!req.originalUrl.endsWith(COMPLETE_ENDPOINT)) {
     return;
   }
 
