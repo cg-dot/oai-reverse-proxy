@@ -1,3 +1,4 @@
+import fs from "fs";
 import { Request, Response } from "express";
 import showdown from "showdown";
 import { config, listConfig } from "./config";
@@ -54,11 +55,6 @@ function getInfoPageHtml(host: string) {
     sha: process.env.COMMIT_SHA?.slice(0, 7) || "dev",
   };
 
-  const readme = require("fs").readFileSync("info-page.md", "utf8");
-  const readmeBody = readme.split("---")[2] || readme;
-  const converter = new showdown.Converter();
-  const html = converter.makeHtml(readmeBody);
-
   const pageBody = `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -66,7 +62,7 @@ function getInfoPageHtml(host: string) {
     <title>OpenAI Reverse Proxy</title>
   </head>
   <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;"
-    ${html}
+    ${infoPageHeaderHtml}
     <hr />
     <h2>Service Info</h2>
     <pre>${JSON.stringify(info, null, 2)}</pre>
@@ -74,4 +70,32 @@ function getInfoPageHtml(host: string) {
 </html>`;
 
   return pageBody;
+}
+
+const infoPageHeaderHtml = buildInfoPageHeader(new showdown.Converter());
+
+/**
+ * If the server operator provides a `greeting.md` file, it will be included in
+ * the rendered info page.
+ **/
+function buildInfoPageHeader(converter: showdown.Converter) {
+  const genericInfoPage = fs.readFileSync("info-page.md", "utf8");
+  const customGreeting = fs.existsSync("greeting.md")
+    ? fs.readFileSync("greeting.md", "utf8")
+    : null;
+
+  let infoBody = genericInfoPage;
+  if (config.promptLogging) {
+    infoBody += `\n## Prompt logging is enabled!
+The server operator has enabled prompt logging. The prompts you send and the AI responses you receive may be saved.
+
+Logs are anonymous and do not contain IP addresses or timestamps.
+
+**If you are uncomfortable with the above, don't send prompts to this proxy!**`;
+  }
+  if (customGreeting) {
+    infoBody += `\n## Server greeting\n
+${customGreeting}`;
+  }
+  return converter.makeHtml(infoBody);
 }

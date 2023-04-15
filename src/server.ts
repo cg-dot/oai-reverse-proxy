@@ -8,6 +8,7 @@ import { logger } from "./logger";
 import { keyPool } from "./key-management";
 import { proxyRouter, rewriteTavernRequests } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
+import { logQueue } from "./prompt-logging";
 
 const PORT = config.port;
 
@@ -69,4 +70,9 @@ app.listen(PORT, async () => {
     `Server listening on port ${PORT}`
   );
   keyPool.init();
+
+  if (config.promptLogging) {
+    logger.info("Starting prompt logging...");
+    logQueue.start();
+  }
 });

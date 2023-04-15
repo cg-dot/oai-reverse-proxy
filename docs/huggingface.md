@@ -25,7 +25,7 @@ RUN apt-get update && \
 RUN git clone https://gitgud.io/khanon/oai-reverse-proxy.git /app
 WORKDIR /app
 RUN npm install
-COPY Dockerfile .env* ./
+COPY Dockerfile greeting.md* .env* ./
 RUN npm run build
 EXPOSE 7860
 ENV NODE_ENV=production
@@ -60,6 +60,10 @@ To update your server, go to the Settings menu and select `Factory Reboot`.  Thi
 
 Note that if you just perform a regular Restart, the server will be restarted with the same code that was running before.
 
+## Adding a greeting message
+
+You can create a Markdown file called `greeting.md` to display a message on the Server Info page.  This is a good place to put instructions for how to use the server.
+
 ## Customizing the server
 
 The server will be started with some default configuration, but you can override it by adding a `.env` file to your Space.  You can use Huggingface's web editor to create a new `.env` file alongside your Dockerfile. Huggingface will restart your server automatically when you save the file.
@@ -70,8 +74,6 @@ Here are some example settings:
 MODEL_RATE_LIMIT=2
 # Max tokens to request from OpenAI
 MAX_OUTPUT_TOKENS=256
-LOG_LEVEL=info
-LOG_PROMPTS=false
 # Block prompts containing disallowed characters
 REJECT_DISALLOWED=false
 REJECT_MESSAGE="This content violates /aicg/'s acceptable use policy."

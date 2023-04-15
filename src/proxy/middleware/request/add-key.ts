@@ -1,5 +1,5 @@
+import { Key, Model, keyPool, SUPPORTED_MODELS } from "../../../key-management";
 import type { ExpressHttpProxyReqCallback } from ".";
-import { Key, Model, keyPool, SUPPORTED_MODELS } from "../../key-management";
 
 /** Add an OpenAI key from the pool to the request. */
 export const addKey: ExpressHttpProxyReqCallback = (proxyReq, req) => {

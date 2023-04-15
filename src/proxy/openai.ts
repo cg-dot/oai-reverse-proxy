@@ -1,12 +1,8 @@
-import { Request, Response, Router } from "express";
+import { Request, Router } from "express";
 import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { config } from "../config";
 import { logger } from "../logger";
-import {
-  createOnProxyResHandler,
-  handleInternalError,
-  ProxyResHandlerWithBody,
-} from "./common";
 import { ipLimiter } from "./rate-limit";
 import {
   addKey,
@@ -14,18 +10,26 @@ import {
   disableStream,
   finalizeBody,
   limitOutputTokens,
-} from "./rewriters";
+  limitCompletions,
+} from "./middleware/request";
+import {
+  createOnProxyResHandler,
+  handleInternalError,
+  ProxyResHandlerWithBody,
+} from "./middleware/response";
 
 const rewriteRequest = (
   proxyReq: http.ClientRequest,
   req: Request,
   res: http.ServerResponse
 ) => {
+  req.api = "openai";
   const rewriterPipeline = [
     addKey,
     languageFilter,
     disableStream,
     limitOutputTokens,
+    limitCompletions,
     finalizeBody,
   ];
 
@@ -41,13 +45,19 @@ const rewriteRequest = (
 
 const openaiResponseHandler: ProxyResHandlerWithBody = async (
   _proxyRes,
-  _req,
+  req,
   res,
   body
 ) => {
   if (typeof body !== "object") {
     throw new Error("Expected body to be an object");
   }
+
+  if (config.promptLogging) {
+    const host = req.get("host");
+    body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
+  }
+
   res.status(200).json(body);
 };
 
@@ -75,6 +85,16 @@ openaiRouter.use((req, _res, next) => {
 });
 openaiRouter.get("/v1/models", openaiProxy);
 openaiRouter.post("/v1/chat/completions", ipLimiter, openaiProxy);
+// If a browser tries to visit a route that doesn't exist, redirect to the info
+// page to help them find the right URL.
+openaiRouter.get("*", (req, res, next) => {
+  const isBrowser = req.headers["user-agent"]?.includes("Mozilla");
+  if (isBrowser) {
+    res.redirect("/");
+  } else {
+    next();
+  }
+});
 openaiRouter.use((req, res) => {
   logger.warn(`Blocked openai proxy request: ${req.method} ${req.path}`);
   res.status(404).json({ error: "Not found" });

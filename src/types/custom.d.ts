@@ -5,6 +5,7 @@ declare global {
   namespace Express {
     interface Request {
       key?: Key;
+      api: "kobold" | "openai" | "anthropic";
     }
   }
 }

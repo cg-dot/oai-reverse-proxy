@@ -3,10 +3,12 @@ dotenv.config();
 
 const isDev = process.env.NODE_ENV !== "production";
 
+type PROMPT_LOGGING_BACKEND = "google_sheets";
+
 type Config = {
   /** The port the proxy server will listen on. */
   port: number;
-  /** OpenAI API key, either a single key or a base64-encoded JSON array of key configs. */
+  /** OpenAI API key, either a single key or a comma-delimeted list of keys. */
   openaiKey?: string;
   /** Proxy key. If set, requests must provide this key in the Authorization header to use the proxy. */
   proxyKey?: string;
@@ -20,10 +22,16 @@ type Config = {
   rejectSampleRate?: number;
   /** Message to return when rejecting requests. */
   rejectMessage?: string;
-  /** Logging threshold. */
+  /** Pino log level. */
   logLevel?: "debug" | "info" | "warn" | "error";
-  /** Whether prompts and responses should be logged. */
-  logPrompts?: boolean; // TODO: Implement prompt logging once we have persistent storage.
+  /** Whether prompts and responses should be logged to persistent storage. */
+  promptLogging?: boolean; // TODO: Implement prompt logging once we have persistent storage.
+  /** Which prompt logging backend to use. */
+  promptLoggingBackend?: PROMPT_LOGGING_BACKEND;
+  /** Base64-encoded Google Sheets API key. */
+  googleSheetsKey?: string;
+  /** Google Sheets spreadsheet ID. */
+  googleSheetsSpreadsheetId?: string;
   /** Whether to periodically check keys for usage and validity. */
   checkKeys?: boolean;
 };
@@ -43,11 +51,22 @@ export const config: Config = {
     "This content violates /aicg/'s acceptable use policy."
   ),
   logLevel: getEnvWithDefault("LOG_LEVEL", "info"),
-  logPrompts: getEnvWithDefault("LOG_PROMPTS", false), // Not yet implemented
   checkKeys: getEnvWithDefault("CHECK_KEYS", !isDev),
+  promptLogging: getEnvWithDefault("PROMPT_LOGGING", false),
+  promptLoggingBackend: getEnvWithDefault("PROMPT_LOGGING_BACKEND", undefined),
+  googleSheetsKey: getEnvWithDefault("GOOGLE_SHEETS_KEY", undefined),
+  googleSheetsSpreadsheetId: getEnvWithDefault(
+    "GOOGLE_SHEETS_SPREADSHEET_ID",
+    undefined
+  ),
 } as const;
 
-export const SENSITIVE_KEYS: (keyof Config)[] = ["proxyKey", "openaiKey"];
+export const SENSITIVE_KEYS: (keyof Config)[] = [
+  "proxyKey",
+  "openaiKey",
+  "googleSheetsKey",
+  "googleSheetsSpreadsheetId",
+];
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;
 export function listConfig(): Record<string, string> {
   const result: Record<string, string> = {};

@@ -1,6 +1,5 @@
-import { config } from "../../config";
+import { logger } from "../../../logger";
 import type { ExpressHttpProxyReqCallback } from ".";
-import { logger } from "../../logger";
 
 // Kobold requests look like this:
 // body:
@@ -55,10 +54,9 @@ import { logger } from "../../logger";
 // rep_pen.
 
 // messages is an array of { role: "system" | "assistant" | "user", content: ""}
-// kobold only sends us the entire prompt. we can try to split the last line and
-// use that as the user message and put the rest in the system message
-// ideally we'd split the history into user and assistant messages, but that's
-// too much work for now
+// kobold only sends us the entire prompt. we can try to split the last two
+// lines into user and assistant messages, but that's not always correct. For
+// now it will have to do.
 
 /** Transforms a KoboldAI payload into an OpenAI payload. */
 export const transformKoboldPayload: ExpressHttpProxyReqCallback = (
@@ -67,20 +65,22 @@ export const transformKoboldPayload: ExpressHttpProxyReqCallback = (
 ) => {
   const { body } = req;
   const { prompt, max_length, rep_pen, top_p, temperature } = body;
-  
+
   if (!max_length) {
-    logger.error("KoboldAI request missing max_length");
+    logger.error("KoboldAI request missing max_length.");
     throw new Error("You must specify a max_length parameter.");
   }
 
   const promptLines = prompt.split("\n");
-  const lastLine = promptLines.pop();
+  // The very last line is the contentless "Assistant: " hint to the AI.
+  // Tavern just leaves an empty line, Agnai includes the AI's name.
+  const assistantHint = promptLines.pop();
+  // The second-to-last line is the user's prompt, generally.
+  const userPrompt = promptLines.pop();
   const messages = [
     { role: "system", content: promptLines.join("\n") },
-    // TODO: technically the last line could be another assistant prompt if the
-    // user requested a multi-turn response. Need to see how Tavern and Agnai
-    // submit such requests.
-    { role: "user", content: lastLine },
+    { role: "user", content: userPrompt },
+    { role: "assistant", content: assistantHint },
   ];
 
   // Kobold doesn't select a model. If the addKey rewriter assigned us a GPT-4

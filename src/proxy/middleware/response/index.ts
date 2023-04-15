@@ -3,8 +3,9 @@ import * as http from "http";
 import util from "util";
 import zlib from "zlib";
 import * as httpProxy from "http-proxy";
-import { logger } from "../logger";
-import { keyPool } from "../key-management";
+import { logger } from "../../../logger";
+import { keyPool } from "../../../key-management";
+import { logPrompt } from "./log-prompt";
 
 export const QUOTA_ROUTES = ["/v1/chat/completions"];
 const DECODER_MAP = {
@@ -57,6 +58,7 @@ export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
         handleDownstreamErrors,
         incrementKeyUsage,
         copyHttpHeaders,
+        logPrompt,
         ...middleware,
       ];
 
@@ -72,7 +74,11 @@ export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
 
       const message = `Error while executing proxy response middleware: ${lastMiddlewareName} (${error.message})`;
       logger.error(
-        { error, thrownBy: lastMiddlewareName, key: req.key?.hash },
+        {
+          error: error.stack,
+          thrownBy: lastMiddlewareName,
+          key: req.key?.hash,
+        },
         message
       );
       res
@@ -137,7 +143,7 @@ const decodeResponseBody: DecodeResponseBodyHandler = async (
  * and throw an error to stop the middleware stack.
  * @throws {Error} HTTP error status code from downstream service
  */
-export const handleDownstreamErrors: ProxyResHandlerWithBody = async (
+const handleDownstreamErrors: ProxyResHandlerWithBody = async (
   proxyRes,
   req,
   res,
@@ -264,6 +270,12 @@ const copyHttpHeaders: ProxyResHandlerWithBody = async (
   Object.keys(proxyRes.headers).forEach((key) => {
     // Omit content-encoding because we will always decode the response body
     if (key === "content-encoding") {
+      return;
+    }
+    // We're usually using res.json() to send the response, which causes express
+    // to set content-length. That's not valid for chunked responses and some
+    // clients will reject it so we need to omit it.
+    if (key === "transfer-encoding") {
       return;
     }
     res.setHeader(key, proxyRes.headers[key] as string);

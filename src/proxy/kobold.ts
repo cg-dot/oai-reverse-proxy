@@ -4,12 +4,8 @@ requests to OpenAI API equivalents. */
 import { Request, Response, Router } from "express";
 import http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { config } from "../config";
 import { logger } from "../logger";
-import {
-  createOnProxyResHandler,
-  handleInternalError,
-  ProxyResHandlerWithBody,
-} from "./common";
 import { ipLimiter } from "./rate-limit";
 import {
   addKey,
@@ -18,7 +14,12 @@ import {
   languageFilter,
   limitOutputTokens,
   transformKoboldPayload,
-} from "./rewriters";
+} from "./middleware/request";
+import {
+  createOnProxyResHandler,
+  handleInternalError,
+  ProxyResHandlerWithBody,
+} from "./middleware/response";
 
 export const handleModelRequest = (_req: Request, res: Response) => {
   res.status(200).json({ result: "Connected to OpenAI reverse proxy" });
@@ -33,6 +34,7 @@ const rewriteRequest = (
   req: Request,
   res: Response
 ) => {
+  req.api = "kobold";
   const rewriterPipeline = [
     addKey,
     transformKoboldPayload,
@@ -54,7 +56,7 @@ const rewriteRequest = (
 
 const koboldResponseHandler: ProxyResHandlerWithBody = async (
   _proxyRes,
-  _req,
+  req,
   res,
   body
 ) => {
@@ -65,6 +67,11 @@ const koboldResponseHandler: ProxyResHandlerWithBody = async (
   const koboldResponse = {
     results: [{ text: body.choices[0].message.content }],
     model: body.model,
+    ...(config.promptLogging && {
+      proxy_note: `Prompt logging is enabled on this proxy instance. See ${req.get(
+        "host"
+      )} for more information.`,
+    }),
   };
 
   res.send(JSON.stringify(koboldResponse));

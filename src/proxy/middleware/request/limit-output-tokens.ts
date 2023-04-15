@@ -1,6 +1,6 @@
-import { config } from "../../config";
+import { config } from "../../../config";
+import { logger } from "../../../logger";
 import type { ExpressHttpProxyReqCallback } from ".";
-import { logger } from "../../logger";
 
 const MAX_TOKENS = config.maxOutputTokens;
 

@@ -30,7 +30,7 @@ type UpdateFn = typeof KeyPool.prototype.update;
 
 export class KeyChecker {
   private readonly keys: Key[];
-  private log = logger.child({ module: "KeyChecker" });
+  private log = logger.child({ module: "key-checker" });
   private timeout?: NodeJS.Timeout;
   private updateKey: UpdateFn;
   private lastCheck = 0;

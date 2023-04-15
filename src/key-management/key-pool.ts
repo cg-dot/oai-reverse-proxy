@@ -60,7 +60,7 @@ export type KeyUpdate = Omit<
 export class KeyPool {
   private keys: Key[] = [];
   private checker?: KeyChecker;
-  private log = logger.child({ module: "KeyPool" });
+  private log = logger.child({ module: "key-pool" });
 
   constructor() {
     const keyString = config.openaiKey;
