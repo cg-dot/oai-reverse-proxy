@@ -69,6 +69,7 @@ export class KeyPool {
     }
     let bareKeys: string[];
     bareKeys = keyString.split(",").map((k) => k.trim());
+    bareKeys = [...new Set(bareKeys)];
     for (const k of bareKeys) {
       const newKey = {
         key: k,
@@ -82,7 +83,7 @@ export class KeyPool {
         lastUsed: 0,
         lastChecked: 0,
         promptCount: 0,
-        hash: crypto.createHash("sha256").update(k).digest("hex").slice(0, 6),
+        hash: crypto.createHash("sha256").update(k).digest("hex").slice(0, 8),
       };
       this.keys.push(newKey);
 
