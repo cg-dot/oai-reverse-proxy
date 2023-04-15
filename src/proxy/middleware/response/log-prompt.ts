@@ -18,8 +18,13 @@ export const logPrompt: ProxyResHandlerWithBody = async (
     throw new Error("Expected body to be an object");
   }
 
+
   // Only log prompts if we're making a request to a completion endpoint
-  if (!req.originalUrl.endsWith(COMPLETE_ENDPOINT)) {
+  if (!req.path.startsWith(COMPLETE_ENDPOINT)) {
+    // Remove this once we're confident that we're not missing any prompts
+    req.log.info(
+      `Not logging prompt for ${req.path} because it's not a completion endpoint`
+    );
     return;
   }
 
