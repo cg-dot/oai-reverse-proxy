@@ -54,12 +54,16 @@ function getInfoPageHtml(host: string) {
     config: listConfig(),
     sha: process.env.COMMIT_SHA?.slice(0, 7) || "dev",
   };
+  
+  const title = process.env.SPACE_ID
+    ? `${process.env.SPACE_AUTHOR_NAME} / ${process.env.SPACE_TITLE}`
+    : "OAI Reverse Proxy";
 
   const pageBody = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>OpenAI Reverse Proxy</title>
+    <title>${title}</title>
   </head>
   <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;"
     ${infoPageHeaderHtml}
