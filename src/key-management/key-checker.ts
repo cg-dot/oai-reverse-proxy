@@ -71,7 +71,7 @@ export class KeyChecker {
         { key: uncheckedKeys[0].hash, remaining: uncheckedKeys.length - 1 },
         "Scheduling initial check for key."
       );
-      this.timeout = setTimeout(() => this.checkKey(uncheckedKeys[0]), 1000);
+      this.timeout = setTimeout(() => this.checkKey(uncheckedKeys[0]), 100);
       return;
     }
 
