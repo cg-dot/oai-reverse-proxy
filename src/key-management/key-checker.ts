@@ -2,7 +2,7 @@ import axios, { AxiosError } from "axios";
 import { logger } from "../logger";
 import type { Key, KeyPool } from "./key-pool";
 
-const MIN_CHECK_INTERVAL = 30 * 1000; // 30 seconds
+const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
 const KEY_CHECK_PERIOD = 5 * 60 * 1000; // 5 minutes
 
 const GET_MODELS_URL = "https://api.openai.com/v1/models";
@@ -67,11 +67,25 @@ export class KeyChecker {
     // Perform startup checks for any keys that haven't been checked yet.
     const uncheckedKeys = enabledKeys.filter((key) => !key.lastChecked);
     if (uncheckedKeys.length > 0) {
+      // Check up to 12 keys at once to speed up startup.
+      const keysToCheck = uncheckedKeys.slice(0, 12);
+
       this.log.info(
-        { key: uncheckedKeys[0].hash, remaining: uncheckedKeys.length - 1 },
-        "Scheduling initial check for key."
+        {
+          key: keysToCheck,
+          remaining: uncheckedKeys.length - keysToCheck.length,
+        },
+        "Scheduling initial checks for key batch."
       );
-      this.timeout = setTimeout(() => this.checkKey(uncheckedKeys[0]), 100);
+      this.timeout = setTimeout(async () => {
+        const promises = keysToCheck.map((key) => this.checkKey(key));
+        try {
+          await Promise.all(promises);
+        } catch (error) {
+          this.log.error({ error }, "Error checking one or more keys.");
+        }
+        this.scheduleNextCheck();
+      }, 250);
       return;
     }
 
@@ -81,7 +95,7 @@ export class KeyChecker {
     );
 
     // Don't check any individual key more than once every 5 minutes.
-    // Also, don't check anything more often than once every 30 seconds.
+    // Also, don't check anything more often than once every 3 seconds.
     const nextCheck = Math.max(
       oldestKey.lastChecked + KEY_CHECK_PERIOD,
       this.lastCheck + MIN_CHECK_INTERVAL
@@ -150,7 +164,6 @@ export class KeyChecker {
     }
 
     this.lastCheck = Date.now();
-    this.scheduleNextCheck();
   }
 
   private async getProvisionedModels(
