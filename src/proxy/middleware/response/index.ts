@@ -219,8 +219,13 @@ const handleDownstreamErrors: ProxyResHandlerWithBody = async (
     // Most likely model not found
     if (errorPayload.error?.code === "model_not_found") {
       if (req.key!.isGpt4) {
-        keyPool.downgradeKey(req.key?.hash);
-        errorPayload.proxy_note = `This key was incorrectly assigned to GPT-4. It has been downgraded to Turbo.`;
+        // Malicious users can request a model that `startsWith` gpt-4 but is
+        // not actually a valid model name and force the key to be downgraded.
+        // I don't feel like fixing this so I'm just going to disable the key
+        // downgrading feature for now.
+        // keyPool.downgradeKey(req.key?.hash);
+        // errorPayload.proxy_note = `This key was incorrectly assigned to GPT-4. It has been downgraded to Turbo.`;
+        errorPayload.proxy_note = `This key was incorrectly assigned to GPT-4. Try again to get a different key.`;
       } else {
         errorPayload.proxy_note = `No model was found for this key.`;
       }
