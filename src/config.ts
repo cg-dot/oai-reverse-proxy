@@ -34,6 +34,8 @@ type Config = {
   googleSheetsSpreadsheetId?: string;
   /** Whether to periodically check keys for usage and validity. */
   checkKeys?: boolean;
+  /** Whether to allow streaming completions. This is usually fine but can cause issues on some deployments. */
+  allowStreaming?: boolean;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -59,6 +61,7 @@ export const config: Config = {
     "GOOGLE_SHEETS_SPREADSHEET_ID",
     undefined
   ),
+  allowStreaming: getEnvWithDefault("ALLOW_STREAMING", true),
 } as const;
 
 export const SENSITIVE_KEYS: (keyof Config)[] = [

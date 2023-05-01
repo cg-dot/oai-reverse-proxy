@@ -7,7 +7,7 @@ import { ipLimiter } from "./rate-limit";
 import {
   addKey,
   languageFilter,
-  disableStream,
+  checkStreaming,
   finalizeBody,
   limitOutputTokens,
   limitCompletions,
@@ -27,7 +27,7 @@ const rewriteRequest = (
   const rewriterPipeline = [
     addKey,
     languageFilter,
-    disableStream,
+    checkStreaming,
     limitOutputTokens,
     limitCompletions,
     finalizeBody,

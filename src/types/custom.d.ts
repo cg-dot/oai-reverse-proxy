@@ -6,6 +6,7 @@ declare global {
     interface Request {
       key?: Key;
       api: "kobold" | "openai" | "anthropic";
+      isStreaming?: boolean;
     }
   }
 }

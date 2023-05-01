@@ -1,8 +1,7 @@
 import { config } from "../../../config";
 import { logQueue } from "../../../prompt-logging";
+import { isCompletionRequest } from "../request";
 import { ProxyResHandlerWithBody } from ".";
-
-const COMPLETE_ENDPOINT = "/v1/chat/completions";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */
 export const logPrompt: ProxyResHandlerWithBody = async (
@@ -18,9 +17,8 @@ export const logPrompt: ProxyResHandlerWithBody = async (
     throw new Error("Expected body to be an object");
   }
 
-
   // Only log prompts if we're making a request to a completion endpoint
-  if (!req.path.startsWith(COMPLETE_ENDPOINT)) {
+  if (!isCompletionRequest(req)) {
     // Remove this once we're confident that we're not missing any prompts
     req.log.info(
       `Not logging prompt for ${req.path} because it's not a completion endpoint`

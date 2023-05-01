@@ -3,7 +3,7 @@ import "source-map-support/register";
 import express from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
-import { simpleGit } from "simple-git";
+import childProcess from "child_process";
 import { logger } from "./logger";
 import { keyPool } from "./key-management";
 import { proxyRouter, rewriteTavernRequests } from "./proxy/routes";
@@ -57,11 +57,43 @@ app.use((_req: unknown, res: express.Response) => {
 // start server and load keys
 app.listen(PORT, async () => {
   try {
-    const git = simpleGit();
-    const log = git.log({ n: 1 });
-    const sha = (await log).latest!.hash;
-    process.env.COMMIT_SHA = sha;
-  } catch (error) {
+    // Huggingface seems to have changed something about how they deploy Spaces
+    // and git commands fail because of some ownership issue with the .git
+    // directory. This is a hacky workaround, but we only want to run it on
+    // deployed instances.
+
+    if (process.env.NODE_ENV === "production") {
+      childProcess.execSync("git config --global --add safe.directory /app");
+    }
+
+    const sha = childProcess
+      .execSync("git rev-parse --short HEAD")
+      .toString()
+      .trim();
+
+    const status = childProcess
+      .execSync("git status --porcelain")
+      .toString()
+      .trim()
+      // ignore Dockerfile changes since that's how the user deploys the app
+      .split("\n")
+      .filter((line: string) => !line.endsWith("Dockerfile"));
+
+    const changes = status.length > 0;
+
+    logger.info({ sha, status, changes }, "Got commit SHA and status.");
+
+    process.env.COMMIT_SHA = `${sha}${changes ? " (modified)" : ""}`;
+  } catch (error: any) {
+    logger.error(
+      {
+        error,
+        stdout: error.stdout.toString(),
+        stderr: error.stderr.toString(),
+      },
+      "Failed to get commit SHA.",
+      error
+    );
     process.env.COMMIT_SHA = "unknown";
   }
 

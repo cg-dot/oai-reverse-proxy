@@ -52,7 +52,7 @@ function getInfoPageHtml(host: string) {
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
     keyInfo,
     config: listConfig(),
-    sha: process.env.COMMIT_SHA?.slice(0, 7) || "dev",
+    commitSha: process.env.COMMIT_SHA || "dev",
   };
   
   const title = process.env.SPACE_ID

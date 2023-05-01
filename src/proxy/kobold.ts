@@ -9,7 +9,7 @@ import { logger } from "../logger";
 import { ipLimiter } from "./rate-limit";
 import {
   addKey,
-  disableStream,
+  checkStreaming,
   finalizeBody,
   languageFilter,
   limitOutputTokens,
@@ -39,7 +39,7 @@ const rewriteRequest = (
     addKey,
     transformKoboldPayload,
     languageFilter,
-    disableStream,
+    checkStreaming,
     limitOutputTokens,
     finalizeBody,
   ];

@@ -6,6 +6,7 @@ import * as httpProxy from "http-proxy";
 import { logger } from "../../../logger";
 import { keyPool } from "../../../key-management";
 import { logPrompt } from "./log-prompt";
+import { handleStreamedResponse } from "./handle-streamed-response";
 
 export const QUOTA_ROUTES = ["/v1/chat/completions"];
 const DECODER_MAP = {
@@ -20,7 +21,11 @@ const isSupportedContentEncoding = (
   return contentEncoding in DECODER_MAP;
 };
 
-type DecodeResponseBodyHandler = (
+/**
+ * Either decodes or streams the entire response body and then passes it as the
+ * last argument to the rest of the middleware stack.
+ */
+export type RawResponseBodyHandler = (
   proxyRes: http.IncomingMessage,
   req: Request,
   res: Response
@@ -31,7 +36,7 @@ export type ProxyResHandlerWithBody = (
   res: Response,
   /**
    * This will be an object if the response content-type is application/json,
-   * otherwise it will be a string.
+   * or if the response is a streaming response. Otherwise it will be a string.
    */
   body: string | Record<string, any>
 ) => Promise<void>;
@@ -43,6 +48,11 @@ export type ProxyResMiddleware = ProxyResHandlerWithBody[];
  * the body.  Custom middleware won't execute if the response is determined to
  * be an error from the downstream service as the response will be taken over
  * by the common error handler.
+ *
+ * For streaming responses, the handleStream middleware will block remaining
+ * middleware from executing as it consumes the stream and forwards events to
+ * the client. Once the stream is closed, the finalized body will be attached
+ * to res.body and the remaining middleware will execute.
  */
 export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
   return async (
@@ -50,25 +60,63 @@ export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
     req: Request,
     res: Response
   ) => {
-    let lastMiddlewareName = decodeResponseBody.name;
-    try {
-      const body = await decodeResponseBody(proxyRes, req, res);
+    const initialHandler = req.isStreaming
+      ? handleStreamedResponse
+      : decodeResponseBody;
 
-      const middlewareStack: ProxyResMiddleware = [
-        handleDownstreamErrors,
-        incrementKeyUsage,
-        copyHttpHeaders,
-        logPrompt,
-        ...middleware,
-      ];
+    let lastMiddlewareName = initialHandler.name;
+
+    req.log.debug(
+      {
+        api: req.api,
+        route: req.path,
+        method: req.method,
+        stream: req.isStreaming,
+        middleware: lastMiddlewareName,
+      },
+      "Handling proxy response"
+    );
+
+    try {
+      const body = await initialHandler(proxyRes, req, res);
+
+      const middlewareStack: ProxyResMiddleware = [];
+
+      if (req.isStreaming) {
+        // Anything that touches the response will break streaming requests so
+        // certain middleware can't be used. This includes whatever API-specific
+        // middleware is passed in, which isn't ideal but it's what we've got
+        // for now.
+        // Streamed requests will be treated as non-streaming if the upstream
+        // service returns a non-200 status code, so no need to include the
+        // error handler here.
+
+        // This is a little too easy to accidentally screw up so I need to add a
+        // better way to differentiate between middleware that can be used for
+        // streaming requests and those that can't. Probably a separate type
+        // or function signature for streaming-compatible middleware.
+        middlewareStack.push(incrementKeyUsage, logPrompt);
+      } else {
+        middlewareStack.push(
+          handleDownstreamErrors,
+          incrementKeyUsage,
+          copyHttpHeaders,
+          logPrompt,
+          ...middleware
+        );
+      }
 
       for (const middleware of middlewareStack) {
         lastMiddlewareName = middleware.name;
         await middleware(proxyRes, req, res, body);
       }
     } catch (error: any) {
-      // downstream errors will have already been responded to
       if (res.headersSent) {
+        req.log.error(
+          `Error while executing proxy response middleware: ${lastMiddlewareName} (${error.message})`
+        );
+        // Either the downstream error handler got to it first, or we're mid-
+        // stream and we can't do anything about it.
         return;
       }
 
@@ -94,11 +142,19 @@ export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
  * object.  Otherwise, it will be returned as a string.
  * @throws {Error} Unsupported content-encoding or invalid application/json body
  */
-const decodeResponseBody: DecodeResponseBodyHandler = async (
+export const decodeResponseBody: RawResponseBodyHandler = async (
   proxyRes,
   req,
   res
 ) => {
+  if (req.isStreaming) {
+    req.log.error(
+      { api: req.api, key: req.key?.hash },
+      `decodeResponseBody called for a streaming request, which isn't valid.`
+    );
+    throw new Error("decodeResponseBody called for a streaming request.");
+  }
+
   const promise = new Promise<string>((resolve, reject) => {
     let chunks: Buffer[] = [];
     proxyRes.on("data", (chunk) => chunks.push(chunk));

@@ -1,6 +1,6 @@
 import { config } from "../../../config";
 import { logger } from "../../../logger";
-import type { ExpressHttpProxyReqCallback } from ".";
+import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
 
 const MAX_TOKENS = config.maxOutputTokens;
 
@@ -9,7 +9,7 @@ export const limitOutputTokens: ExpressHttpProxyReqCallback = (
   _proxyReq,
   req
 ) => {
-  if (req.method === "POST" && req.body?.max_tokens) {
+  if (isCompletionRequest(req) && req.body?.max_tokens) {
     // convert bad or missing input to a MAX_TOKENS
     if (typeof req.body.max_tokens !== "number") {
       logger.warn(
