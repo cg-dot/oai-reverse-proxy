@@ -120,10 +120,11 @@ export class KeyChecker {
     }
 
     this.log.info({ key: key.hash }, "Checking key...");
+    let isInitialCheck = !key.lastChecked;
     try {
       // During the initial check we need to get the subscription first because
       // trials have different behavior.
-      if (!key.lastChecked) {
+      if (isInitialCheck) {
         const subscription = await this.getSubscription(key);
         this.updateKey(key.hash, { isTrial: !subscription.has_payment_method });
         const [provisionedModels, usage] = await Promise.all([
@@ -164,6 +165,11 @@ export class KeyChecker {
     }
 
     this.lastCheck = Date.now();
+    // Only enqueue the next check if this wasn't a startup check, since those
+    // are batched together elsewhere.
+    if (!isInitialCheck) {
+      this.scheduleNextCheck();
+    }
   }
 
   private async getProvisionedModels(
