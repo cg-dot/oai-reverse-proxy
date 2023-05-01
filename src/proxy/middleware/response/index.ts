@@ -225,7 +225,7 @@ const handleDownstreamErrors: ProxyResHandlerWithBody = async (
         // downgrading feature for now.
         // keyPool.downgradeKey(req.key?.hash);
         // errorPayload.proxy_note = `This key was incorrectly assigned to GPT-4. It has been downgraded to Turbo.`;
-        errorPayload.proxy_note = `This key was incorrectly assigned to GPT-4. Try again to get a different key.`;
+        errorPayload.proxy_note = `This key was incorrectly flagged as GPT-4, or you requested a GPT-4 snapshot for which this key is not authorized. Try again to get a different key, or use Turbo.`;
       } else {
         errorPayload.proxy_note = `No model was found for this key.`;
       }
