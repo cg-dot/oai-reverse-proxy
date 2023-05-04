@@ -294,27 +294,31 @@ const handleDownstreamErrors: ProxyResHandlerWithBody = async (
   throw new Error(errorPayload.error?.message);
 };
 
-/** Handles errors in the request rewriter pipeline. */
+/** Handles errors in rewriter pipelines. */
 export const handleInternalError: httpProxy.ErrorCallback = (
   err,
   _req,
   res
 ) => {
-  logger.error({ error: err }, "Error in proxy request pipeline.");
-
-  (res as http.ServerResponse).writeHead(500, {
-    "Content-Type": "application/json",
-  });
-  res.end(
-    JSON.stringify({
-      error: {
-        type: "proxy_error",
-        message: err.message,
-        stack: err.stack,
-        proxy_note: `Reverse proxy encountered an error before it could reach the downstream API.`,
-      },
-    })
-  );
+  logger.error({ error: err }, "Error in http-proxy-middleware pipeline.");
+  // headers might have already been sent
+  try {
+    (res as http.ServerResponse).writeHead(500, {
+      "Content-Type": "application/json",
+    });
+    res.end(
+      JSON.stringify({
+        error: {
+          type: "proxy_error",
+          message: err.message,
+          stack: err.stack,
+          proxy_note: `Reverse proxy encountered an error before it could reach the downstream API.`,
+        },
+      })
+    );
+  } catch (e) {
+    logger.error({ error: e }, "Error writing error response headers, giving up.");
+  }
 };
 
 const incrementKeyUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
