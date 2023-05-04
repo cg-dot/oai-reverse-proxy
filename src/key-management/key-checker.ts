@@ -72,7 +72,7 @@ export class KeyChecker {
 
       this.log.info(
         {
-          key: keysToCheck,
+          key: keysToCheck.map((key) => key.hash),
           remaining: uncheckedKeys.length - keysToCheck.length,
         },
         "Scheduling initial checks for key batch."
