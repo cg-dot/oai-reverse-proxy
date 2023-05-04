@@ -25,7 +25,7 @@ app.use(
         "req.headers.cookie",
         'res.headers["set-cookie"]',
         "req.headers.authorization",
-        "req.headers.x-forwarded-for",
+        'req.headers["x-forwarded-for"]',
       ],
       censor: "********",
     },
