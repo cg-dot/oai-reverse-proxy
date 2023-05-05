@@ -268,6 +268,9 @@ const handleDownstreamErrors: ProxyResHandlerWithBody = async (
     if (errorPayload.error?.type === "insufficient_quota") {
       keyPool.disable(req.key!);
       errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${tryAgainMessage}`;
+    } else if (errorPayload.error?.type === "billing_not_active") {
+      keyPool.disable(req.key!);
+      errorPayload.proxy_note = `Assigned key was deactivated by OpenAI. ${tryAgainMessage}`;
     } else {
       errorPayload.proxy_note = `This is likely a temporary error with OpenAI. Try again in a few seconds.`;
     }
