@@ -292,9 +292,9 @@ const handleDownstreamErrors: ProxyResHandlerWithBody = async (
   } else {
     errorPayload.proxy_note = `Unrecognized error from OpenAI.`;
   }
-  
-  // Don't leak the org id outside the proxy
-  errorPayload.message.replace(/org-.{24}/gm, "org-xxxxxxxxxxxxxxxxxxx");
+
+  // Some OAI errors contain the organization ID, which we don't want to reveal.
+  errorPayload.message?.replace(/org-.{24}/gm, "org-xxxxxxxxxxxxxxxxxxx");
 
   res.status(statusCode).json(errorPayload);
   throw new Error(errorPayload.error?.message);
