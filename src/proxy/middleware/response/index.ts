@@ -46,8 +46,8 @@ export type ProxyResMiddleware = ProxyResHandlerWithBody[];
  * Returns a on.proxyRes handler that executes the given middleware stack after
  * the common proxy response handlers have processed the response and decoded
  * the body.  Custom middleware won't execute if the response is determined to
- * be an error from the downstream service as the response will be taken over
- * by the common error handler.
+ * be an error from the upstream service as the response will be taken over by
+ * the common error handler.
  *
  * For streaming responses, the handleStream middleware will block remaining
  * middleware from executing as it consumes the stream and forwards events to
@@ -98,7 +98,7 @@ export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
         middlewareStack.push(incrementKeyUsage, logPrompt);
       } else {
         middlewareStack.push(
-          handleDownstreamErrors,
+          handleUpstreamErrors,
           incrementKeyUsage,
           copyHttpHeaders,
           logPrompt,
@@ -115,7 +115,7 @@ export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
         req.log.error(
           `Error while executing proxy response middleware: ${lastMiddlewareName} (${error.message})`
         );
-        // Either the downstream error handler got to it first, or we're mid-
+        // Either the upstream error handler got to it first, or we're mid-
         // stream and we can't do anything about it.
         return;
       }
@@ -137,7 +137,7 @@ export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
 };
 
 /**
- * Handles the response from the downstream service and decodes the body if
+ * Handles the response from the upstream service and decodes the body if
  * necessary.  If the response is JSON, it will be parsed and returned as an
  * object.  Otherwise, it will be returned as a string.
  * @throws {Error} Unsupported content-encoding or invalid application/json body
@@ -194,12 +194,12 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
 // TODO: This is too specific to OpenAI's error responses, Anthropic errors
 // will need a different handler.
 /**
- * Handles non-2xx responses from the downstream service.  If the proxied
- * response is an error, this will respond to the client with an error payload
- * and throw an error to stop the middleware stack.
- * @throws {Error} HTTP error status code from downstream service
+ * Handles non-2xx responses from the upstream service.  If the proxied response
+ * is an error, this will respond to the client with an error payload and throw
+ * an error to stop the middleware stack.
+ * @throws {Error} HTTP error status code from upstream service
  */
-const handleDownstreamErrors: ProxyResHandlerWithBody = async (
+const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   proxyRes,
   req,
   res,
@@ -222,7 +222,7 @@ const handleDownstreamErrors: ProxyResHandlerWithBody = async (
     if (typeof body === "object") {
       errorPayload = body;
     } else {
-      throw new Error("Received non-JSON error response from downstream.");
+      throw new Error("Received non-JSON error response from upstream.");
     }
   } catch (parseError: any) {
     const statusMessage = proxyRes.statusMessage || "Unknown error";
@@ -236,7 +236,7 @@ const handleDownstreamErrors: ProxyResHandlerWithBody = async (
       statusCode,
       statusMessage: proxyRes.statusMessage,
       error: parseError.message,
-      proxy_note: `This is likely a temporary error with the downstream service.`,
+      proxy_note: `This is likely a temporary error with the upstream service.`,
     };
 
     res.status(statusCode).json(errorObject);
@@ -250,7 +250,7 @@ const handleDownstreamErrors: ProxyResHandlerWithBody = async (
       errorPayload,
       key: req.key?.hash,
     },
-    `Received error response from downstream. (${proxyRes.statusMessage})`
+    `Received error response from upstream. (${proxyRes.statusMessage})`
   );
 
   if (statusCode === 400) {
@@ -312,23 +312,25 @@ export const handleInternalError: httpProxy.ErrorCallback = (
   res
 ) => {
   logger.error({ error: err }, "Error in http-proxy-middleware pipeline.");
-  // headers might have already been sent
   try {
-    (res as http.ServerResponse).writeHead(500, {
-      "Content-Type": "application/json",
-    });
+    if ("setHeader" in res && !res.headersSent) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+    }
     res.end(
       JSON.stringify({
         error: {
           type: "proxy_error",
           message: err.message,
           stack: err.stack,
-          proxy_note: `Reverse proxy encountered an error before it could reach the downstream API.`,
+          proxy_note: `Reverse proxy encountered an error before it could reach the upstream API.`,
         },
       })
     );
   } catch (e) {
-    logger.error({ error: e }, "Error writing error response headers, giving up.");
+    logger.error(
+      { error: e },
+      `Error writing error response headers, giving up.`
+    );
   }
 };
 
