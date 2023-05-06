@@ -294,7 +294,12 @@ const handleDownstreamErrors: ProxyResHandlerWithBody = async (
   }
 
   // Some OAI errors contain the organization ID, which we don't want to reveal.
-  errorPayload.message?.replace(/org-.{24}/gm, "org-xxxxxxxxxxxxxxxxxxx");
+  if (errorPayload.error?.message) {
+    errorPayload.error.message = errorPayload.error.message.replace(
+      /org-.{24}/gm,
+      "org-xxxxxxxxxxxxxxxxxxx"
+    );
+  }
 
   res.status(statusCode).json(errorPayload);
   throw new Error(errorPayload.error?.message);
