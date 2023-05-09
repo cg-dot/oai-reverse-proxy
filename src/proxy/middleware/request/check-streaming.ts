@@ -1,4 +1,3 @@
-import { config } from "../../../config";
 import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
 
 /**
@@ -19,7 +18,7 @@ export const checkStreaming: ExpressHttpProxyReqCallback = (_proxyReq, req) => {
       req.body.stream = false;
       return;
     }
-    req.body.stream = config.allowStreaming;
-    req.isStreaming = config.allowStreaming;
+    req.body.stream = true;
+    req.isStreaming = true;
   }
 };

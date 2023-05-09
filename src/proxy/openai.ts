@@ -3,6 +3,7 @@ import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
 import { logger } from "../logger";
+import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";
 import {
   addKey,
@@ -72,6 +73,7 @@ const openaiProxy = createProxyMiddleware({
   selfHandleResponse: true,
   logger,
 });
+const queuedOpenaiProxy = createQueueMiddleware(openaiProxy);
 
 const openaiRouter = Router();
 // Some clients don't include the /v1/ prefix in their requests and users get
@@ -84,7 +86,7 @@ openaiRouter.use((req, _res, next) => {
   next();
 });
 openaiRouter.get("/v1/models", openaiProxy);
-openaiRouter.post("/v1/chat/completions", ipLimiter, openaiProxy);
+openaiRouter.post("/v1/chat/completions", ipLimiter, queuedOpenaiProxy);
 // If a browser tries to visit a route that doesn't exist, redirect to the info
 // page to help them find the right URL.
 openaiRouter.get("*", (req, res, next) => {

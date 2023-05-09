@@ -3,7 +3,8 @@ dotenv.config();
 
 const isDev = process.env.NODE_ENV !== "production";
 
-type PROMPT_LOGGING_BACKEND = "google_sheets";
+type PromptLoggingBackend = "google_sheets";
+export type DequeueMode = "fair" | "random" | "none";
 
 type Config = {
   /** The port the proxy server will listen on. */
@@ -25,17 +26,29 @@ type Config = {
   /** Pino log level. */
   logLevel?: "debug" | "info" | "warn" | "error";
   /** Whether prompts and responses should be logged to persistent storage. */
-  promptLogging?: boolean; // TODO: Implement prompt logging once we have persistent storage.
+  promptLogging?: boolean;
   /** Which prompt logging backend to use. */
-  promptLoggingBackend?: PROMPT_LOGGING_BACKEND;
+  promptLoggingBackend?: PromptLoggingBackend;
   /** Base64-encoded Google Sheets API key. */
   googleSheetsKey?: string;
   /** Google Sheets spreadsheet ID. */
   googleSheetsSpreadsheetId?: string;
   /** Whether to periodically check keys for usage and validity. */
   checkKeys?: boolean;
-  /** Whether to allow streaming completions. This is usually fine but can cause issues on some deployments. */
-  allowStreaming?: boolean;
+  /**
+   * How to display quota information on the info page.
+   * 'none' - Hide quota information
+   * 'simple' - Display quota information as a percentage
+   * 'full' - Display quota information as usage against total capacity
+   */
+  quotaDisplayMode: "none" | "simple" | "full";
+  /**
+   * Which request queueing strategy to use when keys are over their rate limit.
+   * 'fair' - Requests are serviced in the order they were received (default)
+   * 'random' - Requests are serviced randomly
+   * 'none' - Requests are not queued and users have to retry manually
+   */
+  queueMode: DequeueMode;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -54,6 +67,7 @@ export const config: Config = {
   ),
   logLevel: getEnvWithDefault("LOG_LEVEL", "info"),
   checkKeys: getEnvWithDefault("CHECK_KEYS", !isDev),
+  quotaDisplayMode: getEnvWithDefault("QUOTA_DISPLAY_MODE", "full"),
   promptLogging: getEnvWithDefault("PROMPT_LOGGING", false),
   promptLoggingBackend: getEnvWithDefault("PROMPT_LOGGING_BACKEND", undefined),
   googleSheetsKey: getEnvWithDefault("GOOGLE_SHEETS_KEY", undefined),
@@ -61,7 +75,7 @@ export const config: Config = {
     "GOOGLE_SHEETS_SPREADSHEET_ID",
     undefined
   ),
-  allowStreaming: getEnvWithDefault("ALLOW_STREAMING", true),
+  queueMode: getEnvWithDefault("QUEUE_MODE", "fair"),
 } as const;
 
 export const SENSITIVE_KEYS: (keyof Config)[] = [

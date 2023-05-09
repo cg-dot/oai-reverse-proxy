@@ -7,6 +7,12 @@ declare global {
       key?: Key;
       api: "kobold" | "openai" | "anthropic";
       isStreaming?: boolean;
+      startTime: number;
+      retryCount: number;
+      queueOutTime?: number;
+      onAborted?: () => void;
+      proceed: () => void;
+      heartbeatInterval?: NodeJS.Timeout;
     }
   }
 }

@@ -3,10 +3,12 @@ import * as http from "http";
 import util from "util";
 import zlib from "zlib";
 import * as httpProxy from "http-proxy";
+import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { keyPool } from "../../../key-management";
-import { logPrompt } from "./log-prompt";
+import { buildFakeSseMessage, enqueue, trackWaitTime } from "../../queue";
 import { handleStreamedResponse } from "./handle-streamed-response";
+import { logPrompt } from "./log-prompt";
 
 export const QUOTA_ROUTES = ["/v1/chat/completions"];
 const DECODER_MAP = {
@@ -20,6 +22,13 @@ const isSupportedContentEncoding = (
 ): contentEncoding is keyof typeof DECODER_MAP => {
   return contentEncoding in DECODER_MAP;
 };
+
+class RetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RetryableError";
+  }
+}
 
 /**
  * Either decodes or streams the entire response body and then passes it as the
@@ -54,7 +63,7 @@ export type ProxyResMiddleware = ProxyResHandlerWithBody[];
  * the client. Once the stream is closed, the finalized body will be attached
  * to res.body and the remaining middleware will execute.
  */
-export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
+export const createOnProxyResHandler = (apiMiddleware: ProxyResMiddleware) => {
   return async (
     proxyRes: http.IncomingMessage,
     req: Request,
@@ -66,43 +75,23 @@ export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
 
     let lastMiddlewareName = initialHandler.name;
 
-    req.log.debug(
-      {
-        api: req.api,
-        route: req.path,
-        method: req.method,
-        stream: req.isStreaming,
-        middleware: lastMiddlewareName,
-      },
-      "Handling proxy response"
-    );
-
     try {
       const body = await initialHandler(proxyRes, req, res);
 
       const middlewareStack: ProxyResMiddleware = [];
 
       if (req.isStreaming) {
-        // Anything that touches the response will break streaming requests so
-        // certain middleware can't be used. This includes whatever API-specific
-        // middleware is passed in, which isn't ideal but it's what we've got
-        // for now.
-        // Streamed requests will be treated as non-streaming if the upstream
-        // service returns a non-200 status code, so no need to include the
-        // error handler here.
-
-        // This is a little too easy to accidentally screw up so I need to add a
-        // better way to differentiate between middleware that can be used for
-        // streaming requests and those that can't. Probably a separate type
-        // or function signature for streaming-compatible middleware.
-        middlewareStack.push(incrementKeyUsage, logPrompt);
+        // `handleStreamedResponse` writes to the response and ends it, so
+        // we can only execute middleware that doesn't write to the response.
+        middlewareStack.push(trackRateLimit, incrementKeyUsage, logPrompt);
       } else {
         middlewareStack.push(
+          trackRateLimit,
           handleUpstreamErrors,
           incrementKeyUsage,
           copyHttpHeaders,
           logPrompt,
-          ...middleware
+          ...apiMiddleware
         );
       }
 
@@ -110,31 +99,46 @@ export const createOnProxyResHandler = (middleware: ProxyResMiddleware) => {
         lastMiddlewareName = middleware.name;
         await middleware(proxyRes, req, res, body);
       }
+
+      trackWaitTime(req);
     } catch (error: any) {
-      if (res.headersSent) {
-        req.log.error(
-          `Error while executing proxy response middleware: ${lastMiddlewareName} (${error.message})`
-        );
-        // Either the upstream error handler got to it first, or we're mid-
-        // stream and we can't do anything about it.
+      // Hack: if the error is a retryable rate-limit error, the request has
+      // been re-enqueued and we can just return without doing anything else.
+      if (error instanceof RetryableError) {
         return;
       }
 
+      const errorData = {
+        error: error.stack,
+        thrownBy: lastMiddlewareName,
+        key: req.key?.hash,
+      };
       const message = `Error while executing proxy response middleware: ${lastMiddlewareName} (${error.message})`;
-      logger.error(
-        {
-          error: error.stack,
-          thrownBy: lastMiddlewareName,
-          key: req.key?.hash,
-        },
-        message
-      );
+      if (res.headersSent) {
+        req.log.error(errorData, message);
+        // This should have already been handled by the error handler, but
+        // just in case...
+        if (!res.writableEnded) {
+          res.end();
+        }
+        return;
+      }
+      logger.error(errorData, message);
       res
         .status(500)
         .json({ error: "Internal server error", proxy_note: message });
     }
   };
 };
+
+function reenqueueRequest(req: Request) {
+  req.log.info(
+    { key: req.key?.hash, retryCount: req.retryCount },
+    `Re-enqueueing request due to rate-limit error`
+  );
+  req.retryCount++;
+  enqueue(req);
+}
 
 /**
  * Handles the response from the upstream service and decodes the body if
@@ -160,8 +164,8 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
     proxyRes.on("data", (chunk) => chunks.push(chunk));
     proxyRes.on("end", async () => {
       let body = Buffer.concat(chunks);
-      const contentEncoding = proxyRes.headers["content-encoding"];
 
+      const contentEncoding = proxyRes.headers["content-encoding"];
       if (contentEncoding) {
         if (isSupportedContentEncoding(contentEncoding)) {
           const decoder = DECODER_MAP[contentEncoding];
@@ -169,7 +173,10 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
         } else {
           const errorMessage = `Proxy received response with unsupported content-encoding: ${contentEncoding}`;
           logger.warn({ contentEncoding, key: req.key?.hash }, errorMessage);
-          res.status(500).json({ error: errorMessage, contentEncoding });
+          writeErrorResponse(res, 500, {
+            error: errorMessage,
+            contentEncoding,
+          });
           return reject(errorMessage);
         }
       }
@@ -183,7 +190,7 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
       } catch (error: any) {
         const errorMessage = `Proxy received response with invalid JSON: ${error.message}`;
         logger.warn({ error, key: req.key?.hash }, errorMessage);
-        res.status(500).json({ error: errorMessage });
+        writeErrorResponse(res, 500, { error: errorMessage });
         return reject(errorMessage);
       }
     });
@@ -197,7 +204,9 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
  * Handles non-2xx responses from the upstream service.  If the proxied response
  * is an error, this will respond to the client with an error payload and throw
  * an error to stop the middleware stack.
- * @throws {Error} HTTP error status code from upstream service
+ * On 429 errors, if request queueing is enabled, the request will be silently
+ * re-enqueued.  Otherwise, the request will be rejected with an error payload.
+ * @throws {Error} On HTTP error status code from upstream service
  */
 const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   proxyRes,
@@ -206,6 +215,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   body
 ) => {
   const statusCode = proxyRes.statusCode || 500;
+
   if (statusCode < 400) {
     return;
   }
@@ -222,7 +232,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     if (typeof body === "object") {
       errorPayload = body;
     } else {
-      throw new Error("Received non-JSON error response from upstream.");
+      throw new Error("Received unparsable error response from upstream.");
     }
   } catch (parseError: any) {
     const statusMessage = proxyRes.statusMessage || "Unknown error";
@@ -238,8 +248,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
       error: parseError.message,
       proxy_note: `This is likely a temporary error with the upstream service.`,
     };
-
-    res.status(statusCode).json(errorObject);
+    writeErrorResponse(res, statusCode, errorObject);
     throw new Error(parseError.message);
   }
 
@@ -261,30 +270,35 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     keyPool.disable(req.key!);
     errorPayload.proxy_note = `The OpenAI key is invalid or revoked. ${tryAgainMessage}`;
   } else if (statusCode === 429) {
-    // One of:
-    // - Quota exceeded (key is dead, disable it)
-    // - Rate limit exceeded (key is fine, just try again)
-    // - Model overloaded (their fault, just try again)
-    if (errorPayload.error?.type === "insufficient_quota") {
+    const type = errorPayload.error?.type;
+    if (type === "insufficient_quota") {
+      // Billing quota exceeded (key is dead, disable it)
       keyPool.disable(req.key!);
       errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${tryAgainMessage}`;
-    } else if (errorPayload.error?.type === "billing_not_active") {
+    } else if (type === "billing_not_active") {
+      // Billing is not active (key is dead, disable it)
       keyPool.disable(req.key!);
       errorPayload.proxy_note = `Assigned key was deactivated by OpenAI. ${tryAgainMessage}`;
+    } else if (type === "requests" || type === "tokens") {
+      // Per-minute request or token rate limit is exceeded, which we can retry
+      keyPool.markRateLimited(req.key!.hash);
+      if (config.queueMode !== "none") {
+        reenqueueRequest(req);
+        // TODO: I don't like using an error to control flow here
+        throw new RetryableError("Rate-limited request re-enqueued.");
+      }
+      errorPayload.proxy_note = `Assigned key's '${type}' rate limit has been exceeded. Try again later.`;
     } else {
+      // OpenAI probably overloaded
       errorPayload.proxy_note = `This is likely a temporary error with OpenAI. Try again in a few seconds.`;
     }
   } else if (statusCode === 404) {
     // Most likely model not found
+    // TODO: this probably doesn't handle GPT-4-32k variants properly if the
+    // proxy has keys for both the 8k and 32k context models at the same time.
     if (errorPayload.error?.code === "model_not_found") {
       if (req.key!.isGpt4) {
-        // Malicious users can request a model that `startsWith` gpt-4 but is
-        // not actually a valid model name and force the key to be downgraded.
-        // I don't feel like fixing this so I'm just going to disable the key
-        // downgrading feature for now.
-        // keyPool.downgradeKey(req.key?.hash);
-        // errorPayload.proxy_note = `This key was incorrectly assigned to GPT-4. It has been downgraded to Turbo.`;
-        errorPayload.proxy_note = `This key was incorrectly flagged as GPT-4, or you requested a GPT-4 snapshot for which this key is not authorized. Try again to get a different key, or use Turbo.`;
+        errorPayload.proxy_note = `Assigned key isn't provisioned for the GPT-4 snapshot you requested. Try again to get a different key, or use Turbo.`;
       } else {
         errorPayload.proxy_note = `No model was found for this key.`;
       }
@@ -301,9 +315,32 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     );
   }
 
-  res.status(statusCode).json(errorPayload);
+  writeErrorResponse(res, statusCode, errorPayload);
   throw new Error(errorPayload.error?.message);
 };
+
+function writeErrorResponse(
+  res: Response,
+  statusCode: number,
+  errorPayload: Record<string, any>
+) {
+  // If we're mid-SSE stream, send a data event with the error payload and end
+  // the stream. Otherwise just send a normal error response.
+  if (
+    res.headersSent ||
+    res.getHeader("content-type") === "text/event-stream"
+  ) {
+    const msg = buildFakeSseMessage(
+      `upstream error (${statusCode})`,
+      JSON.stringify(errorPayload, null, 2)
+    );
+    res.write(msg);
+    res.write(`data: [DONE]\n\n`);
+    res.end();
+  } else {
+    res.status(statusCode).json(errorPayload);
+  }
+}
 
 /** Handles errors in rewriter pipelines. */
 export const handleInternalError: httpProxy.ErrorCallback = (
@@ -313,19 +350,14 @@ export const handleInternalError: httpProxy.ErrorCallback = (
 ) => {
   logger.error({ error: err }, "Error in http-proxy-middleware pipeline.");
   try {
-    if ("setHeader" in res && !res.headersSent) {
-      res.writeHead(500, { "Content-Type": "application/json" });
-    }
-    res.end(
-      JSON.stringify({
-        error: {
-          type: "proxy_error",
-          message: err.message,
-          stack: err.stack,
-          proxy_note: `Reverse proxy encountered an error before it could reach the upstream API.`,
-        },
-      })
-    );
+    writeErrorResponse(res as Response, 500, {
+      error: {
+        type: "proxy_error",
+        message: err.message,
+        stack: err.stack,
+        proxy_note: `Reverse proxy encountered an error before it could reach the upstream API.`,
+      },
+    });
   } catch (e) {
     logger.error(
       { error: e },
@@ -338,6 +370,10 @@ const incrementKeyUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
   if (QUOTA_ROUTES.includes(req.path)) {
     keyPool.incrementPrompt(req.key?.hash);
   }
+};
+
+const trackRateLimit: ProxyResHandlerWithBody = async (proxyRes, req) => {
+  keyPool.updateRateLimits(req.key!.hash, proxyRes.headers);
 };
 
 const copyHttpHeaders: ProxyResHandlerWithBody = async (

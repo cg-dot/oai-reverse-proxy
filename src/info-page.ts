@@ -4,60 +4,89 @@ import showdown from "showdown";
 import { config, listConfig } from "./config";
 import { keyPool } from "./key-management";
 import { getUniqueIps } from "./proxy/rate-limit";
+import { getAverageWaitTime, getQueueLength } from "./proxy/queue";
+
+const INFO_PAGE_TTL = 5000;
+let infoPageHtml: string | undefined;
+let infoPageLastUpdated = 0;
 
 export const handleInfoPage = (req: Request, res: Response) => {
+  if (infoPageLastUpdated + INFO_PAGE_TTL > Date.now()) {
+    res.send(infoPageHtml);
+    return;
+  }
+
   // Huggingface puts spaces behind some cloudflare ssl proxy, so `req.protocol` is `http` but the correct URL is actually `https`
   const host = req.get("host");
   const isHuggingface = host?.includes("hf.space");
   const protocol = isHuggingface ? "https" : req.protocol;
-  res.send(getInfoPageHtml(protocol + "://" + host));
+  res.send(cacheInfoPageHtml(protocol + "://" + host));
 };
 
-function getInfoPageHtml(host: string) {
+function cacheInfoPageHtml(host: string) {
   const keys = keyPool.list();
-  let keyInfo: Record<string, any> = {
-    all: keys.length,
-    active: keys.filter((k) => !k.isDisabled).length,
-  };
+  let keyInfo: Record<string, any> = { all: keys.length };
 
   if (keyPool.anyUnchecked()) {
     const uncheckedKeys = keys.filter((k) => !k.lastChecked);
     keyInfo = {
       ...keyInfo,
+      active: keys.filter((k) => !k.isDisabled).length,
       status: `Still checking ${uncheckedKeys.length} keys...`,
     };
   } else if (config.checkKeys) {
+    const trialKeys = keys.filter((k) => k.isTrial);
+    const turboKeys = keys.filter((k) => !k.isGpt4 && !k.isDisabled);
+    const gpt4Keys = keys.filter((k) => k.isGpt4 && !k.isDisabled);
+
+    const quota: Record<string, string> = { turbo: "", gpt4: "" };
     const hasGpt4 = keys.some((k) => k.isGpt4);
+
+    if (config.quotaDisplayMode === "full") {
+      quota.turbo = `${keyPool.usageInUsd()} (${Math.round(
+        keyPool.remainingQuota() * 100
+      )}% remaining)`;
+      quota.gpt4 = `${keyPool.usageInUsd(true)} (${Math.round(
+        keyPool.remainingQuota(true) * 100
+      )}% remaining)`;
+    } else {
+      quota.turbo = `${Math.round(keyPool.remainingQuota() * 100)}%`;
+      quota.gpt4 = `${Math.round(keyPool.remainingQuota(true) * 100)}%`;
+    }
+
+    if (!hasGpt4) {
+      delete quota.gpt4;
+    }
+
     keyInfo = {
       ...keyInfo,
-      trial: keys.filter((k) => k.isTrial).length,
-      gpt4: keys.filter((k) => k.isGpt4).length,
-      quotaLeft: {
-        all: `${Math.round(keyPool.remainingQuota() * 100)}%`,
-        ...(hasGpt4
-          ? { gpt4: `${Math.round(keyPool.remainingQuota(true) * 100)}%` }
-          : {}),
+      trial: trialKeys.length,
+      active: {
+        turbo: turboKeys.length,
+        ...(hasGpt4 ? { gpt4: gpt4Keys.length } : {}),
       },
+      ...(config.quotaDisplayMode !== "none" ? { quota: quota } : {}),
     };
   }
 
   const info = {
     uptime: process.uptime(),
-    timestamp: Date.now(),
     endpoints: {
       kobold: host,
       openai: host + "/proxy/openai",
     },
     proompts: keys.reduce((acc, k) => acc + k.promptCount, 0),
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
-    keyInfo,
+    ...getQueueInformation(),
+    keys: keyInfo,
     config: listConfig(),
     commitSha: process.env.COMMIT_SHA || "dev",
   };
-  
+
   const title = process.env.SPACE_ID
     ? `${process.env.SPACE_AUTHOR_NAME} / ${process.env.SPACE_TITLE}`
     : "OAI Reverse Proxy";
+  const headerHtml = buildInfoPageHeader(new showdown.Converter(), title);
 
   const pageBody = `<!DOCTYPE html>
 <html lang="en">
@@ -66,29 +95,30 @@ function getInfoPageHtml(host: string) {
     <title>${title}</title>
   </head>
   <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;"
-    ${infoPageHeaderHtml}
+    ${headerHtml}
     <hr />
     <h2>Service Info</h2>
     <pre>${JSON.stringify(info, null, 2)}</pre>
   </body>
 </html>`;
 
+  infoPageHtml = pageBody;
+  infoPageLastUpdated = Date.now();
+
   return pageBody;
 }
-
-const infoPageHeaderHtml = buildInfoPageHeader(new showdown.Converter());
 
 /**
  * If the server operator provides a `greeting.md` file, it will be included in
  * the rendered info page.
  **/
-function buildInfoPageHeader(converter: showdown.Converter) {
-  const genericInfoPage = fs.readFileSync("info-page.md", "utf8");
+function buildInfoPageHeader(converter: showdown.Converter, title: string) {
   const customGreeting = fs.existsSync("greeting.md")
     ? fs.readFileSync("greeting.md", "utf8")
     : null;
 
-  let infoBody = genericInfoPage;
+  let infoBody = `<!-- Header for Showdown's parser, don't remove this line -->
+# ${title}`;
   if (config.promptLogging) {
     infoBody += `\n## Prompt logging is enabled!
 The server operator has enabled prompt logging. The prompts you send to this proxy and the AI responses you receive may be saved.
@@ -97,9 +127,32 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
 
 **If you are uncomfortable with this, don't send prompts to this proxy!**`;
   }
+
+  if (config.queueMode !== "none") {
+    infoBody += `\n### Queueing is enabled
+Requests are queued to mitigate the effects of OpenAI's rate limits. If the AI is busy, your prompt will be queued and processed when a slot is available.
+
+You can check wait times below. **Be sure to enable streaming in your client, or your request will likely time out.**`;
+  }
+
   if (customGreeting) {
     infoBody += `\n## Server Greeting\n
 ${customGreeting}`;
   }
   return converter.makeHtml(infoBody);
+}
+
+function getQueueInformation() {
+  if (config.queueMode === "none") {
+    return {};
+  }
+  const waitMs = getAverageWaitTime();
+  const waitTime =
+    waitMs < 60000
+      ? `${Math.round(waitMs / 1000)} seconds`
+      : `${Math.round(waitMs / 60000)} minutes`;
+  return {
+    proomptersWaiting: getQueueLength(),
+    estimatedWaitTime: waitMs > 3000 ? waitTime : "no wait",
+  };
 }

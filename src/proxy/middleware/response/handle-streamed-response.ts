@@ -40,10 +40,17 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
       { api: req.api, key: req.key?.hash },
       `Starting to proxy SSE stream.`
     );
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    copyHeaders(proxyRes, res);
+
+    // Queued streaming requests will already have a connection open and headers
+    // sent due to the heartbeat handler.  In that case we can just start
+    // streaming the response without sending headers.
+    if (!res.headersSent) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      copyHeaders(proxyRes, res);
+      res.flushHeaders();
+    }
 
     const chunks: Buffer[] = [];
     proxyRes.on("data", (chunk) => {
@@ -65,6 +72,24 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
         { error: err, api: req.api, key: req.key?.hash },
         `Error while streaming response.`
       );
+      // OAI's spec doesn't allow for error events and clients wouldn't know
+      // what to do with them anyway, so we'll just send a completion event
+      // with the error message.
+      const fakeErrorEvent = {
+        id: "chatcmpl-error",
+        object: "chat.completion.chunk",
+        created: Date.now(),
+        model: "",
+        choices: [
+          {
+            delta: { content: "[Proxy streaming error: " + err.message + "]" },
+            index: 0,
+            finish_reason: "error",
+          },
+        ],
+      };
+      res.write(`data: ${JSON.stringify(fakeErrorEvent)}\n\n`);
+      res.write("data: [DONE]\n\n");
       res.end();
       reject(err);
     });

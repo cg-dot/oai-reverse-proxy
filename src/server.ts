@@ -9,6 +9,7 @@ import { keyPool } from "./key-management";
 import { proxyRouter, rewriteTavernRequests } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
 import { logQueue } from "./prompt-logging";
+import { start as startRequestQueue } from "./proxy/queue";
 
 const PORT = config.port;
 
@@ -17,6 +18,7 @@ const app = express();
 app.use("/", rewriteTavernRequests);
 app.use(
   pinoHttp({
+    quietReqLogger: true,
     logger,
     // SillyTavern spams the hell out of this endpoint so don't log it
     autoLogging: { ignore: (req) => req.url === "/proxy/kobold/api/v1/model" },
@@ -31,6 +33,11 @@ app.use(
     },
   })
 );
+app.use((req, _res, next) => {
+  req.startTime = Date.now();
+  req.retryCount = 0;
+  next();
+});
 app.use(cors());
 app.use(
   express.json({ limit: "10mb" }),
@@ -40,21 +47,31 @@ app.use(
 // deploy this somewhere without a load balancer then incoming requests can
 // spoof the X-Forwarded-For header and bypass the rate limiting.
 app.set("trust proxy", true);
+
 // routes
 app.get("/", handleInfoPage);
 app.use("/proxy", proxyRouter);
+
 // 500 and 404
 app.use((err: any, _req: unknown, res: express.Response, _next: unknown) => {
   if (err.status) {
     res.status(err.status).json({ error: err.message });
   } else {
     logger.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: {
+        type: "proxy_error",
+        message: err.message,
+        stack: err.stack,
+        proxy_note: `Reverse proxy encountered an internal server error.`,
+      },
+    });
   }
 });
 app.use((_req: unknown, res: express.Response) => {
   res.status(404).json({ error: "Not found" });
 });
+
 // start server and load keys
 app.listen(PORT, async () => {
   try {
@@ -107,5 +124,9 @@ app.listen(PORT, async () => {
   if (config.promptLogging) {
     logger.info("Starting prompt logging...");
     logQueue.start();
+  }
+  if (config.queueMode !== "none") {
+    logger.info("Starting request queue...");
+    startRequestQueue();
   }
 });
