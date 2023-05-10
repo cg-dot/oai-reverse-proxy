@@ -34,6 +34,12 @@ const rewriteRequest = (
   req: Request,
   res: Response
 ) => {
+  if (config.queueMode !== "none") {
+    const msg = `Queueing is enabled on this proxy instance and is incompatible with the KoboldAI endpoint. Use the OpenAI endpoint instead.`;
+    proxyReq.destroy(new Error(msg));
+    return;
+  }
+
   req.api = "kobold";
   const rewriterPipeline = [
     addKey,
