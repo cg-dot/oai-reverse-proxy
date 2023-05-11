@@ -4,7 +4,7 @@ import showdown from "showdown";
 import { config, listConfig } from "./config";
 import { keyPool } from "./key-management";
 import { getUniqueIps } from "./proxy/rate-limit";
-import { getAverageWaitTime, getQueueLength } from "./proxy/queue";
+import { getEstimatedWaitTime, getQueueLength } from "./proxy/queue";
 
 const INFO_PAGE_TTL = 5000;
 let infoPageHtml: string | undefined;
@@ -142,17 +142,20 @@ ${customGreeting}`;
   return converter.makeHtml(infoBody);
 }
 
+/** Returns queue time in seconds, or minutes + seconds if over 60 seconds. */
 function getQueueInformation() {
   if (config.queueMode === "none") {
     return {};
   }
-  const waitMs = getAverageWaitTime();
+  const waitMs = getEstimatedWaitTime();
   const waitTime =
     waitMs < 60000
-      ? `${Math.round(waitMs / 1000)} seconds`
-      : `${Math.round(waitMs / 60000)} minutes`;
+      ? `${Math.round(waitMs / 1000)}sec`
+      : `${Math.round(waitMs / 60000)}min, ${Math.round(
+          (waitMs % 60000) / 1000
+        )}sec`;
   return {
     proomptersWaiting: getQueueLength(),
-    estimatedWaitTime: waitMs > 3000 ? waitTime : "no wait",
+    estimatedWaitTime: waitMs > 1000 ? waitTime : "no wait",
   };
 }

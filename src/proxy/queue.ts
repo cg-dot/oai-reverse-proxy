@@ -71,7 +71,7 @@ export function enqueue(req: Request) {
         req.res!.write(": queue heartbeat\n\n");
       } else {
         req.log.info(`Sending heartbeat to request in queue.`);
-        const avgWait = Math.round(getAverageWaitTime() / 1000);
+        const avgWait = Math.round(getEstimatedWaitTime() / 1000);
         const currentDuration = Math.round((Date.now() - req.startTime) / 1000);
         const debugMsg = `queue length: ${queue.length}; elapsed time: ${currentDuration}s; avg wait: ${avgWait}s`;
         req.res!.write(buildFakeSseMessage("heartbeat", debugMsg));
@@ -188,7 +188,7 @@ function cleanQueue() {
   });
 
   const index = waitTimes.findIndex(
-    (waitTime) => now - waitTime.end > 120 * 1000
+    (waitTime) => now - waitTime.end > 60 * 1000
   );
   const removed = waitTimes.splice(0, index + 1);
   log.info(
@@ -204,7 +204,7 @@ export function start() {
   log.info(`Started request queue.`);
 }
 
-const waitTimes: { start: number; end: number }[] = [];
+let waitTimes: { start: number; end: number }[] = [];
 
 /** Adds a successful request to the list of wait times. */
 export function trackWaitTime(req: Request) {
@@ -215,24 +215,16 @@ export function trackWaitTime(req: Request) {
 }
 
 /** Returns average wait time in milliseconds. */
-export function getAverageWaitTime() {
-  if (waitTimes.length === 0) {
+export function getEstimatedWaitTime() {
+  const now = Date.now();
+  const lastMinute = waitTimes.filter((wt) => now - wt.end < 60 * 1000);
+  if (lastMinute.length === 0) {
     return 0;
   }
 
-  // Include requests that are still in the queue right now
-  const now = Date.now();
-  const waitTimesWithCurrent = [
-    ...waitTimes,
-    ...queue.map((req) => ({
-      start: req.startTime!,
-      end: now,
-    })),
-  ];
-
   return (
-    waitTimesWithCurrent.reduce((acc, curr) => acc + curr.end - curr.start, 0) /
-    waitTimesWithCurrent.length
+    lastMinute.reduce((sum, wt) => sum + wt.end - wt.start, 0) /
+    lastMinute.length
   );
 }
 
