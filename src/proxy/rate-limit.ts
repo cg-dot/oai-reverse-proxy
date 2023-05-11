@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config";
-import { logger } from "../logger";
 
 export const AGNAI_DOT_CHAT_IP = "157.230.249.32";
 const RATE_LIMIT_ENABLED = Boolean(config.modelRateLimit);
@@ -35,24 +34,19 @@ const getStatus = (ip: string) => {
   };
 };
 
-/** Prunes attempts and IPs that are no longer relevant after five minutes. */
+/** Prunes attempts and IPs that are no longer relevant after one minutes. */
 const clearOldAttempts = () => {
-  const uniqueIps = lastAttempts.size;
+  const now = Date.now();
   for (const [ip, attempts] of lastAttempts.entries()) {
-    const validAttempts = attempts.filter(expireOldAttempts(Date.now()));
+    const validAttempts = attempts.filter(expireOldAttempts(now));
     if (validAttempts.length === 0) {
       lastAttempts.delete(ip);
     } else {
       lastAttempts.set(ip, validAttempts);
     }
   }
-  const prunedIps = uniqueIps - lastAttempts.size;
-  logger.info(
-    { activeIps: lastAttempts.size, prunedIps },
-    "Cleaned up rate limit map"
-  );
 };
-setInterval(clearOldAttempts, 5 * ONE_MINUTE_MS);
+setInterval(clearOldAttempts, 10 * 1000);
 
 export const getUniqueIps = () => {
   return lastAttempts.size;
