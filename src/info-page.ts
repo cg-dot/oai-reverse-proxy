@@ -155,7 +155,7 @@ function getQueueInformation() {
           (waitMs % 60000) / 1000
         )}sec`;
   return {
-    proomptersWaiting: getQueueLength(),
-    estimatedWaitTime: waitMs > 1000 ? waitTime : "no wait",
+    proomptersInQueue: getQueueLength(),
+    estimatedQueueTime: waitMs > 2000 ? waitTime : "no wait",
   };
 }

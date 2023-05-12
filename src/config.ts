@@ -19,8 +19,6 @@ type Config = {
   maxOutputTokens: number;
   /** Whether requests containing disallowed characters should be rejected. */
   rejectDisallowed?: boolean;
-  /** Rejection sample rate (0 - 1). Higher values are more strict but increase server load. */
-  rejectSampleRate?: number;
   /** Message to return when rejecting requests. */
   rejectMessage?: string;
   /** Pino log level. */
@@ -38,10 +36,10 @@ type Config = {
   /**
    * How to display quota information on the info page.
    * 'none' - Hide quota information
-   * 'simple' - Display quota information as a percentage
+   * 'partial' - Display quota information only as a percentage
    * 'full' - Display quota information as usage against total capacity
    */
-  quotaDisplayMode: "none" | "simple" | "full";
+  quotaDisplayMode: "none" | "partial" | "full";
   /**
    * Which request queueing strategy to use when keys are over their rate limit.
    * 'fair' - Requests are serviced in the order they were received (default)
@@ -60,14 +58,13 @@ export const config: Config = {
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
   maxOutputTokens: getEnvWithDefault("MAX_OUTPUT_TOKENS", 300),
   rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
-  rejectSampleRate: getEnvWithDefault("REJECT_SAMPLE_RATE", 0.2),
   rejectMessage: getEnvWithDefault(
     "REJECT_MESSAGE",
     "This content violates /aicg/'s acceptable use policy."
   ),
   logLevel: getEnvWithDefault("LOG_LEVEL", "info"),
   checkKeys: getEnvWithDefault("CHECK_KEYS", !isDev),
-  quotaDisplayMode: getEnvWithDefault("QUOTA_DISPLAY_MODE", "full"),
+  quotaDisplayMode: getEnvWithDefault("QUOTA_DISPLAY_MODE", "partial"),
   promptLogging: getEnvWithDefault("PROMPT_LOGGING", false),
   promptLoggingBackend: getEnvWithDefault("PROMPT_LOGGING_BACKEND", undefined),
   googleSheetsKey: getEnvWithDefault("GOOGLE_SHEETS_KEY", undefined),

@@ -9,7 +9,7 @@ const DISALLOWED_REGEX =
 // each 15k character request ten times a second. So we'll just sample 20% of
 // the characters and hope that's enough.
 const containsDisallowedCharacters = (text: string) => {
-  const sampleSize = Math.ceil(text.length * (config.rejectSampleRate || 0.2));
+  const sampleSize = Math.ceil(text.length * 0.2);
   const sample = text
     .split("")
     .sort(() => 0.5 - Math.random())
