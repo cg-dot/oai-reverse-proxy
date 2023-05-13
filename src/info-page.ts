@@ -129,10 +129,11 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
   }
 
   if (config.queueMode !== "none") {
-    infoBody += `\n### Queueing is enabled
-Requests are queued to mitigate the effects of OpenAI's rate limits. If the AI is busy, your prompt will be queued and processed when a slot is available.
+    const friendlyWaitTime = getQueueInformation().estimatedQueueTime;
+    infoBody += `\n### Estimated Wait Time: ${friendlyWaitTime}
+Queueing is enabled. If the AI is busy, your prompt will processed when a slot frees up.
 
-You can check wait times below. **Be sure to enable streaming in your client, or your request will likely time out.**`;
+**Enable Streaming in your preferred client or you may experience \`504 Gateway Timeout\` errors.**`;
   }
 
   if (customGreeting) {
