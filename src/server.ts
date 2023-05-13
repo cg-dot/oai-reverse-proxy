@@ -14,6 +14,19 @@ import { start as startRequestQueue } from "./proxy/queue";
 
 const PORT = config.port;
 
+process.on("uncaughtException", (err: any) => {
+  logger.error(
+    { err, stack: err?.stack },
+    "UNCAUGHT EXCEPTION. Please report this error trace."
+  );
+});
+process.on("unhandledRejection", (err: any) => {
+  logger.error(
+    { err, stack: err?.stack },
+    "UNCAUGHT PROMISE REJECTION. Please report this error trace."
+  );
+});
+
 const app = express();
 // middleware
 app.use("/", rewriteTavernRequests);
