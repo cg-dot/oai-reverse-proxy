@@ -188,7 +188,7 @@ function cleanQueue() {
   });
 
   const index = waitTimes.findIndex(
-    (waitTime) => now - waitTime.end > 60 * 1000
+    (waitTime) => now - waitTime.end > 90 * 1000
   );
   const removed = waitTimes.splice(0, index + 1);
   log.info(
@@ -217,7 +217,7 @@ export function trackWaitTime(req: Request) {
 /** Returns average wait time in milliseconds. */
 export function getEstimatedWaitTime() {
   const now = Date.now();
-  const lastMinute = waitTimes.filter((wt) => now - wt.end < 60 * 1000);
+  const lastMinute = waitTimes.filter((wt) => now - wt.end < 90 * 1000);
   if (lastMinute.length === 0) {
     return 0;
   }
