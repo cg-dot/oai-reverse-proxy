@@ -11,8 +11,30 @@ type Config = {
   port: number;
   /** OpenAI API key, either a single key or a comma-delimeted list of keys. */
   openaiKey?: string;
-  /** Proxy key. If set, requests must provide this key in the Authorization header to use the proxy. */
+  /**
+   * The proxy key to require for requests. Only applicable if the user
+   * management mode is set to 'proxy_key', and required if so.
+   **/
   proxyKey?: string;
+  /**
+   * The admin key to used for accessing the /admin API. Required if the user
+   * management mode is set to 'user_token'.
+   **/
+  adminKey?: string;
+  /**
+   * Which user management mode to use.
+   *
+   * `none`: No user management. Proxy is open to all requests with basic
+   *  abuse protection.
+   *
+   * `proxy_key`: A specific proxy key must be provided in the Authorization
+   *  header to use the proxy.
+   *
+   * `user_token`: Users must be created via the /admin REST API and provide
+   *  their personal access token in the Authorization header to use the proxy.
+   *  Configure this function and add users via the /admin API.
+   */
+  gatekeeper: "none" | "proxy_key" | "user_token";
   /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
   modelRateLimit: number;
   /** Max number of tokens to generate. Requests which specify a higher value will be rewritten to use this value. */
@@ -35,16 +57,22 @@ type Config = {
   checkKeys?: boolean;
   /**
    * How to display quota information on the info page.
-   * 'none' - Hide quota information
-   * 'partial' - Display quota information only as a percentage
-   * 'full' - Display quota information as usage against total capacity
+   *
+   * `none` - Hide quota information
+   *
+   * `partial` - Display quota information only as a percentage
+   *
+   * `full` - Display quota information as usage against total capacity
    */
   quotaDisplayMode: "none" | "partial" | "full";
   /**
    * Which request queueing strategy to use when keys are over their rate limit.
-   * 'fair' - Requests are serviced in the order they were received (default)
-   * 'random' - Requests are serviced randomly
-   * 'none' - Requests are not queued and users have to retry manually
+   *
+   * `fair` - Requests are serviced in the order they were received (default)
+   *
+   * `random` - Requests are serviced randomly
+   *
+   * `none` - Requests are not queued and users have to retry manually
    */
   queueMode: DequeueMode;
 };
@@ -55,6 +83,8 @@ export const config: Config = {
   port: getEnvWithDefault("PORT", 7860),
   openaiKey: getEnvWithDefault("OPENAI_KEY", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
+  adminKey: getEnvWithDefault("ADMIN_KEY", ""),
+  gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
   maxOutputTokens: getEnvWithDefault("MAX_OUTPUT_TOKENS", 300),
   rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
@@ -75,22 +105,62 @@ export const config: Config = {
   queueMode: getEnvWithDefault("QUEUE_MODE", "fair"),
 } as const;
 
+/** Prevents the server from starting if config state is invalid. */
+export function assertConfigIsValid(): void {
+  // Ensure gatekeeper mode is valid.
+  if (!["none", "proxy_key", "user_token"].includes(config.gatekeeper)) {
+    throw new Error(
+      `Invalid gatekeeper mode: ${config.gatekeeper}. Must be one of: none, proxy_key, user_token.`
+    );
+  }
+
+  // Don't allow `user_token` mode without `ADMIN_KEY`.
+  if (config.gatekeeper === "user_token" && !config.adminKey) {
+    throw new Error(
+      "`user_token` gatekeeper mode requires an `ADMIN_KEY` to be set."
+    );
+  }
+
+  // Don't allow `proxy_key` mode without `PROXY_KEY`.
+  if (config.gatekeeper === "proxy_key" && !config.proxyKey) {
+    throw new Error(
+      "`proxy_key` gatekeeper mode requires a `PROXY_KEY` to be set."
+    );
+  }
+
+  // Don't allow `PROXY_KEY` to be set for other modes.
+  if (config.gatekeeper !== "proxy_key" && config.proxyKey) {
+    throw new Error(
+      "`PROXY_KEY` is set, but gatekeeper mode is not `proxy_key`. Make sure to set `GATEKEEPER=proxy_key`."
+    );
+  }
+}
+
+/** Masked, but not omitted as users may wish to see if they're set. */
 export const SENSITIVE_KEYS: (keyof Config)[] = [
-  "proxyKey",
-  "openaiKey",
   "googleSheetsKey",
   "googleSheetsSpreadsheetId",
 ];
+
+/** Omitted as they're not useful to display, masked or not. */
+export const OMITTED_KEYS: (keyof Config)[] = [
+  "port",
+  "logLevel",
+  "openaiKey",
+  "proxyKey",
+  "adminKey",
+];
+
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;
 export function listConfig(): Record<string, string> {
   const result: Record<string, string> = {};
   for (const key of getKeys(config)) {
     const value = config[key]?.toString() || "";
-    
-    if (value === "" || value === "undefined") {
+
+    if (value === "" || value === "undefined" || OMITTED_KEYS.includes(key)) {
       continue;
     }
-    
+
     if (value && SENSITIVE_KEYS.includes(key)) {
       result[key] = "********";
     } else {

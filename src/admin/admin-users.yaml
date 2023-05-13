@@ -1,0 +1,204 @@
+# Shat out by GPT-4, I did not check for correctness beyond a cursory glance
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: User Management API
+paths:
+  /admin/users:
+    get:
+      summary: List all users
+      operationId: getUsers
+      responses:
+        "200":
+          description: A list of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+                  count:
+                    type: integer
+                    format: int32
+    post:
+      summary: Create a new user
+      operationId: createUser
+      responses:
+        "200":
+          description: The created user's token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+    put:
+      summary: Bulk upsert users
+      operationId: bulkUpsertUsers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                users:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/User"
+      responses:
+        "200":
+          description: The upserted users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upserted_users:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+                  count:
+                    type: integer
+                    format: int32
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /admin/users/{token}:
+    get:
+      summary: Get a user by token
+      operationId: getUser
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+    put:
+      summary: Update a user by token
+      operationId: upsertUser
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        "200":
+          description: The updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+    delete:
+      summary: Disables the user with the given token
+      description: Optionally accepts a `disabledReason` query parameter. Returns the disabled user.
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+          description: The token of the user to disable
+        - in: query
+          name: disabledReason
+          required: false
+          schema:
+            type: string
+          description: The reason for disabling the user
+      responses:
+        '200':
+          description: The disabled user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        token:
+          type: string
+        ip:
+          type: array
+          items:
+            type: string
+        type:
+          type: string
+          enum: ["normal", "special"]
+        promptCount:
+          type: integer
+          format: int32
+        tokenCount:
+          type: integer
+          format: int32
+        createdAt:
+          type: integer
+          format: int64
+        lastUsedAt:
+          type: integer
+          format: int64
+        disabledAt:
+          type: integer
+          format: int64
+        disabledReason:
+          type: string

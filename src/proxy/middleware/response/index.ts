@@ -9,6 +9,7 @@ import { keyPool } from "../../../key-management";
 import { buildFakeSseMessage, enqueue, trackWaitTime } from "../../queue";
 import { handleStreamedResponse } from "./handle-streamed-response";
 import { logPrompt } from "./log-prompt";
+import { incrementPromptCount } from "../../auth/user-store";
 
 export const QUOTA_ROUTES = ["/v1/chat/completions"];
 const DECODER_MAP = {
@@ -369,6 +370,9 @@ export const handleInternalError: httpProxy.ErrorCallback = (
 const incrementKeyUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
   if (QUOTA_ROUTES.includes(req.path)) {
     keyPool.incrementPrompt(req.key?.hash);
+    if (req.user) {
+      incrementPromptCount(req.user.token);
+    }
   }
 };
 

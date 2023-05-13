@@ -5,13 +5,13 @@ subset of the API is supported. Kobold requests must be transformed into
 equivalent OpenAI requests. */
 
 import * as express from "express";
-import { auth } from "./auth";
+import { gatekeeper } from "./auth/gatekeeper";
 import { kobold } from "./kobold";
 import { openai } from "./openai";
 
 const router = express.Router();
 
-router.use(auth);
+router.use(gatekeeper);
 router.use("/kobold", kobold);
 router.use("/openai", openai);
 

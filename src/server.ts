@@ -1,4 +1,4 @@
-import { config } from "./config";
+import { assertConfigIsValid, config } from "./config";
 import "source-map-support/register";
 import express from "express";
 import cors from "cors";
@@ -6,6 +6,7 @@ import pinoHttp from "pino-http";
 import childProcess from "child_process";
 import { logger } from "./logger";
 import { keyPool } from "./key-management";
+import { adminRouter } from "./admin/routes";
 import { proxyRouter, rewriteTavernRequests } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
 import { logQueue } from "./prompt-logging";
@@ -28,6 +29,7 @@ app.use(
         'res.headers["set-cookie"]',
         "req.headers.authorization",
         'req.headers["x-forwarded-for"]',
+        'req.headers["x-real-ip"]',
       ],
       censor: "********",
     },
@@ -50,6 +52,7 @@ app.set("trust proxy", true);
 
 // routes
 app.get("/", handleInfoPage);
+app.use("/admin", adminRouter);
 app.use("/proxy", proxyRouter);
 
 // 500 and 404
@@ -74,6 +77,8 @@ app.use((_req: unknown, res: express.Response) => {
 
 // start server and load keys
 app.listen(PORT, async () => {
+  assertConfigIsValid();
+
   try {
     // Huggingface seems to have changed something about how they deploy Spaces
     // and git commands fail because of some ownership issue with the .git

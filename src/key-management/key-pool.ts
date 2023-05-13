@@ -112,8 +112,8 @@ export class KeyPool {
       };
       this.keys.push(newKey);
 
-      this.log.info({ key: newKey.hash }, "Key added");
     }
+    this.log.info({ keyCount: this.keys.length }, "Loaded keys");
   }
 
   public init() {
