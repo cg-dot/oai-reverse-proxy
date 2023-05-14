@@ -191,7 +191,7 @@ function cleanQueue() {
     (waitTime) => now - waitTime.end > 90 * 1000
   );
   const removed = waitTimes.splice(0, index + 1);
-  log.info(
+  log.debug(
     { stalledRequests: oldRequests.length, prunedWaitTimes: removed.length },
     `Cleaning up request queue.`
   );

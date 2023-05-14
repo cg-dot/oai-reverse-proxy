@@ -41,7 +41,7 @@ export class KeyChecker {
   }
 
   public start() {
-    this.log.info("Starting key checker");
+    this.log.info("Starting key checker...");
     this.scheduleNextCheck();
   }
 

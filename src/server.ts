@@ -11,21 +11,9 @@ import { proxyRouter, rewriteTavernRequests } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
 import { logQueue } from "./prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
+import { init as initUserStore } from "./proxy/auth/user-store";
 
 const PORT = config.port;
-
-process.on("uncaughtException", (err: any) => {
-  logger.error(
-    { err, stack: err?.stack },
-    "UNCAUGHT EXCEPTION. Please report this error trace."
-  );
-});
-process.on("unhandledRejection", (err: any) => {
-  logger.error(
-    { err, stack: err?.stack },
-    "UNCAUGHT PROMISE REJECTION. Please report this error trace."
-  );
-});
 
 const app = express();
 // middleware
@@ -88,10 +76,56 @@ app.use((_req: unknown, res: express.Response) => {
   res.status(404).json({ error: "Not found" });
 });
 
-// start server and load keys
-app.listen(PORT, async () => {
-  assertConfigIsValid();
+async function start() {
+  logger.info("Server starting up...");
+  setGitSha();
 
+  logger.info("Checking configs and external dependencies...");
+  await assertConfigIsValid();
+
+  keyPool.init();
+
+  if (config.gatekeeper === "user_token") {
+    await initUserStore();
+  }
+
+  if (config.promptLogging) {
+    logger.info("Starting prompt logging...");
+    logQueue.start();
+  }
+
+  if (config.queueMode !== "none") {
+    logger.info("Starting request queue...");
+    startRequestQueue();
+  }
+
+  app.listen(PORT, async () => {
+    logger.info({ port: PORT }, "Now listening for connections.");
+    registerUncaughtExceptionHandler();
+  });
+
+  logger.info(
+    { sha: process.env.COMMIT_SHA, nodeEnv: process.env.NODE_ENV },
+    "Startup complete."
+  );
+}
+
+function registerUncaughtExceptionHandler() {
+  process.on("uncaughtException", (err: any) => {
+    logger.error(
+      { err, stack: err?.stack },
+      "UNCAUGHT EXCEPTION. Please report this error trace."
+    );
+  });
+  process.on("unhandledRejection", (err: any) => {
+    logger.error(
+      { err, stack: err?.stack },
+      "UNCAUGHT PROMISE REJECTION. Please report this error trace."
+    );
+  });
+}
+
+function setGitSha() {
   try {
     // Huggingface seems to have changed something about how they deploy Spaces
     // and git commands fail because of some ownership issue with the .git
@@ -132,19 +166,6 @@ app.listen(PORT, async () => {
     );
     process.env.COMMIT_SHA = "unknown";
   }
+}
 
-  logger.info(
-    { sha: process.env.COMMIT_SHA },
-    `Server listening on port ${PORT}`
-  );
-  keyPool.init();
-
-  if (config.promptLogging) {
-    logger.info("Starting prompt logging...");
-    logQueue.start();
-  }
-  if (config.queueMode !== "none") {
-    logger.info("Starting request queue...");
-    startRequestQueue();
-  }
-});
+start();

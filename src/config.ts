@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import type firebase from "firebase-admin";
 dotenv.config();
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -17,7 +18,7 @@ type Config = {
    **/
   proxyKey?: string;
   /**
-   * The admin key to used for accessing the /admin API. Required if the user
+   * The admin key used to access the /admin API. Required if the user
    * management mode is set to 'user_token'.
    **/
   adminKey?: string;
@@ -35,6 +36,19 @@ type Config = {
    *  Configure this function and add users via the /admin API.
    */
   gatekeeper: "none" | "proxy_key" | "user_token";
+  /**
+   * Persistence layer to use for user management.
+   *
+   * `memory`: Users are stored in memory and are lost on restart (default)
+   *
+   * `firebase_rtdb`: Users are stored in a Firebase Realtime Database; requires
+   *  `firebaseKey` and `firebaseRtdbUrl` to be set.
+   **/
+  gatekeeperStore: "memory" | "firebase_rtdb";
+  /** URL of the Firebase Realtime Database if using the Firebase RTDB store. */
+  firebaseRtdbUrl?: string;
+  /** Base64-encoded Firebase service account key if using the Firebase RTDB store. */
+  firebaseKey?: string;
   /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
   modelRateLimit: number;
   /** Max number of tokens to generate. Requests which specify a higher value will be rewritten to use this value. */
@@ -58,21 +72,21 @@ type Config = {
   /**
    * How to display quota information on the info page.
    *
-   * `none` - Hide quota information
+   * `none`: Hide quota information
    *
-   * `partial` - Display quota information only as a percentage
+   * `partial`: Display quota information only as a percentage
    *
-   * `full` - Display quota information as usage against total capacity
+   * `full`: Display quota information as usage against total capacity
    */
   quotaDisplayMode: "none" | "partial" | "full";
   /**
    * Which request queueing strategy to use when keys are over their rate limit.
    *
-   * `fair` - Requests are serviced in the order they were received (default)
+   * `fair`: Requests are serviced in the order they were received (default)
    *
-   * `random` - Requests are serviced randomly
+   * `random`: Requests are serviced randomly
    *
-   * `none` - Requests are not queued and users have to retry manually
+   * `none`: Requests are not queued and users have to retry manually
    */
   queueMode: DequeueMode;
 };
@@ -85,6 +99,9 @@ export const config: Config = {
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
   adminKey: getEnvWithDefault("ADMIN_KEY", ""),
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
+  gatekeeperStore: getEnvWithDefault("GATEKEEPER_STORE", "memory"),
+  firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
+  firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
   maxOutputTokens: getEnvWithDefault("MAX_OUTPUT_TOKENS", 300),
   rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
@@ -106,7 +123,7 @@ export const config: Config = {
 } as const;
 
 /** Prevents the server from starting if config state is invalid. */
-export function assertConfigIsValid(): void {
+export async function assertConfigIsValid() {
   // Ensure gatekeeper mode is valid.
   if (!["none", "proxy_key", "user_token"].includes(config.gatekeeper)) {
     throw new Error(
@@ -134,12 +151,29 @@ export function assertConfigIsValid(): void {
       "`PROXY_KEY` is set, but gatekeeper mode is not `proxy_key`. Make sure to set `GATEKEEPER=proxy_key`."
     );
   }
+
+  // Require appropriate firebase config if using firebase store.
+  if (
+    config.gatekeeperStore === "firebase_rtdb" &&
+    (!config.firebaseKey || !config.firebaseRtdbUrl)
+  ) {
+    throw new Error(
+      "Firebase RTDB store requires `FIREBASE_KEY` and `FIREBASE_RTDB_URL` to be set."
+    );
+  }
+
+  await maybeInitializeFirebase();
 }
 
-/** Masked, but not omitted as users may wish to see if they're set. */
+/**
+ * Masked, but not omitted as users may wish to see if they're set due to their
+ * implications on privacy.
+ */
 export const SENSITIVE_KEYS: (keyof Config)[] = [
   "googleSheetsKey",
   "googleSheetsSpreadsheetId",
+  "firebaseRtdbUrl",
+  "firebaseKey",
 ];
 
 /** Omitted as they're not useful to display, masked or not. */
@@ -183,4 +217,30 @@ function getEnvWithDefault<T>(name: string, defaultValue: T): T {
   } catch (err) {
     return value as unknown as T;
   }
+}
+
+let firebaseApp: firebase.app.App | undefined;
+
+async function maybeInitializeFirebase() {
+  if (!config.gatekeeperStore.startsWith("firebase")) {
+    return;
+  }
+
+  const firebase = await import("firebase-admin");
+  const firebaseKey = Buffer.from(config.firebaseKey!, "base64").toString();
+  const app = firebase.initializeApp({
+    credential: firebase.credential.cert(JSON.parse(firebaseKey)),
+    databaseURL: config.firebaseRtdbUrl,
+  });
+
+  await app.database().ref("connection-test").set(Date.now());
+
+  firebaseApp = app;
+}
+
+export function getFirebaseApp(): firebase.app.App {
+  if (!firebaseApp) {
+    throw new Error("Firebase app not initialized.");
+  }
+  return firebaseApp;
 }
