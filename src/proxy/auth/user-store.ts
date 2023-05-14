@@ -65,6 +65,7 @@ export function createUser() {
     tokenCount: 0,
     createdAt: Date.now(),
   });
+  usersToFlush.add(token);
   return token;
 }
 
