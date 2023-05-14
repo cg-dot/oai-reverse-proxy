@@ -136,7 +136,7 @@ export function authenticate(token: string, ip: string) {
   if (!user.ip.includes(ip)) user.ip.push(ip);
 
   // If too many IPs are associated with the user, disable the account.
-  if (user.ip.length > MAX_IPS_PER_USER) {
+  if (user.ip.length > MAX_IPS_PER_USER && user.type !== "special") {
     disableUser(token, "Too many IP addresses associated with this token.");
     return;
   }
