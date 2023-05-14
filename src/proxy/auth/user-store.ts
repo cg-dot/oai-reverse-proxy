@@ -43,6 +43,8 @@ export type UserType = "normal" | "special";
 
 type UserUpdate = Partial<User> & Pick<User, "token">;
 
+const MAX_IPS_PER_USER = config.maxIpsPerUser;
+
 const users: Map<string, User> = new Map();
 const usersToFlush = new Set<string>();
 
@@ -98,12 +100,12 @@ export function upsertUser(user: UserUpdate) {
     ...user,
   });
   usersToFlush.add(user.token);
-  
+
   // Immediately schedule a flush to the database if we're using Firebase.
   if (config.gatekeeperStore === "firebase_rtdb") {
     setImmediate(flushUsers);
   }
-  
+
   return users.get(user.token);
 }
 
@@ -132,6 +134,13 @@ export function authenticate(token: string, ip: string) {
   const user = users.get(token);
   if (!user || user.disabledAt) return;
   if (!user.ip.includes(ip)) user.ip.push(ip);
+
+  // If too many IPs are associated with the user, disable the account.
+  if (user.ip.length > MAX_IPS_PER_USER) {
+    disableUser(token, "Too many IP addresses associated with this token.");
+    return;
+  }
+
   user.lastUsedAt = Date.now();
   usersToFlush.add(token);
   return user;
