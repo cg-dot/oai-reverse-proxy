@@ -49,7 +49,11 @@ type Config = {
   firebaseRtdbUrl?: string;
   /** Base64-encoded Firebase service account key if using the Firebase RTDB store. */
   firebaseKey?: string;
-  /** Maximum number of IPs per user, after which their token is disabled. */
+  /**
+   * Maximum number of IPs per user, after which their token is disabled.
+   * Users with the manually-assigned `special` role are exempt from this limit.
+   * By default, this is 0, meaning that users are not IP-limited.
+   */
   maxIpsPerUser: number;
   /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
   modelRateLimit: number;
@@ -102,7 +106,7 @@ export const config: Config = {
   adminKey: getEnvWithDefault("ADMIN_KEY", ""),
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
   gatekeeperStore: getEnvWithDefault("GATEKEEPER_STORE", "memory"),
-  maxIpsPerUser: getEnvWithDefault("MAX_IPS_PER_USER", 20),
+  maxIpsPerUser: getEnvWithDefault("MAX_IPS_PER_USER", 0),
   firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
   firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
