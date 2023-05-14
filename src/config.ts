@@ -169,40 +169,63 @@ export async function assertConfigIsValid() {
     );
   }
 
+  // Ensure forks which add new secret-like config keys don't unwittingly expose
+  // them to users.
+  for (const key of getKeys(config)) {
+    const maybeSensitive = ["key", "credentials", "secret", "password"].some(
+      (sensitive) => key.toLowerCase().includes(sensitive)
+    );
+    const secured = new Set([...SENSITIVE_KEYS, ...OMITTED_KEYS]);
+    if (maybeSensitive && !secured.has(key))
+      throw new Error(
+        `Config key "${key}" may be sensitive but is exposed. Add it to SENSITIVE_KEYS or OMITTED_KEYS.`
+      );
+  }
+
   await maybeInitializeFirebase();
 }
 
 /**
- * Masked, but not omitted as users may wish to see if they're set due to their
- * implications on privacy.
+ * Config keys that are masked on the info page, but not hidden as their
+ * presence may be relevant to the user due to privacy implications.
  */
-export const SENSITIVE_KEYS: (keyof Config)[] = [
-  "googleSheetsKey",
-  "googleSheetsSpreadsheetId",
-  "firebaseRtdbUrl",
-  "firebaseKey",
-];
+export const SENSITIVE_KEYS: (keyof Config)[] = ["googleSheetsSpreadsheetId"];
 
-/** Omitted as they're not useful to display, masked or not. */
+/**
+ * Config keys that are not displayed on the info page at all, generally because
+ * they are not relevant to the user or can be inferred from other config.
+ */
 export const OMITTED_KEYS: (keyof Config)[] = [
   "port",
   "logLevel",
   "openaiKey",
   "proxyKey",
   "adminKey",
+  "checkKeys",
+  "quotaDisplayMode",
+  "googleSheetsKey",
+  "firebaseKey",
+  "firebaseRtdbUrl",
+  "gatekeeperStore",
+  "maxIpsPerUser",
 ];
 
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;
+
 export function listConfig(): Record<string, string> {
   const result: Record<string, string> = {};
   for (const key of getKeys(config)) {
     const value = config[key]?.toString() || "";
 
-    if (value === "" || value === "undefined" || OMITTED_KEYS.includes(key)) {
+    const shouldOmit =
+      OMITTED_KEYS.includes(key) || value === "" || value === "undefined";
+    const shouldMask = SENSITIVE_KEYS.includes(key);
+
+    if (shouldOmit) {
       continue;
     }
 
-    if (value && SENSITIVE_KEYS.includes(key)) {
+    if (value && shouldMask) {
       result[key] = "********";
     } else {
       result[key] = value;
