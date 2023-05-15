@@ -91,6 +91,7 @@ function cacheInfoPageHtml(host: string) {
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
     <title>${title}</title>
   </head>
   <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;"
