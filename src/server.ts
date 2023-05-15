@@ -22,8 +22,12 @@ app.use(
   pinoHttp({
     quietReqLogger: true,
     logger,
-    // SillyTavern spams the hell out of this endpoint so don't log it
-    autoLogging: { ignore: (req) => req.url === "/proxy/kobold/api/v1/model" },
+    autoLogging: {
+      ignore: (req) => {
+        const ignored = ["/proxy/kobold/api/v1/model", "/health"];
+        return ignored.includes(req.url as string);
+      },
+    },
     redact: {
       paths: [
         "req.headers.cookie",
@@ -36,6 +40,8 @@ app.use(
     },
   })
 );
+
+app.get("/health", (_req, res) => res.sendStatus(200));
 app.use((req, _res, next) => {
   req.startTime = Date.now();
   req.retryCount = 0;
@@ -46,9 +52,10 @@ app.use(
   express.json({ limit: "10mb" }),
   express.urlencoded({ extended: true, limit: "10mb" })
 );
-// TODO: this works if we're always being deployed to Huggingface but if users
-// deploy this somewhere without a load balancer then incoming requests can
-// spoof the X-Forwarded-For header and bypass the rate limiting.
+
+// TODO: Detect (or support manual configuration of) whether the app is behind
+// a load balancer/reverse proxy, which is necessary to determine request IP
+// addresses correctly.
 app.set("trust proxy", true);
 
 // routes
@@ -126,6 +133,17 @@ function registerUncaughtExceptionHandler() {
 }
 
 function setGitSha() {
+  // On Render, the .git directory isn't available in the docker build context
+  // so we can't get the SHA directly, but they expose it as an env variable.
+  if (process.env.RENDER) {
+    const shaString = `${process.env.RENDER_GIT_COMMIT?.slice(0, 7)} (${
+      process.env.RENDER_GIT_REPO_SLUG
+    })`;
+    process.env.COMMIT_SHA = shaString;
+    logger.info({ sha: shaString }, "Got commit SHA via Render config.");
+    return;
+  }
+
   try {
     // Huggingface seems to have changed something about how they deploy Spaces
     // and git commands fail because of some ownership issue with the .git

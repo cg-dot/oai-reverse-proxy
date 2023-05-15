@@ -7,7 +7,7 @@ declare global {
     interface Request {
       key?: Key;
       api: "kobold" | "openai" | "anthropic";
-      user: User;
+      user?: User;
       isStreaming?: boolean;
       startTime: number;
       retryCount: number;

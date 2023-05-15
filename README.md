@@ -26,14 +26,10 @@ This proxy only forwards text generation requests to the downstream service and 
 If you'd like to run your own instance of this proxy, you'll need to deploy it somewhere and configure it with your API keys. A few easy options are provided below, though you can also deploy it to any other service you'd like.
 
 ### Deploy to Huggingface (Recommended)
-[See here for instructions on how to deploy to a Huggingface Space.](./docs/huggingface.md)
+[See here for instructions on how to deploy to a Huggingface Space.](./docs/deploy-huggingface.md)
 
-### Deploy to Repl.it (WIP)
-Still working on this. It's a bit more technical than the Huggingface option; you can give it a shot by clicking on the button below.
-
-[![Run on Repl.it](https://replit.com/badge/github/nai-degen/oai-reverse-proxy)](https://replit.com/new/github/nai-degen/oai-reverse-proxy)
-
-You'll need to set your secrets in Repl.it similar to the Huggingface instructions above.  Currently .env files don't work properly so it only uses the default configuration.
+### Deploy to Render
+[See here for instructions on how to deploy to Render.com.](./docs/deploy-render.md)
 
 ## Local Development
 To run the proxy locally for development or testing, install Node.js >= 18.0.0 and follow the steps below.
