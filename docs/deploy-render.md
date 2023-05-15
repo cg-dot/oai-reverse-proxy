@@ -14,9 +14,9 @@ Render allows you to deploy and auutomatically configure a repository containing
 - Click **Continue**.
 - Under **Blueprint Name**, enter a name.
 - Under **Branch**, enter `main`.
-- Click **Create New Resources**.
+- Click **Apply**.
 
-The service will be created according to the instructions in the `render.yaml` file.  This will take a few minutes.  It may show that the build failed, which is normal as you have not yet set the required environment variables.
+The service will be created according to the instructions in the `render.yaml` file.  Don't wait for it to complete as it will fail due to missing environment variables.  Instead, proceed to the next step.
 
 ### 3. Set environment variables
 - Return to the **Dashboard** tab.
@@ -29,6 +29,8 @@ The service will be created according to the instructions in the `render.yaml` f
 - Click **Save Changes**.
 
 The service will automatically rebuild and deploy with the new environment variables.  This will take a few minutes.  The link to your deployed proxy will appear at the top of the page.
+
+If you want to change the URL, go to the **Settings** tab of your Web Service and click the **Edit** button next to **Name**.  You can also set a custom domain, though I haven't tried this yet.
 
 # Optional
 
