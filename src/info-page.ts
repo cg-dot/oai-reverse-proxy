@@ -94,7 +94,7 @@ function cacheInfoPageHtml(host: string) {
     <meta name="robots" content="noindex" />
     <title>${title}</title>
   </head>
-  <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;"
+  <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;">
     ${headerHtml}
     <hr />
     <h2>Service Info</h2>
