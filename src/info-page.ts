@@ -117,6 +117,8 @@ function buildInfoPageHeader(converter: showdown.Converter, title: string) {
     ? fs.readFileSync("greeting.md", "utf8")
     : null;
 
+  // TODO: use some templating engine instead of this mess
+
   let infoBody = `<!-- Header for Showdown's parser, don't remove this line -->
 # ${title}`;
   if (config.promptLogging) {
@@ -133,7 +135,17 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
     infoBody += `\n### Estimated Wait Time: ${friendlyWaitTime}
 Queueing is enabled. If the AI is busy, your prompt will processed when a slot frees up.
 
-**Enable Streaming in your preferred client or you may experience \`504 Gateway Timeout\` errors.**`;
+${
+  process.env.RENDER
+    ? ""
+    : "**Enable Streaming in your preferred client or you may experience `504 Gateway Timeout` errors.*"
+}`;
+  }
+
+  if (process.env.RENDER) {
+    // Render has some strange issue where event-streams just hang for a while
+    // and then close the connection.
+    infoBody += `\n**Streaming mode may have issues on this proxy due to the hosting provider. Non-streaming mode should work fine even for long prompts.**`;
   }
 
   if (customGreeting) {
