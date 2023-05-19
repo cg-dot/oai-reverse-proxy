@@ -66,12 +66,16 @@ export const ipLimiter = (req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  const { remaining, reset } = getStatus(req.ip);
+  // If user is authenticated, key rate limiting by their token. Otherwise, key
+  // rate limiting by their IP address. Mitigates key sharing.
+  const rateLimitKey = req.user?.token || req.ip;
+
+  const { remaining, reset } = getStatus(rateLimitKey);
   res.set("X-RateLimit-Limit", config.modelRateLimit.toString());
   res.set("X-RateLimit-Remaining", remaining.toString());
   res.set("X-RateLimit-Reset", reset.toString());
 
-  const tryAgainInMs = getTryAgainInMs(req.ip);
+  const tryAgainInMs = getTryAgainInMs(rateLimitKey);
   if (tryAgainInMs > 0) {
     res.set("Retry-After", tryAgainInMs.toString());
     res.status(429).json({

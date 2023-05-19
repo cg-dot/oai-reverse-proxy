@@ -31,16 +31,33 @@ const AGNAI_CONCURRENCY_LIMIT = 15;
 /** Maximum number of queue slots for individual users. */
 const USER_CONCURRENCY_LIMIT = 1;
 
+const sameIpPredicate = (incoming: Request) => (queued: Request) =>
+  queued.ip === incoming.ip;
+const sameUserPredicate = (incoming: Request) => (queued: Request) => {
+  const incomingUser = incoming.user ?? { token: incoming.ip };
+  const queuedUser = queued.user ?? { token: queued.ip };
+  return queuedUser.token === incomingUser.token;
+};
+
 export function enqueue(req: Request) {
-  // All agnai.chat requests come from the same IP, so we allow them to have
+  let enqueuedRequestCount = 0;
+  let isGuest = req.user?.token === undefined;
+
+  if (isGuest) {
+    enqueuedRequestCount = queue.filter(sameIpPredicate(req)).length;
+  } else {
+    enqueuedRequestCount = queue.filter(sameUserPredicate(req)).length;
+  }
+
+  // All Agnai.chat requests come from the same IP, so we allow them to have
   // more spots in the queue. Can't make it unlimited because people will
   // intentionally abuse it.
+  // Authenticated users always get a single spot in the queue.
   const maxConcurrentQueuedRequests =
-    req.ip === AGNAI_DOT_CHAT_IP
+    isGuest && req.ip === AGNAI_DOT_CHAT_IP
       ? AGNAI_CONCURRENCY_LIMIT
       : USER_CONCURRENCY_LIMIT;
-  const reqCount = queue.filter((r) => r.ip === req.ip).length;
-  if (reqCount >= maxConcurrentQueuedRequests) {
+  if (enqueuedRequestCount >= maxConcurrentQueuedRequests) {
     if (req.ip === AGNAI_DOT_CHAT_IP) {
       // Re-enqueued requests are not counted towards the limit since they
       // already made it through the queue once.
@@ -48,7 +65,7 @@ export function enqueue(req: Request) {
         throw new Error("Too many agnai.chat requests are already queued");
       }
     } else {
-      throw new Error("Request is already queued for this IP");
+      throw new Error("Your IP or token already has a request in the queue");
     }
   }
 

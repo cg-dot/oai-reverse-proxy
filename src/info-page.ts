@@ -81,7 +81,7 @@ function cacheInfoPageHtml(host: string) {
     ...getQueueInformation(),
     keys: keyInfo,
     config: listConfig(),
-    build: process.env.COMMIT_SHA || "dev",
+    build: process.env.BUILD_INFO || "dev",
   };
 
   const title = getServerTitle();

@@ -35,6 +35,8 @@ app.use(
         "req.headers.authorization",
         'req.headers["x-forwarded-for"]',
         'req.headers["x-real-ip"]',
+        'req.headers["true-client-ip"]',
+        'req.headers["cf-connecting-ip"]',
       ],
       censor: "********",
     },
@@ -85,7 +87,7 @@ app.use((_req: unknown, res: express.Response) => {
 
 async function start() {
   logger.info("Server starting up...");
-  setGitSha();
+  setBuildInfo();
 
   logger.info("Checking configs and external dependencies...");
   await assertConfigIsValid();
@@ -112,7 +114,7 @@ async function start() {
   });
 
   logger.info(
-    { sha: process.env.COMMIT_SHA, nodeEnv: process.env.NODE_ENV },
+    { build: process.env.BUILD_INFO, nodeEnv: process.env.NODE_ENV },
     "Startup complete."
   );
 }
@@ -132,15 +134,16 @@ function registerUncaughtExceptionHandler() {
   });
 }
 
-function setGitSha() {
+function setBuildInfo() {
   // On Render, the .git directory isn't available in the docker build context
   // so we can't get the SHA directly, but they expose it as an env variable.
   if (process.env.RENDER) {
-    const shaString = `${process.env.RENDER_GIT_COMMIT?.slice(0, 7)} (${
-      process.env.RENDER_GIT_REPO_SLUG
-    })`;
-    process.env.COMMIT_SHA = shaString;
-    logger.info({ sha: shaString }, "Got commit SHA via Render config.");
+    const sha = process.env.RENDER_GIT_COMMIT?.slice(0, 7) || "unknown SHA";
+    const branch = process.env.RENDER_GIT_BRANCH || "unknown branch";
+    const repo = process.env.RENDER_GIT_REPO_SLUG || "unknown repo";
+    const buildInfo = `${sha} (${branch}@${repo})`;
+    process.env.BUILD_INFO = buildInfo;
+    logger.info({ build: buildInfo }, "Got build info from Render config.");
     return;
   }
 
@@ -171,7 +174,7 @@ function setGitSha() {
 
     logger.info({ sha, status, changes }, "Got commit SHA and status.");
 
-    process.env.COMMIT_SHA = `${sha}${changes ? " (modified)" : ""}`;
+    process.env.BUILD_INFO = `${sha}${changes ? " (modified)" : ""}`;
   } catch (error: any) {
     logger.error(
       {
@@ -182,7 +185,7 @@ function setGitSha() {
       "Failed to get commit SHA.",
       error
     );
-    process.env.COMMIT_SHA = "unknown";
+    process.env.BUILD_INFO = "unknown";
   }
 }
 
