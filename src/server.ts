@@ -87,7 +87,7 @@ app.use((_req: unknown, res: express.Response) => {
 
 async function start() {
   logger.info("Server starting up...");
-  setBuildInfo();
+  await setBuildInfo();
 
   logger.info("Checking configs and external dependencies...");
   await assertConfigIsValid();
@@ -134,9 +134,15 @@ function registerUncaughtExceptionHandler() {
   });
 }
 
-function setBuildInfo() {
-  // On Render, the .git directory isn't available in the docker build context
-  // so we can't get the SHA directly, but they expose it as an env variable.
+/**
+ * Attepts to collect information about the current build from either the
+ * environment or the git repo used to build the image (only works if not
+ * .dockerignore'd). If you're running a sekrit club fork, you can no-op this
+ * function and set the BUILD_INFO env var manually, though I would prefer you
+ * didn't set it to something misleading.
+ */
+async function setBuildInfo() {
+  // Render .dockerignore's the .git directory but provides info in the env
   if (process.env.RENDER) {
     const sha = process.env.RENDER_GIT_COMMIT?.slice(0, 7) || "unknown SHA";
     const branch = process.env.RENDER_GIT_BRANCH || "unknown branch";
@@ -148,33 +154,40 @@ function setBuildInfo() {
   }
 
   try {
-    // Huggingface seems to have changed something about how they deploy Spaces
-    // and git commands fail because of some ownership issue with the .git
-    // directory. This is a hacky workaround, but we only want to run it on
-    // deployed instances.
-
-    if (process.env.NODE_ENV === "production") {
+    // Ignore git's complaints about dubious directory ownership on Huggingface
+    // (which evidently runs dockerized Spaces on Windows with weird NTFS perms)
+    if (process.env.SPACE_ID) {
       childProcess.execSync("git config --global --add safe.directory /app");
     }
 
-    const sha = childProcess
-      .execSync("git rev-parse --short HEAD")
-      .toString()
-      .trim();
+    const promisifyExec = (cmd: string) =>
+      new Promise((resolve, reject) => {
+        childProcess.exec(cmd, (err, stdout) =>
+          err ? reject(err) : resolve(stdout)
+        );
+      });
 
-    const status = childProcess
-      .execSync("git status --porcelain")
-      .toString()
-      .trim()
+    const promises = [
+      promisifyExec("git rev-parse --short HEAD"),
+      promisifyExec("git rev-parse --abbrev-ref HEAD"),
+      promisifyExec("git config --get remote.origin.url"),
+      promisifyExec("git status --porcelain"),
+    ].map((p) => p.then((result: any) => result.toString().trim()));
+
+    let [sha, branch, remote, status] = await Promise.all(promises);
+
+    remote = remote.match(/.*[\/:]([\w-]+)\/([\w\-\.]+?)(?:\.git)?$/) || [];
+    const repo = remote.slice(-2).join("/");
+    status = status
       // ignore Dockerfile changes since that's how the user deploys the app
       .split("\n")
       .filter((line: string) => !line.endsWith("Dockerfile"));
 
     const changes = status.length > 0;
 
-    logger.info({ sha, status, changes }, "Got commit SHA and status.");
-
-    process.env.BUILD_INFO = `${sha}${changes ? " (modified)" : ""}`;
+    const build = `${sha}${changes ? " (modified)" : ""} (${branch}@${repo})`;
+    process.env.BUILD_INFO = build;
+    logger.info({ build, status, changes }, "Got build info from Git.");
   } catch (error: any) {
     logger.error(
       {
