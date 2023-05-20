@@ -25,6 +25,7 @@
     "firebase-admin": "^11.8.0",
     "googleapis": "^117.0.0",
     "http-proxy-middleware": "^3.0.0-beta.1",
+    "openai": "^3.2.1",
     "pino": "^8.11.0",
     "pino-http": "^8.3.3",
     "showdown": "^2.1.0",

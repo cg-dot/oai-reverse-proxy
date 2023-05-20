@@ -1,18 +1,14 @@
 import axios, { AxiosError } from "axios";
+import { Configuration, OpenAIApi } from "openai";
 import { logger } from "../logger";
 import type { Key, KeyPool } from "./key-pool";
 
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
 const KEY_CHECK_PERIOD = 5 * 60 * 1000; // 5 minutes
 
-const GET_MODELS_URL = "https://api.openai.com/v1/models";
 const GET_SUBSCRIPTION_URL =
   "https://api.openai.com/dashboard/billing/subscription";
 const GET_USAGE_URL = "https://api.openai.com/dashboard/billing/usage";
-
-type GetModelsResponse = {
-  data: [{ id: string }];
-};
 
 type GetSubscriptionResponse = {
   plan: { title: string };
@@ -24,6 +20,10 @@ type GetSubscriptionResponse = {
 
 type GetUsageResponse = {
   total_usage: number;
+};
+
+type OpenAIError = {
+  error: { type: string; code: string; param: unknown; message: string };
 };
 
 type UpdateFn = typeof KeyPool.prototype.update;
@@ -127,6 +127,13 @@ export class KeyChecker {
       if (isInitialCheck) {
         const subscription = await this.getSubscription(key);
         this.updateKey(key.hash, { isTrial: !subscription.has_payment_method });
+        if (key.isTrial) {
+          this.log.debug(
+            { key: key.hash },
+            "Attempting generation on trial key."
+          );
+          await this.assertCanGenerate(key);
+        }
         const [provisionedModels, usage] = await Promise.all([
           this.getProvisionedModels(key),
           this.getUsage(key),
@@ -175,11 +182,10 @@ export class KeyChecker {
   private async getProvisionedModels(
     key: Key
   ): Promise<{ turbo: boolean; gpt4: boolean }> {
-    const { data } = await axios.get<GetModelsResponse>(GET_MODELS_URL, {
-      headers: { Authorization: `Bearer ${key.key}` },
-    });
-    const turbo = data.data.some(({ id }) => id.startsWith("gpt-3.5"));
-    const gpt4 = data.data.some(({ id }) => id.startsWith("gpt-4"));
+    const openai = new OpenAIApi(new Configuration({ apiKey: key.key }));
+    const models = (await openai.listModels()!).data.data;
+    const turbo = models.some(({ id }) => id.startsWith("gpt-3.5"));
+    const gpt4 = models.some(({ id }) => id.startsWith("gpt-4"));
     return { turbo, gpt4 };
   }
 
@@ -201,12 +207,18 @@ export class KeyChecker {
   }
 
   private handleAxiosError(key: Key, error: AxiosError) {
-    if (error.response) {
+    if (error.response && KeyChecker.errorIsOpenAiError(error)) {
       const { status, data } = error.response;
       if (status === 401) {
         this.log.warn(
           { key: key.hash, error: data },
           "Key is invalid or revoked. Disabling key."
+        );
+        this.updateKey(key.hash, { isDisabled: true });
+      } else if (status === 429 && data.error.type === "insufficient_quota") {
+        this.log.warn(
+          { key: key.hash, isTrial: key.isTrial, error: data },
+          "Key is out of quota. Disabling key."
         );
         this.updateKey(key.hash, { isDisabled: true });
       } else {
@@ -215,21 +227,26 @@ export class KeyChecker {
           "Encountered API error while checking key."
         );
       }
-    } else {
-      this.log.error(
-        { key: key.hash, error },
-        "Network error while checking key."
-      );
+      return;
     }
+    this.log.error(
+      { key: key.hash, error },
+      "Network error while checking key; trying again later."
+    );
   }
 
-  // TODO: Trial key usage reporting is very unreliable and keys with supposedly
-  // no usage are already exhausted.  Instead we should try generating some text
-  // on the first check to quickly determine if the key is alive.
-  private async doTestGeneration(key: Key) {
-    // Generate only a single token with a very short prompt to avoid using
-    // too much of the key's quota.
-    // NYI
+  /**
+   * Trial key usage reporting is inaccurate, so we need to run an actual
+   * completion to test them for liveness.
+   */
+  private async assertCanGenerate(key: Key): Promise<void> {
+    const openai = new OpenAIApi(new Configuration({ apiKey: key.key }));
+    // This will throw an AxiosError if the key is invalid or out of quota.
+    await openai.createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: "Hello" }],
+      max_tokens: 1,
+    });
   }
 
   static getUsageQuerystring(isTrial: boolean) {
@@ -250,5 +267,12 @@ export class KeyChecker {
     return `start_date=${startDate.toISOString().split("T")[0]}&end_date=${
       endDate.toISOString().split("T")[0]
     }`;
+  }
+
+  static errorIsOpenAiError(
+    error: AxiosError
+  ): error is AxiosError<OpenAIError> {
+    const data = error.response?.data as any;
+    return data?.error?.type;
   }
 }
