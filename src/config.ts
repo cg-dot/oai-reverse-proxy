@@ -95,6 +95,22 @@ type Config = {
    * `none`: Requests are not queued and users have to retry manually
    */
   queueMode: DequeueMode;
+  /**
+   * Comma-separated list of origins to block. Requests matching any of these
+   * origins or referers will be rejected.
+   * Partial matches are allowed, so `reddit` will match `www.reddit.com`.
+   * Include only the hostname, not the protocol or path, e.g:
+   *  `reddit.com,9gag.com,gaiaonline.com`
+   */
+  blockedOrigins?: string;
+  /**
+   * Message to return when rejecting requests from blocked origins.
+   */
+  blockMessage?: string;
+  /**
+   * Desination URL to redirect blocked requests to, for non-JSON requests.
+   */
+  blockRedirect?: string;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -127,6 +143,12 @@ export const config: Config = {
     undefined
   ),
   queueMode: getEnvWithDefault("QUEUE_MODE", "fair"),
+  blockedOrigins: getEnvWithDefault("BLOCKED_ORIGINS", undefined),
+  blockMessage: getEnvWithDefault(
+    "BLOCK_MESSAGE",
+    "You must be over the age of majority in your country to use this service."
+  ),
+  blockRedirect: getEnvWithDefault("BLOCK_REDIRECT", "https://www.9gag.com"),
 } as const;
 
 /** Prevents the server from starting if config state is invalid. */
@@ -208,6 +230,9 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "firebaseRtdbUrl",
   "gatekeeperStore",
   "maxIpsPerUser",
+  "blockedOrigins",
+  "blockMessage",
+  "blockRedirect",
 ];
 
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;

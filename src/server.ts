@@ -12,6 +12,7 @@ import { handleInfoPage } from "./info-page";
 import { logQueue } from "./prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
 import { init as initUserStore } from "./proxy/auth/user-store";
+import { checkOrigin } from "./proxy/check-origin";
 
 const PORT = config.port;
 
@@ -61,6 +62,7 @@ app.use(
 app.set("trust proxy", true);
 
 // routes
+app.use(checkOrigin);
 app.get("/", handleInfoPage);
 app.use("/admin", adminRouter);
 app.use("/proxy", proxyRouter);
