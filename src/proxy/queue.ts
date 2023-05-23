@@ -234,7 +234,7 @@ export function trackWaitTime(req: Request) {
 /** Returns average wait time in milliseconds. */
 export function getEstimatedWaitTime() {
   const now = Date.now();
-  const recentWaits = waitTimes.filter((wt) => now - wt.end < 180 * 1000);
+  const recentWaits = waitTimes.filter((wt) => now - wt.end < 300 * 1000);
   if (recentWaits.length === 0) {
     return 0;
   }
