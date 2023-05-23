@@ -299,6 +299,7 @@ function initStreaming(req: Request) {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // nginx-specific fix
   res.flushHeaders();
   res.write("\n");
   res.write(": joining queue\n\n");
