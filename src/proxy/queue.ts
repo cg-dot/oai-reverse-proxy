@@ -313,7 +313,7 @@ export function buildFakeSseMessage(type: string, string: string) {
     model: "",
     choices: [
       {
-        delta: { content: `[${type}: ${string}]\n` },
+        delta: { content: `\`\`\`\n[${type}: ${string}]\n\`\`\`\n` },
         index: 0,
         finish_reason: type,
       },
