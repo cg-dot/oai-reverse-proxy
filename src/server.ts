@@ -183,7 +183,7 @@ async function setBuildInfo() {
     status = status
       // ignore Dockerfile changes since that's how the user deploys the app
       .split("\n")
-      .filter((line: string) => !line.endsWith("Dockerfile"));
+      .filter((line: string) => !line.endsWith("Dockerfile") && line);
 
     const changes = status.length > 0;
 
