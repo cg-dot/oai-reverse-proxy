@@ -15,7 +15,12 @@ export const checkOrigin: RequestHandler = (req, res, next) => {
         { origin: req.headers.origin, referer: req.headers.referer },
         "Blocked request from origin or referer"
       );
-      if (!req.accepts("html") || req.headers.accept === "*/*") {
+
+      // VenusAI requests incorrectly say they accept HTML despite immediately
+      // trying to parse the response as JSON, so we check the body type instead
+      const hasJsonBody =
+        req.headers["content-type"]?.includes("application/json");
+      if (!req.accepts("html") || hasJsonBody) {
         return res.status(403).json({
           error: { type: "blocked_origin", message: config.blockMessage },
         });
