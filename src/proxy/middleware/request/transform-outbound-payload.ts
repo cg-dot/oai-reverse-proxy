@@ -111,9 +111,9 @@ function openaiToAnthropic(body: any, req: Request) {
   // tokens (https://console.anthropic.com/docs/prompt-design#prompt-length)
   // as the cutoff, minus a little bit for safety.
 
-  // For smaller prompts we use 1.1 because it's less cucked.
+  // For smaller prompts we use 1.2 because it's not as cucked as 1.3
   // For big prompts (v1, auto-selects the latest model) is all we can use.
-  const model = prompt.length > 25000 ? "claude-v1-100k" : "claude-v1.1";
+  const model = prompt.length > 25000 ? "claude-v1-100k" : "claude-v1.2";
 
   return {
     ...rest,
