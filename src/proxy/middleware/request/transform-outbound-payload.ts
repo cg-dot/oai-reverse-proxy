@@ -1,6 +1,6 @@
 import { Request } from "express";
 import { z } from "zod";
-import type { ExpressHttpProxyReqCallback } from ".";
+import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
 
 // https://console.anthropic.com/docs/api/reference#-v1-complete
 const AnthropicV1CompleteSchema = z.object({
@@ -42,8 +42,7 @@ export const transformOutboundPayload: ExpressHttpProxyReqCallback = (
   _proxyReq,
   req
 ) => {
-  if (req.retryCount > 0) {
-    // We've already transformed the payload once, so don't do it again.
+  if (req.retryCount > 0 || !isCompletionRequest(req)) {
     return;
   }
 

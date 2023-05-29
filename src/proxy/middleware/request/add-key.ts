@@ -1,9 +1,16 @@
 import { Key, keyPool } from "../../../key-management";
-import type { ExpressHttpProxyReqCallback } from ".";
+import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
 
 /** Add a key that can service this request to the request object. */
 export const addKey: ExpressHttpProxyReqCallback = (proxyReq, req) => {
   let assignedKey: Key;
+
+  if (!isCompletionRequest(req)) {
+    // Horrible, horrible hack to stop the proxy from complaining about clients
+    // not sending a model when they are requesting the list of models (which
+    // requires a key, but obviously not a model).
+    req.body.model = "gpt-3.5-turbo";
+  }
 
   if (!req.body?.model) {
     throw new Error("You must specify a model with your request.");
