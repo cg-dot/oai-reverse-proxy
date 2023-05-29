@@ -21,9 +21,9 @@ export interface AnthropicKey extends Key {
 
 /**
  * We don't get rate limit headers from Anthropic so if we get a 429, we just
- * lock out the key for 10 seconds.
+ * lock out the key for a few seconds
  */
-const RATE_LIMIT_LOCKOUT = 10000;
+const RATE_LIMIT_LOCKOUT = 5000;
 
 export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
   readonly service = "anthropic";
