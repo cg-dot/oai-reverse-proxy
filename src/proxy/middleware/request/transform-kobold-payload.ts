@@ -1,3 +1,8 @@
+/**
+ * Transforms a KoboldAI payload into an OpenAI payload.
+ * @deprecated Kobold input format isn't supported anymore as all popular
+ * frontends support reverse proxies or changing their base URL.
+ */
 import { logger } from "../../../logger";
 import type { ExpressHttpProxyReqCallback } from ".";
 
@@ -63,6 +68,10 @@ export const transformKoboldPayload: ExpressHttpProxyReqCallback = (
   _proxyReq,
   req
 ) => {
+  if (req.api !== "kobold") {
+    throw new Error("transformKoboldPayload called for non-kobold request.");
+  }
+
   const { body } = req;
   const { prompt, max_length, rep_pen, top_p, temperature } = body;
 

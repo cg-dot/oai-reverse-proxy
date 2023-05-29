@@ -1,29 +1,43 @@
+import { Request } from "express";
 import { config } from "../../../config";
-import { logger } from "../../../logger";
 import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
 
 const MAX_TOKENS = config.maxOutputTokens;
 
-/** Enforce a maximum number of tokens requested from OpenAI. */
+/** Enforce a maximum number of tokens requested from the model. */
 export const limitOutputTokens: ExpressHttpProxyReqCallback = (
   _proxyReq,
   req
 ) => {
   if (isCompletionRequest(req) && req.body?.max_tokens) {
-    // convert bad or missing input to a MAX_TOKENS
-    if (typeof req.body.max_tokens !== "number") {
-      logger.warn(
-        `Invalid max_tokens value: ${req.body.max_tokens}. Using ${MAX_TOKENS}`
+    const requestedMaxTokens = getMaxTokensFromRequest(req);
+    let maxTokens = requestedMaxTokens;
+
+    if (typeof requestedMaxTokens !== "number") {
+      req.log.warn(
+        { requestedMaxTokens, clampedMaxTokens: MAX_TOKENS },
+        "Invalid max tokens value. Using default value."
       );
-      req.body.max_tokens = MAX_TOKENS;
+      maxTokens = MAX_TOKENS;
     }
 
-    const originalTokens = req.body.max_tokens;
-    req.body.max_tokens = Math.min(req.body.max_tokens, MAX_TOKENS);
-    if (originalTokens !== req.body.max_tokens) {
-      logger.warn(
-        `Limiting max_tokens from ${originalTokens} to ${req.body.max_tokens}`
+    // TODO: this is not going to scale well, need to implement a better way
+    // of translating request parameters from one API to another.
+    maxTokens = Math.min(maxTokens, MAX_TOKENS);
+    if (req.key!.service === "openai") {
+      req.body.max_tokens = maxTokens;
+    } else if (req.key!.service === "anthropic") {
+      req.body.max_tokens_to_sample = maxTokens;
+    }
+
+    if (requestedMaxTokens !== maxTokens) {
+      req.log.warn(
+        `Limiting max tokens from ${requestedMaxTokens} to ${maxTokens}`
       );
     }
   }
 };
+
+function getMaxTokensFromRequest(req: Request) {
+  return (req.body?.max_tokens || req.body?.max_tokens_to_sample) ?? MAX_TOKENS;
+}

@@ -9,7 +9,6 @@ import { logger } from "../logger";
 import { ipLimiter } from "./rate-limit";
 import {
   addKey,
-  checkStreaming,
   finalizeBody,
   languageFilter,
   limitOutputTokens,
@@ -41,11 +40,11 @@ const rewriteRequest = (
   }
 
   req.api = "kobold";
+  req.body.stream = false;
   const rewriterPipeline = [
     addKey,
     transformKoboldPayload,
     languageFilter,
-    checkStreaming,
     limitOutputTokens,
     finalizeBody,
   ];

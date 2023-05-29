@@ -27,40 +27,52 @@ export const handleInfoPage = (req: Request, res: Response) => {
 function cacheInfoPageHtml(host: string) {
   const keys = keyPool.list();
   let keyInfo: Record<string, any> = { all: keys.length };
+  
+  const openAIKeys = keys.filter((k) => k.service === "openai");
+  const anthropicKeys = keys.filter((k) => k.service === "anthropic");
+
+  let anthropicInfo: Record<string, any> = {
+    all: anthropicKeys.length,
+    active: anthropicKeys.filter((k) => !k.isDisabled).length,
+  };
+  let openAIInfo: Record<string, any> = {
+    all: openAIKeys.length,
+    active: openAIKeys.filter((k) => !k.isDisabled).length,
+  };
 
   if (keyPool.anyUnchecked()) {
     const uncheckedKeys = keys.filter((k) => !k.lastChecked);
-    keyInfo = {
-      ...keyInfo,
+    openAIInfo = {
+      ...openAIInfo,
       active: keys.filter((k) => !k.isDisabled).length,
       status: `Still checking ${uncheckedKeys.length} keys...`,
     };
   } else if (config.checkKeys) {
-    const trialKeys = keys.filter((k) => k.isTrial);
-    const turboKeys = keys.filter((k) => !k.isGpt4 && !k.isDisabled);
-    const gpt4Keys = keys.filter((k) => k.isGpt4 && !k.isDisabled);
+    const trialKeys = openAIKeys.filter((k) => k.isTrial);
+    const turboKeys = openAIKeys.filter((k) => !k.isGpt4 && !k.isDisabled);
+    const gpt4Keys = openAIKeys.filter((k) => k.isGpt4 && !k.isDisabled);
 
     const quota: Record<string, string> = { turbo: "", gpt4: "" };
-    const hasGpt4 = keys.some((k) => k.isGpt4);
+    const hasGpt4 = openAIKeys.some((k) => k.isGpt4);
+    const turboQuota = keyPool.remainingQuota("openai") * 100;
+    const gpt4Quota = keyPool.remainingQuota("openai", { gpt4: true }) * 100;
 
     if (config.quotaDisplayMode === "full") {
-      quota.turbo = `${keyPool.usageInUsd()} (${Math.round(
-        keyPool.remainingQuota() * 100
-      )}% remaining)`;
-      quota.gpt4 = `${keyPool.usageInUsd(true)} (${Math.round(
-        keyPool.remainingQuota(true) * 100
-      )}% remaining)`;
+      const turboUsage = keyPool.usageInUsd("openai");
+      const gpt4Usage = keyPool.usageInUsd("openai", { gpt4: true });
+      quota.turbo = `${turboUsage} (${Math.round(turboQuota)}% remaining)`;
+      quota.gpt4 = `${gpt4Usage} (${Math.round(gpt4Quota)}% remaining)`;
     } else {
-      quota.turbo = `${Math.round(keyPool.remainingQuota() * 100)}%`;
-      quota.gpt4 = `${Math.round(keyPool.remainingQuota(true) * 100)}%`;
+      quota.turbo = `${Math.round(turboQuota)}%`;
+      quota.gpt4 = `${Math.round(gpt4Quota * 100)}%`;
     }
 
     if (!hasGpt4) {
       delete quota.gpt4;
     }
 
-    keyInfo = {
-      ...keyInfo,
+    openAIInfo = {
+      ...openAIInfo,
       trial: trialKeys.length,
       active: {
         turbo: turboKeys.length,
@@ -69,6 +81,11 @@ function cacheInfoPageHtml(host: string) {
       ...(config.quotaDisplayMode !== "none" ? { quota: quota } : {}),
     };
   }
+
+  keyInfo = {
+    ...(openAIKeys.length ? { openai: openAIInfo } : {}),
+    ...(anthropicKeys.length ? { anthropic: anthropicInfo } : {}),
+  };
 
   const info = {
     uptime: process.uptime(),

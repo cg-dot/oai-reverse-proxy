@@ -1,6 +1,9 @@
 import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
 
-/** Don't allow multiple completions to be requested to prevent abuse. */
+/**
+ * Don't allow multiple completions to be requested to prevent abuse.
+ * OpenAI-only, Anthropic provides no such parameter.
+ **/
 export const limitCompletions: ExpressHttpProxyReqCallback = (
   _proxyReq,
   req

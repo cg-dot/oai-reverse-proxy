@@ -1,7 +1,7 @@
 import axios, { AxiosError } from "axios";
 import { Configuration, OpenAIApi } from "openai";
-import { logger } from "../logger";
-import type { Key, KeyPool } from "./key-pool";
+import { logger } from "../../logger";
+import type { OpenAIKey, OpenAIKeyProvider } from "./provider";
 
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
 const KEY_CHECK_PERIOD = 5 * 60 * 1000; // 5 minutes
@@ -26,16 +26,16 @@ type OpenAIError = {
   error: { type: string; code: string; param: unknown; message: string };
 };
 
-type UpdateFn = typeof KeyPool.prototype.update;
+type UpdateFn = typeof OpenAIKeyProvider.prototype.update;
 
-export class KeyChecker {
-  private readonly keys: Key[];
-  private log = logger.child({ module: "key-checker" });
+export class OpenAIKeyChecker {
+  private readonly keys: OpenAIKey[];
+  private log = logger.child({ module: "key-checker", service: "openai" });
   private timeout?: NodeJS.Timeout;
   private updateKey: UpdateFn;
   private lastCheck = 0;
 
-  constructor(keys: Key[], updateKey: UpdateFn) {
+  constructor(keys: OpenAIKey[], updateKey: UpdateFn) {
     this.keys = keys;
     this.updateKey = updateKey;
   }
@@ -110,7 +110,7 @@ export class KeyChecker {
     this.timeout = setTimeout(() => this.checkKey(oldestKey), delay);
   }
 
-  private async checkKey(key: Key) {
+  private async checkKey(key: OpenAIKey) {
     // It's possible this key might have been disabled while we were waiting
     // for the next check.
     if (key.isDisabled) {
@@ -180,7 +180,7 @@ export class KeyChecker {
   }
 
   private async getProvisionedModels(
-    key: Key
+    key: OpenAIKey
   ): Promise<{ turbo: boolean; gpt4: boolean }> {
     const openai = new OpenAIApi(new Configuration({ apiKey: key.key }));
     const models = (await openai.listModels()!).data.data;
@@ -189,7 +189,7 @@ export class KeyChecker {
     return { turbo, gpt4 };
   }
 
-  private async getSubscription(key: Key) {
+  private async getSubscription(key: OpenAIKey) {
     const { data } = await axios.get<GetSubscriptionResponse>(
       GET_SUBSCRIPTION_URL,
       { headers: { Authorization: `Bearer ${key.key}` } }
@@ -197,8 +197,8 @@ export class KeyChecker {
     return data;
   }
 
-  private async getUsage(key: Key) {
-    const querystring = KeyChecker.getUsageQuerystring(key.isTrial);
+  private async getUsage(key: OpenAIKey) {
+    const querystring = OpenAIKeyChecker.getUsageQuerystring(key.isTrial);
     const url = `${GET_USAGE_URL}?${querystring}`;
     const { data } = await axios.get<GetUsageResponse>(url, {
       headers: { Authorization: `Bearer ${key.key}` },
@@ -206,8 +206,8 @@ export class KeyChecker {
     return parseFloat((data.total_usage / 100).toFixed(2));
   }
 
-  private handleAxiosError(key: Key, error: AxiosError) {
-    if (error.response && KeyChecker.errorIsOpenAiError(error)) {
+  private handleAxiosError(key: OpenAIKey, error: AxiosError) {
+    if (error.response && OpenAIKeyChecker.errorIsOpenAiError(error)) {
       const { status, data } = error.response;
       if (status === 401) {
         this.log.warn(
@@ -239,7 +239,7 @@ export class KeyChecker {
    * Trial key usage reporting is inaccurate, so we need to run an actual
    * completion to test them for liveness.
    */
-  private async assertCanGenerate(key: Key): Promise<void> {
+  private async assertCanGenerate(key: OpenAIKey): Promise<void> {
     const openai = new OpenAIApi(new Configuration({ apiKey: key.key }));
     // This will throw an AxiosError if the key is invalid or out of quota.
     await openai.createChatCompletion({

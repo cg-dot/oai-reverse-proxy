@@ -1,6 +1,29 @@
-import { Response } from "express";
+import { Request, Response } from "express";
 import * as http from "http";
 import { RawResponseBodyHandler, decodeResponseBody } from ".";
+import { buildFakeSseMessage } from "../../queue";
+
+type OpenAiChatCompletionResponse = {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: {
+    message: { role: string; content: string };
+    finish_reason: string | null;
+    index: number;
+  }[];
+};
+
+type AnthropicCompletionResponse = {
+  completion: string;
+  stop_reason: string;
+  truncated: boolean;
+  stop: any;
+  model: string;
+  log_id: string;
+  exception: null;
+};
 
 /**
  * Consume the SSE stream and forward events to the client. Once the stream is
@@ -11,18 +34,28 @@ import { RawResponseBodyHandler, decodeResponseBody } from ".";
  * in the event a streamed request results in a non-200 response, we need to
  * fall back to the non-streaming response handler so that the error handler
  * can inspect the error response.
+ *
+ * Currently most frontends don't support Anthropic streaming, so users can opt
+ * to send requests for Claude models via an endpoint that accepts OpenAI-
+ * compatible requests and translates the received Anthropic SSE events into
+ * OpenAI ones, essentially pretending to be an OpenAI streaming API.
  */
 export const handleStreamedResponse: RawResponseBodyHandler = async (
   proxyRes,
   req,
   res
 ) => {
+  // If these differ, the user is using the OpenAI-compatibile endpoint, so
+  // we need to translate the SSE events into OpenAI completion events for their
+  // frontend.
+  const fromApi = req.api;
+  const toApi = req.key!.service;
   if (!req.isStreaming) {
     req.log.error(
       { api: req.api, key: req.key?.hash },
-      `handleEventSource called for non-streaming request, which isn't valid.`
+      `handleStreamedResponse called for non-streaming request, which isn't valid.`
     );
-    throw new Error("handleEventSource called for non-streaming request.");
+    throw new Error("handleStreamedResponse called for non-streaming request.");
   }
 
   if (proxyRes.statusCode !== 200) {
@@ -53,42 +86,81 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
       res.flushHeaders();
     }
 
-    const chunks: Buffer[] = [];
-    proxyRes.on("data", (chunk) => {
-      chunks.push(chunk);
-      res.write(chunk);
-    });
+    const fullChunks: string[] = [];
+    let chunkBuffer: string[] = [];
+    let messageBuffer = "";
+    let lastPosition = 0;
 
-    proxyRes.on("end", () => {
-      const finalBody = convertEventsToOpenAiResponse(chunks);
-      req.log.info(
-        { api: req.api, key: req.key?.hash },
-        `Finished proxying SSE stream.`
-      );
-      res.end();
-      resolve(finalBody);
-    });
+    type ProxyResHandler<T extends unknown> = (...args: T[]) => void;
+    function withErrorHandling<T extends unknown>(fn: ProxyResHandler<T>) {
+      return (...args: T[]) => {
+        try {
+          fn(...args);
+        } catch (error) {
+          proxyRes.emit("error", error);
+        }
+      };
+    }
+
+    proxyRes.on(
+      "data",
+      withErrorHandling((chunk) => {
+        // We may receive multiple (or partial) SSE messages in a single chunk, so
+        // we need to buffer and emit seperate stream events for full messages so
+        // we can parse/transform them properly.
+        const str = chunk.toString();
+        chunkBuffer.push(str);
+
+        const newMessages = (messageBuffer + chunkBuffer.join("")).split(
+          /\r?\n\r?\n/ // Anthropic uses CRLF line endings (out-of-spec btw)
+        );
+        chunkBuffer = [];
+        messageBuffer = newMessages.pop() || "";
+
+        for (const message of newMessages) {
+          proxyRes.emit("full-sse-event", message);
+        }
+      })
+    );
+
+    proxyRes.on(
+      "full-sse-event",
+      withErrorHandling((data) => {
+        const { event, position } = transformEvent(
+          data,
+          fromApi,
+          toApi,
+          lastPosition
+        );
+        fullChunks.push(event);
+        lastPosition = position;
+        res.write(event + "\n\n");
+      })
+    );
+
+    proxyRes.on(
+      "end",
+      withErrorHandling(() => {
+        let finalBody = convertEventsToFinalResponse(fullChunks, req);
+        req.log.info(
+          { api: req.api, key: req.key?.hash },
+          `Finished proxying SSE stream.`
+        );
+        res.end();
+        resolve(finalBody);
+      })
+    );
+
     proxyRes.on("error", (err) => {
       req.log.error(
         { error: err, api: req.api, key: req.key?.hash },
         `Error while streaming response.`
       );
-      // OAI's spec doesn't allow for error events and clients wouldn't know
-      // what to do with them anyway, so we'll just send a completion event
-      // with the error message.
-      const fakeErrorEvent = {
-        id: "chatcmpl-error",
-        object: "chat.completion.chunk",
-        created: Date.now(),
-        model: "",
-        choices: [
-          {
-            delta: { content: "[Proxy streaming error: " + err.message + "]" },
-            index: 0,
-            finish_reason: "error",
-          },
-        ],
-      };
+      const fakeErrorEvent = buildFakeSseMessage(
+        "mid-stream-error",
+        err.message,
+        req
+      );
       res.write(`data: ${JSON.stringify(fakeErrorEvent)}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
@@ -97,8 +169,57 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
   });
 };
 
+/**
+ * Transforms SSE events from the given response API into events compatible with
+ * the API requested by the client.
+ */
+function transformEvent(
+  data: string,
+  requestApi: string,
+  responseApi: string,
+  lastPosition: number
+) {
+  if (requestApi === responseApi) {
+    return { position: -1, event: data };
+  }
+
+  if (requestApi === "anthropic" && responseApi === "openai") {
+    throw new Error(`Anthropic -> OpenAI streaming not implemented.`);
+  }
+
+  // Anthropic sends the full completion so far with each event whereas OpenAI
+  // only sends the delta. To make the SSE events compatible, we remove
+  // everything before `lastPosition` from the completion.
+  if (!data.startsWith("data:")) {
+    return { position: lastPosition, event: data };
+  }
+
+  if (data.startsWith("data: [DONE]")) {
+    return { position: lastPosition, event: data };
+  }
+
+  const event = JSON.parse(data.slice("data: ".length));
+  const newEvent = {
+    id: "ant-" + event.log_id,
+    object: "chat.completion.chunk",
+    created: Date.now(),
+    model: event.model,
+    choices: [
+      {
+        index: 0,
+        delta: { content: event.completion?.slice(lastPosition) },
+        finish_reason: event.stop_reason,
+      },
+    ],
+  };
+  return {
+    position: event.completion.length,
+    event: `data: ${JSON.stringify(newEvent)}`,
+  };
+}
+
 /** Copy headers, excluding ones we're already setting for the SSE response. */
-const copyHeaders = (proxyRes: http.IncomingMessage, res: Response) => {
+function copyHeaders(proxyRes: http.IncomingMessage, res: Response) {
   const toOmit = [
     "content-length",
     "content-encoding",
@@ -112,66 +233,63 @@ const copyHeaders = (proxyRes: http.IncomingMessage, res: Response) => {
       res.setHeader(key, value);
     }
   }
-};
+}
 
-type OpenAiChatCompletionResponse = {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: {
-    message: { role: string; content: string };
-    finish_reason: string | null;
-    index: number;
-  }[];
-};
+function convertEventsToFinalResponse(events: string[], req: Request) {
+  if (req.key!.service === "openai") {
+    let response: OpenAiChatCompletionResponse = {
+      id: "",
+      object: "",
+      created: 0,
+      model: "",
+      choices: [],
+    };
+    response = events.reduce((acc, event, i) => {
+      if (!event.startsWith("data: ")) {
+        return acc;
+      }
 
-/** Converts the event stream chunks into a single completion response. */
-const convertEventsToOpenAiResponse = (chunks: Buffer[]) => {
-  let response: OpenAiChatCompletionResponse = {
-    id: "",
-    object: "",
-    created: 0,
-    model: "",
-    choices: [],
-  };
-  const events = Buffer.concat(chunks)
-    .toString()
-    .trim()
-    .split("\n\n")
-    .map((line) => line.trim());
+      if (event === "data: [DONE]") {
+        return acc;
+      }
 
-  response = events.reduce((acc, chunk, i) => {
-    if (!chunk.startsWith("data: ")) {
+      const data = JSON.parse(event.slice("data: ".length));
+      if (i === 0) {
+        return {
+          id: data.id,
+          object: data.object,
+          created: data.created,
+          model: data.model,
+          choices: [
+            {
+              message: { role: data.choices[0].delta.role, content: "" },
+              index: 0,
+              finish_reason: null,
+            },
+          ],
+        };
+      }
+
+      if (data.choices[0].delta.content) {
+        acc.choices[0].message.content += data.choices[0].delta.content;
+      }
+      acc.choices[0].finish_reason = data.choices[0].finish_reason;
       return acc;
-    }
-
-    if (chunk === "data: [DONE]") {
-      return acc;
-    }
-
-    const data = JSON.parse(chunk.slice("data: ".length));
-    if (i === 0) {
-      return {
-        id: data.id,
-        object: data.object,
-        created: data.created,
-        model: data.model,
-        choices: [
-          {
-            message: { role: data.choices[0].delta.role, content: "" },
-            index: 0,
-            finish_reason: null,
-          },
-        ],
-      };
-    }
-
-    if (data.choices[0].delta.content) {
-      acc.choices[0].message.content += data.choices[0].delta.content;
-    }
-    acc.choices[0].finish_reason = data.choices[0].finish_reason;
-    return acc;
-  }, response);
-  return response;
-};
+    }, response);
+    return response;
+  }
+  if (req.key!.service === "anthropic") {
+    /*
+     * Full complete responses from Anthropic are conveniently just the same as
+     * the final SSE event before the "DONE" event, so we can reuse that
+     */
+    const lastEvent = events[events.length - 2].toString();
+    const data = JSON.parse(lastEvent.slice("data: ".length));
+    const response: AnthropicCompletionResponse = {
+      ...data,
+      log_id: req.id,
+    };
+    return response;
+  }
+  throw new Error("If you get this, something is fucked");
+}

@@ -8,12 +8,14 @@ import * as express from "express";
 import { gatekeeper } from "./auth/gatekeeper";
 import { kobold } from "./kobold";
 import { openai } from "./openai";
+import { anthropic } from "./anthropic";
 
 const router = express.Router();
 
 router.use(gatekeeper);
 router.use("/kobold", kobold);
 router.use("/openai", openai);
+router.use("/anthropic", anthropic);
 
 // Each client handles the endpoints input by the user in slightly different
 // ways, eg TavernAI ignores everything after the hostname in Kobold mode

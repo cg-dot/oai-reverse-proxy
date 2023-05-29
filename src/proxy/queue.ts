@@ -17,7 +17,7 @@
 
 import type { Handler, Request } from "express";
 import { config, DequeueMode } from "../config";
-import { keyPool } from "../key-management";
+import { keyPool, SupportedModel } from "../key-management";
 import { logger } from "../logger";
 import { AGNAI_DOT_CHAT_IP } from "./rate-limit";
 
@@ -78,7 +78,7 @@ export function enqueue(req: Request) {
   // If the request opted into streaming, we need to register a heartbeat
   // handler to keep the connection alive while it waits in the queue. We
   // deregister the handler when the request is dequeued.
-  if (req.body.stream) {
+  if (req.body.stream === "true" || req.body.stream === true) {
     const res = req.res!;
     if (!res.headersSent) {
       initStreaming(req);
@@ -91,7 +91,7 @@ export function enqueue(req: Request) {
         const avgWait = Math.round(getEstimatedWaitTime() / 1000);
         const currentDuration = Math.round((Date.now() - req.startTime) / 1000);
         const debugMsg = `queue length: ${queue.length}; elapsed time: ${currentDuration}s; avg wait: ${avgWait}s`;
-        req.res!.write(buildFakeSseMessage("heartbeat", debugMsg));
+        req.res!.write(buildFakeSseMessage("heartbeat", debugMsg, req));
       }
     }, 10000);
   }
@@ -118,12 +118,24 @@ export function enqueue(req: Request) {
   }
 }
 
-export function dequeue(model: string): Request | undefined {
-  // TODO: This should be set by some middleware that checks the request body.
-  const modelQueue =
-    model === "gpt-4"
-      ? queue.filter((req) => req.body.model?.startsWith("gpt-4"))
-      : queue.filter((req) => !req.body.model?.startsWith("gpt-4"));
+export function dequeue(model: SupportedModel): Request | undefined {
+  const modelQueue = queue.filter((req) => {
+    const reqProvider = req.originalUrl.startsWith("/proxy/anthropic")
+      ? "anthropic"
+      : "openai";
+
+    // This sucks, but the `req.body.model` on Anthropic requests via the
+    // OpenAI-compat endpoint isn't actually claude-*, it's a fake gpt value.
+    // TODO: refactor model/service detection
+
+    if (model.startsWith("claude")) {
+      return reqProvider === "anthropic";
+    }
+    if (model.startsWith("gpt-4")) {
+      return reqProvider === "openai" && req.body.model?.startsWith("gpt-4");
+    }
+    return reqProvider === "openai" && req.body.model?.startsWith("gpt-3");
+  });
 
   if (modelQueue.length === 0) {
     return undefined;
@@ -172,6 +184,7 @@ function processQueue() {
   // the others, because we only track one rate limit per key.
   const gpt4Lockout = keyPool.getLockoutPeriod("gpt-4");
   const turboLockout = keyPool.getLockoutPeriod("gpt-3.5-turbo");
+  const claudeLockout = keyPool.getLockoutPeriod("claude-v1");
 
   const reqs: (Request | undefined)[] = [];
   if (gpt4Lockout === 0) {
@@ -179,6 +192,9 @@ function processQueue() {
   }
   if (turboLockout === 0) {
     reqs.push(dequeue("gpt-3.5-turbo"));
+  }
+  if (claudeLockout === 0) {
+    reqs.push(dequeue("claude-v1"));
   }
 
   reqs.filter(Boolean).forEach((req) => {
@@ -266,7 +282,7 @@ export function createQueueMiddleware(proxyMiddleware: Handler): Handler {
         type: "proxy_error",
         message: err.message,
         stack: err.stack,
-        proxy_note: `Only one request per IP can be queued at a time. If you don't have another request queued, your IP may be in use by another user.`,
+        proxy_note: `Only one request can be queued at a time. If you don't have another request queued, your IP or user token might be in use by another request.`,
       });
     }
   };
@@ -281,7 +297,11 @@ function killQueuedRequest(req: Request) {
   try {
     const message = `Your request has been terminated by the proxy because it has been in the queue for more than 5 minutes. The queue is currently ${queue.length} requests long.`;
     if (res.headersSent) {
-      const fakeErrorEvent = buildFakeSseMessage("proxy queue error", message);
+      const fakeErrorEvent = buildFakeSseMessage(
+        "proxy queue error",
+        message,
+        req
+      );
       res.write(fakeErrorEvent);
       res.end();
     } else {
@@ -305,20 +325,38 @@ function initStreaming(req: Request) {
   res.write(": joining queue\n\n");
 }
 
-export function buildFakeSseMessage(type: string, string: string) {
-  const fakeEvent = {
-    id: "chatcmpl-" + type,
-    object: "chat.completion.chunk",
-    created: Date.now(),
-    model: "",
-    choices: [
-      {
-        delta: { content: `\`\`\`\n[${type}: ${string}]\n\`\`\`\n` },
-        index: 0,
-        finish_reason: type,
-      },
-    ],
-  };
+export function buildFakeSseMessage(
+  type: string,
+  string: string,
+  req: Request
+) {
+  let fakeEvent;
+
+  if (req.api === "anthropic") {
+    // data: {"completion": " Here is a paragraph of lorem ipsum text:\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor inc", "stop_reason": "max_tokens", "truncated": false, "stop": null, "model": "claude-instant-v1", "log_id": "???", "exception": null}
+    fakeEvent = {
+      completion: `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`,
+      stop_reason: type,
+      truncated: false, // I've never seen this be true
+      stop: null,
+      model: req.body?.model,
+      log_id: "proxy-req-" + req.id,
+    };
+  } else {
+    fakeEvent = {
+      id: "chatcmpl-" + req.id,
+      object: "chat.completion.chunk",
+      created: Date.now(),
+      model: req.body?.model,
+      choices: [
+        {
+          delta: { content: `\`\`\`\n[${type}: ${string}]\n\`\`\`\n` },
+          index: 0,
+          finish_reason: type,
+        },
+      ],
+    };
+  }
   return `data: ${JSON.stringify(fakeEvent)}\n\n`;
 }
 

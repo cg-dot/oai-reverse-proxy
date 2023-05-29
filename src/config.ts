@@ -10,8 +10,10 @@ export type DequeueMode = "fair" | "random" | "none";
 type Config = {
   /** The port the proxy server will listen on. */
   port: number;
-  /** OpenAI API key, either a single key or a comma-delimeted list of keys. */
+  /** Comma-delimited list of OpenAI API keys. */
   openaiKey?: string;
+  /** Comma-delimited list of Anthropic API keys. */
+  anthropicKey?: string;
   /**
    * The proxy key to require for requests. Only applicable if the user
    * management mode is set to 'proxy_key', and required if so.
@@ -118,6 +120,7 @@ type Config = {
 export const config: Config = {
   port: getEnvWithDefault("PORT", 7860),
   openaiKey: getEnvWithDefault("OPENAI_KEY", ""),
+  anthropicKey: getEnvWithDefault("ANTHROPIC_KEY", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
   adminKey: getEnvWithDefault("ADMIN_KEY", ""),
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
@@ -221,6 +224,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "port",
   "logLevel",
   "openaiKey",
+  "anthropicKey",
   "proxyKey",
   "adminKey",
   "checkKeys",
@@ -265,7 +269,7 @@ function getEnvWithDefault<T>(name: string, defaultValue: T): T {
     return defaultValue;
   }
   try {
-    if (name === "OPENAI_KEY") {
+    if (name === "OPENAI_KEY" || name === "ANTHROPIC_KEY") {
       return value as unknown as T;
     }
     return JSON.parse(value) as T;

@@ -1,17 +1,19 @@
+/* This file is fucking horrendous, sorry */
 import { Request, Response } from "express";
 import * as http from "http";
+import * as httpProxy from "http-proxy";
 import util from "util";
 import zlib from "zlib";
-import * as httpProxy from "http-proxy";
+import { ZodError } from "zod";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { keyPool } from "../../../key-management";
+import { incrementPromptCount } from "../../auth/user-store";
 import { buildFakeSseMessage, enqueue, trackWaitTime } from "../../queue";
+import { isCompletionRequest } from "../request";
 import { handleStreamedResponse } from "./handle-streamed-response";
 import { logPrompt } from "./log-prompt";
-import { incrementPromptCount } from "../../auth/user-store";
 
-export const QUOTA_ROUTES = ["/v1/chat/completions"];
 const DECODER_MAP = {
   gzip: util.promisify(zlib.gunzip),
   deflate: util.promisify(zlib.inflate),
@@ -174,7 +176,7 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
         } else {
           const errorMessage = `Proxy received response with unsupported content-encoding: ${contentEncoding}`;
           logger.warn({ contentEncoding, key: req.key?.hash }, errorMessage);
-          writeErrorResponse(res, 500, {
+          writeErrorResponse(req, res, 500, {
             error: errorMessage,
             contentEncoding,
           });
@@ -191,7 +193,7 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
       } catch (error: any) {
         const errorMessage = `Proxy received response with invalid JSON: ${error.message}`;
         logger.warn({ error, key: req.key?.hash }, errorMessage);
-        writeErrorResponse(res, 500, { error: errorMessage });
+        writeErrorResponse(req, res, 500, { error: errorMessage });
         return reject(errorMessage);
       }
     });
@@ -199,8 +201,7 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
   return promise;
 };
 
-// TODO: This is too specific to OpenAI's error responses, Anthropic errors
-// will need a different handler.
+// TODO: This is too specific to OpenAI's error responses.
 /**
  * Handles non-2xx responses from the upstream service.  If the proxied response
  * is an error, this will respond to the client with an error payload and throw
@@ -237,7 +238,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     }
   } catch (parseError: any) {
     const statusMessage = proxyRes.statusMessage || "Unknown error";
-    // Likely Bad Gateway or Gateway Timeout from OpenAI's Cloudflare proxy
+    // Likely Bad Gateway or Gateway Timeout from reverse proxy/load balancer
     logger.warn(
       { statusCode, statusMessage, key: req.key?.hash },
       parseError.message
@@ -249,7 +250,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
       error: parseError.message,
       proxy_note: `This is likely a temporary error with the upstream service.`,
     };
-    writeErrorResponse(res, statusCode, errorObject);
+    writeErrorResponse(req, res, statusCode, errorObject);
     throw new Error(parseError.message);
   }
 
@@ -265,47 +266,35 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
 
   if (statusCode === 400) {
     // Bad request (likely prompt is too long)
-    errorPayload.proxy_note = `OpenAI rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
+    errorPayload.proxy_note = `Upstream service rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
   } else if (statusCode === 401) {
     // Key is invalid or was revoked
     keyPool.disable(req.key!);
-    errorPayload.proxy_note = `The OpenAI key is invalid or revoked. ${tryAgainMessage}`;
+    errorPayload.proxy_note = `API key is invalid or revoked. ${tryAgainMessage}`;
   } else if (statusCode === 429) {
-    const type = errorPayload.error?.type;
-    if (type === "insufficient_quota") {
-      // Billing quota exceeded (key is dead, disable it)
-      keyPool.disable(req.key!);
-      errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${tryAgainMessage}`;
-    } else if (type === "billing_not_active") {
-      // Billing is not active (key is dead, disable it)
-      keyPool.disable(req.key!);
-      errorPayload.proxy_note = `Assigned key was deactivated by OpenAI. ${tryAgainMessage}`;
-    } else if (type === "requests" || type === "tokens") {
-      // Per-minute request or token rate limit is exceeded, which we can retry
-      keyPool.markRateLimited(req.key!.hash);
-      if (config.queueMode !== "none") {
-        reenqueueRequest(req);
-        // TODO: I don't like using an error to control flow here
-        throw new RetryableError("Rate-limited request re-enqueued.");
-      }
-      errorPayload.proxy_note = `Assigned key's '${type}' rate limit has been exceeded. Try again later.`;
+    // OpenAI uses this for a bunch of different rate-limiting scenarios.
+    if (req.key!.service === "openai") {
+      handleOpenAIRateLimitError(req, tryAgainMessage, errorPayload);
     } else {
-      // OpenAI probably overloaded
-      errorPayload.proxy_note = `This is likely a temporary error with OpenAI. Try again in a few seconds.`;
+      handleAnthropicRateLimitError(req, errorPayload);
     }
   } else if (statusCode === 404) {
     // Most likely model not found
-    // TODO: this probably doesn't handle GPT-4-32k variants properly if the
-    // proxy has keys for both the 8k and 32k context models at the same time.
-    if (errorPayload.error?.code === "model_not_found") {
-      if (req.key!.isGpt4) {
-        errorPayload.proxy_note = `Assigned key isn't provisioned for the GPT-4 snapshot you requested. Try again to get a different key, or use Turbo.`;
-      } else {
-        errorPayload.proxy_note = `No model was found for this key.`;
+    if (req.key!.service === "openai") {
+      // TODO: this probably doesn't handle GPT-4-32k variants properly if the
+      // proxy has keys for both the 8k and 32k context models at the same time.
+      if (errorPayload.error?.code === "model_not_found") {
+        if (req.key!.isGpt4) {
+          errorPayload.proxy_note = `Assigned key isn't provisioned for the GPT-4 snapshot you requested. Try again to get a different key, or use Turbo.`;
+        } else {
+          errorPayload.proxy_note = `No model was found for this key.`;
+        }
       }
+    } else if (req.key!.service === "anthropic") {
+      errorPayload.proxy_note = `The requested Claude model might not exist, or the key might not be provisioned for it.`;
     }
   } else {
-    errorPayload.proxy_note = `Unrecognized error from OpenAI.`;
+    errorPayload.proxy_note = `Unrecognized error from upstream service.`;
   }
 
   // Some OAI errors contain the organization ID, which we don't want to reveal.
@@ -316,15 +305,68 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     );
   }
 
-  writeErrorResponse(res, statusCode, errorPayload);
+  writeErrorResponse(req, res, statusCode, errorPayload);
   throw new Error(errorPayload.error?.message);
 };
 
+function handleAnthropicRateLimitError(
+  req: Request,
+  errorPayload: Record<string, any>
+) {
+  //{"error":{"type":"rate_limit_error","message":"Number of concurrent connections to Claude exceeds your rate limit. Please try again, or contact sales@anthropic.com to discuss your options for a rate limit increase."}}
+  if (errorPayload.error?.type === "rate_limit_error") {
+    keyPool.markRateLimited(req.key!);
+    if (config.queueMode !== "none") {
+      reenqueueRequest(req);
+      throw new RetryableError("Claude rate-limited request re-enqueued.");
+    }
+    errorPayload.proxy_note = `There are too many in-flight requests for this key. Try again later.`;
+  } else {
+    errorPayload.proxy_note = `Unrecognized rate limit error from Anthropic. Key may be over quota.`;
+  }
+}
+
+function handleOpenAIRateLimitError(
+  req: Request,
+  tryAgainMessage: string,
+  errorPayload: Record<string, any>
+): Record<string, any> {
+  const type = errorPayload.error?.type;
+  if (type === "insufficient_quota") {
+    // Billing quota exceeded (key is dead, disable it)
+    keyPool.disable(req.key!);
+    errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${tryAgainMessage}`;
+  } else if (type === "billing_not_active") {
+    // Billing is not active (key is dead, disable it)
+    keyPool.disable(req.key!);
+    errorPayload.proxy_note = `Assigned key was deactivated by OpenAI. ${tryAgainMessage}`;
+  } else if (type === "requests" || type === "tokens") {
+    // Per-minute request or token rate limit is exceeded, which we can retry
+    keyPool.markRateLimited(req.key!);
+    if (config.queueMode !== "none") {
+      reenqueueRequest(req);
+      // This is confusing, but it will bubble up to the top-level response
+      // handler and cause the request to go back into the request queue.
+      throw new RetryableError("Rate-limited request re-enqueued.");
+    }
+    errorPayload.proxy_note = `Assigned key's '${type}' rate limit has been exceeded. Try again later.`;
+  } else {
+    // OpenAI probably overloaded
+    errorPayload.proxy_note = `This is likely a temporary error with OpenAI. Try again in a few seconds.`;
+  }
+  return errorPayload;
+}
+
 function writeErrorResponse(
+  req: Request,
   res: Response,
   statusCode: number,
   errorPayload: Record<string, any>
 ) {
+  const errorSource = errorPayload.error?.type.startsWith("proxy")
+    ? "proxy"
+    : "upstream";
+
   // If we're mid-SSE stream, send a data event with the error payload and end
   // the stream. Otherwise just send a normal error response.
   if (
@@ -332,8 +374,9 @@ function writeErrorResponse(
     res.getHeader("content-type") === "text/event-stream"
   ) {
     const msg = buildFakeSseMessage(
-      `upstream error (${statusCode})`,
-      JSON.stringify(errorPayload, null, 2)
+      `${errorSource} error (${statusCode})`,
+      JSON.stringify(errorPayload, null, 2),
+      req
     );
     res.write(msg);
     res.write(`data: [DONE]\n\n`);
@@ -344,21 +387,31 @@ function writeErrorResponse(
 }
 
 /** Handles errors in rewriter pipelines. */
-export const handleInternalError: httpProxy.ErrorCallback = (
-  err,
-  _req,
-  res
-) => {
+export const handleInternalError: httpProxy.ErrorCallback = (err, req, res) => {
   logger.error({ error: err }, "Error in http-proxy-middleware pipeline.");
+
   try {
-    writeErrorResponse(res as Response, 500, {
-      error: {
-        type: "proxy_error",
-        message: err.message,
-        stack: err.stack,
-        proxy_note: `Reverse proxy encountered an error before it could reach the upstream API.`,
-      },
-    });
+    const isZod = err instanceof ZodError;
+    if (isZod) {
+      writeErrorResponse(req as Request, res as Response, 400, {
+        error: {
+          type: "proxy_validation_error",
+          proxy_note: `Reverse proxy couldn't validate your request when trying to transform it. Your client may be sending invalid data.`,
+          issues: err.issues,
+          stack: err.stack,
+          message: err.message,
+        },
+      });
+    } else {
+      writeErrorResponse(req as Request, res as Response, 500, {
+        error: {
+          type: "proxy_rewriter_error",
+          proxy_note: `Reverse proxy encountered an error before it could reach the upstream API.`,
+          message: err.message,
+          stack: err.stack,
+        },
+      });
+    }
   } catch (e) {
     logger.error(
       { error: e },
@@ -368,8 +421,8 @@ export const handleInternalError: httpProxy.ErrorCallback = (
 };
 
 const incrementKeyUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
-  if (QUOTA_ROUTES.includes(req.path)) {
-    keyPool.incrementPrompt(req.key?.hash);
+  if (isCompletionRequest(req)) {
+    keyPool.incrementPrompt(req.key!);
     if (req.user) {
       incrementPromptCount(req.user.token);
     }
@@ -377,7 +430,7 @@ const incrementKeyUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
 };
 
 const trackRateLimit: ProxyResHandlerWithBody = async (proxyRes, req) => {
-  keyPool.updateRateLimits(req.key!.hash, proxyRes.headers);
+  keyPool.updateRateLimits(req.key!, proxyRes.headers);
 };
 
 const copyHttpHeaders: ProxyResHandlerWithBody = async (

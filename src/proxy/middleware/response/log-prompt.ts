@@ -1,4 +1,5 @@
 import { config } from "../../../config";
+import { AIService } from "../../../key-management";
 import { logQueue } from "../../../prompt-logging";
 import { isCompletionRequest } from "../request";
 import { ProxyResHandlerWithBody } from ".";
@@ -17,18 +18,16 @@ export const logPrompt: ProxyResHandlerWithBody = async (
     throw new Error("Expected body to be an object");
   }
 
-  // Only log prompts if we're making a request to a completion endpoint
   if (!isCompletionRequest(req)) {
-    // Remove this once we're confident that we're not missing any prompts
-    req.log.info(
-      `Not logging prompt for ${req.path} because it's not a completion endpoint`
-    );
     return;
   }
 
   const model = req.body.model;
   const promptFlattened = flattenMessages(req.body.messages);
-  const response = getResponseForModel({ model, body: responseBody });
+  const response = getResponseForService({
+    service: req.key!.service,
+    body: responseBody,
+  });
 
   logQueue.enqueue({
     model,
@@ -48,15 +47,14 @@ const flattenMessages = (messages: OaiMessage[]): string => {
   return messages.map((m) => `${m.role}: ${m.content}`).join("\n");
 };
 
-const getResponseForModel = ({
-  model,
+const getResponseForService = ({
+  service,
   body,
 }: {
-  model: string;
+  service: AIService;
   body: Record<string, any>;
 }) => {
-  if (model.startsWith("claude")) {
-    // TODO: confirm if there is supposed to be a leading space
+  if (service === "anthropic") {
     return body.completion.trim();
   } else {
     return body.choices[0].message.content;

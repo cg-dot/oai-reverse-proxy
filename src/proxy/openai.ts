@@ -8,10 +8,10 @@ import { ipLimiter } from "./rate-limit";
 import {
   addKey,
   languageFilter,
-  checkStreaming,
   finalizeBody,
   limitOutputTokens,
   limitCompletions,
+  transformOutboundPayload,
 } from "./middleware/request";
 import {
   createOnProxyResHandler,
@@ -28,9 +28,9 @@ const rewriteRequest = (
   const rewriterPipeline = [
     addKey,
     languageFilter,
-    checkStreaming,
     limitOutputTokens,
     limitCompletions,
+    transformOutboundPayload,
     finalizeBody,
   ];
 
@@ -39,7 +39,7 @@ const rewriteRequest = (
       rewriter(proxyReq, req, res, {});
     }
   } catch (error) {
-    logger.error(error, "Error while executing proxy rewriter");
+    req.log.error(error, "Error while executing proxy rewriter");
     proxyReq.destroy(error as Error);
   }
 };
@@ -98,7 +98,7 @@ openaiRouter.get("*", (req, res, next) => {
   }
 });
 openaiRouter.use((req, res) => {
-  logger.warn(`Blocked openai proxy request: ${req.method} ${req.path}`);
+  req.log.warn(`Blocked openai proxy request: ${req.method} ${req.path}`);
   res.status(404).json({ error: "Not found" });
 });
 
