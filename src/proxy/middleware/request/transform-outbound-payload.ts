@@ -46,7 +46,7 @@ export const transformOutboundPayload: ExpressHttpProxyReqCallback = (
     // We've already transformed the payload once, so don't do it again.
     return;
   }
-  
+
   const inboundService = req.api;
   const outboundService = req.key!.service;
 
@@ -111,15 +111,28 @@ function openaiToAnthropic(body: any, req: Request) {
   // tokens (https://console.anthropic.com/docs/prompt-design#prompt-length)
   // as the cutoff, minus a little bit for safety.
 
-  // For smaller prompts we use 1.2 because it's not as cucked as 1.3
+  // For smaller prompts we use 1.2 because it's not as annoying as 1.3
   // For big prompts (v1, auto-selects the latest model) is all we can use.
   const model = prompt.length > 25000 ? "claude-v1-100k" : "claude-v1.2";
+
+  let stops = rest.stop
+    ? Array.isArray(rest.stop)
+      ? rest.stop
+      : [rest.stop]
+    : [];
+  // Recommended by Anthropic
+  stops.push("\n\nHuman:");
+  // Helps with jailbreak prompts that send fake system messages and multi-bot
+  // chats that prefix bot messages with "System: Respond as <bot name>".
+  stops.push("\n\nSystem:");
+  // Remove duplicates
+  stops = [...new Set(stops)];
 
   return {
     ...rest,
     model,
     prompt,
     max_tokens_to_sample: rest.max_tokens,
-    stop_sequences: rest.stop,
+    stop_sequences: stops,
   };
 }
