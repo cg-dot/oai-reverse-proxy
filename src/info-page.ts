@@ -92,6 +92,7 @@ function cacheInfoPageHtml(host: string) {
     endpoints: {
       kobold: host,
       openai: host + "/proxy/openai",
+      anthropic: host + "/proxy/anthropic",
     },
     proompts: keys.reduce((acc, k) => acc + k.promptCount, 0),
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
