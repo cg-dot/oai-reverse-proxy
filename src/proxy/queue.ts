@@ -118,23 +118,24 @@ export function enqueue(req: Request) {
   }
 }
 
-export function dequeue(model: SupportedModel): Request | undefined {
+type QueuePartition = "claude" | "turbo" | "gpt-4";
+export function dequeue(partition: QueuePartition): Request | undefined {
+  // There is a single request queue, but it is partitioned by model and API
+  // provider.
+  // - claude: requests for the Anthropic API, regardless of model
+  // - gpt-4: requests for the OpenAI API, specifically for GPT-4 models
+  // - turbo: effectively, all other requests
   const modelQueue = queue.filter((req) => {
-    const reqProvider = req.originalUrl.startsWith("/proxy/anthropic")
-      ? "anthropic"
-      : "openai";
-
-    // This sucks, but the `req.body.model` on Anthropic requests via the
-    // OpenAI-compat endpoint isn't actually claude-*, it's a fake gpt value.
-    // TODO: refactor model/service detection
-
-    if (model.startsWith("claude")) {
-      return reqProvider === "anthropic";
+    const provider = req.outboundApi;
+    const model = (req.body.model as SupportedModel) ?? "gpt-3.5-turbo";
+    switch (partition) {
+      case "claude":
+        return provider === "anthropic";
+      case "gpt-4":
+        return provider === "openai" && model.startsWith("gpt-4");
+      case "turbo":
+        return provider === "openai";
     }
-    if (model.startsWith("gpt-4")) {
-      return reqProvider === "openai" && req.body.model?.startsWith("gpt-4");
-    }
-    return reqProvider === "openai" && req.body.model?.startsWith("gpt-3");
   });
 
   if (modelQueue.length === 0) {
@@ -191,10 +192,10 @@ function processQueue() {
     reqs.push(dequeue("gpt-4"));
   }
   if (turboLockout === 0) {
-    reqs.push(dequeue("gpt-3.5-turbo"));
+    reqs.push(dequeue("turbo"));
   }
   if (claudeLockout === 0) {
-    reqs.push(dequeue("claude-v1"));
+    reqs.push(dequeue("claude"));
   }
 
   reqs.filter(Boolean).forEach((req) => {
@@ -332,8 +333,7 @@ export function buildFakeSseMessage(
 ) {
   let fakeEvent;
 
-  if (req.api === "anthropic") {
-    // data: {"completion": " Here is a paragraph of lorem ipsum text:\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor inc", "stop_reason": "max_tokens", "truncated": false, "stop": null, "model": "claude-instant-v1", "log_id": "???", "exception": null}
+  if (req.inboundApi === "anthropic") {
     fakeEvent = {
       completion: `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`,
       stop_reason: type,

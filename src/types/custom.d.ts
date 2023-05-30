@@ -1,17 +1,15 @@
 import { Express } from "express-serve-static-core";
-import { Key } from "../key-management/index";
+import { AIService, Key } from "../key-management/index";
 import { User } from "../proxy/auth/user-store";
 
 declare global {
   namespace Express {
     interface Request {
       key?: Key;
-      /**
-       * Denotes the _inbound_ API format. This is used to determine how the
-       * user has submitted their request; the proxy will then translate the
-       * paramaters to the target API format, which is on `key.service`.
-       */
-      api: "kobold" | "openai" | "anthropic";
+      /** Denotes the format of the user's submitted request. */
+      inboundApi: AIService | "kobold";
+      /** Denotes the format of the request being proxied to the API. */
+      outboundApi: AIService;
       user?: User;
       isStreaming?: boolean;
       startTime: number;

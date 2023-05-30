@@ -1,6 +1,6 @@
 # OAI Reverse Proxy
 
-Reverse proxy server for the OpenAI (and soon Anthropic) APIs. Forwards text generation requests while rejecting administrative/billing requests. Includes optional rate limiting and prompt filtering to prevent abuse.
+Reverse proxy server for the OpenAI and Anthropic APIs. Forwards text generation requests while rejecting administrative/billing requests. Includes optional rate limiting and prompt filtering to prevent abuse.
 
 ### Table of Contents
 - [What is this?](#what-is-this)

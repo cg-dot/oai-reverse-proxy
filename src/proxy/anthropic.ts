@@ -16,13 +16,13 @@ import {
   handleInternalError,
 } from "./middleware/response";
 import { createQueueMiddleware } from "./queue";
+import { setApiFormat } from "./routes";
 
 const rewriteAnthropicRequest = (
   proxyReq: http.ClientRequest,
   req: Request,
   res: http.ServerResponse
 ) => {
-  req.api = "anthropic";
   const rewriterPipeline = [
     addKey,
     languageFilter,
@@ -107,14 +107,14 @@ const anthropicProxy = createProxyMiddleware({
   selfHandleResponse: true,
   logger,
   pathRewrite: {
-    // If the user sends a request to /v1/chat/completions (the OpenAI endpoint)
-    // we will transform the payload and rewrite the path to /v1/complete.
+    // Send OpenAI-compat requests to the real Anthropic endpoint.
     "^/v1/chat/completions": "/v1/complete",
   },
 });
 const queuedAnthropicProxy = createQueueMiddleware(anthropicProxy);
 
 const anthropicRouter = Router();
+// Fix paths because clients don't consistently use the /v1 prefix.
 anthropicRouter.use((req, _res, next) => {
   if (!req.path.startsWith("/v1/")) {
     req.url = `/v1${req.url}`;
@@ -124,10 +124,17 @@ anthropicRouter.use((req, _res, next) => {
 anthropicRouter.get("/v1/models", (req, res) => {
   res.json(buildFakeModelsResponse());
 });
-anthropicRouter.post("/v1/complete", queuedAnthropicProxy);
-// This is the OpenAI endpoint, to let users send OpenAI-formatted requests
-// to the Anthropic API. We need to rewrite them first.
-anthropicRouter.post("/v1/chat/completions", queuedAnthropicProxy);
+anthropicRouter.post(
+  "/v1/complete",
+  setApiFormat({ in: "anthropic", out: "anthropic" }),
+  queuedAnthropicProxy
+);
+// OpenAI-to-Anthropic compatibility endpoint.
+anthropicRouter.post(
+  "/v1/chat/completions",
+  setApiFormat({ in: "openai", out: "anthropic" }),
+  queuedAnthropicProxy
+);
 // Redirect browser requests to the homepage.
 anthropicRouter.get("*", (req, res, next) => {
   const isBrowser = req.headers["user-agent"]?.includes("Mozilla");
@@ -163,9 +170,7 @@ function buildFakeModelsResponse() {
     parent: null,
   }));
 
-  return {
-    models,
-  };
+  return { models };
 }
 
 export const anthropic = anthropicRouter;

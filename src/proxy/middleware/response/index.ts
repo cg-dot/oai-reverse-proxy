@@ -155,11 +155,9 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
   res
 ) => {
   if (req.isStreaming) {
-    req.log.error(
-      { api: req.api, key: req.key?.hash },
-      `decodeResponseBody called for a streaming request, which isn't valid.`
-    );
-    throw new Error("decodeResponseBody called for a streaming request.");
+    const err = new Error("decodeResponseBody called for a streaming request.");
+    req.log.error({ stack: err.stack, api: req.inboundApi }, err.message);
+    throw err;
   }
 
   const promise = new Promise<string>((resolve, reject) => {
@@ -273,14 +271,14 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     errorPayload.proxy_note = `API key is invalid or revoked. ${tryAgainMessage}`;
   } else if (statusCode === 429) {
     // OpenAI uses this for a bunch of different rate-limiting scenarios.
-    if (req.key!.service === "openai") {
+    if (req.outboundApi === "openai") {
       handleOpenAIRateLimitError(req, tryAgainMessage, errorPayload);
     } else {
       handleAnthropicRateLimitError(req, errorPayload);
     }
   } else if (statusCode === 404) {
     // Most likely model not found
-    if (req.key!.service === "openai") {
+    if (req.outboundApi === "openai") {
       // TODO: this probably doesn't handle GPT-4-32k variants properly if the
       // proxy has keys for both the 8k and 32k context models at the same time.
       if (errorPayload.error?.code === "model_not_found") {
@@ -290,7 +288,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
           errorPayload.proxy_note = `No model was found for this key.`;
         }
       }
-    } else if (req.key!.service === "anthropic") {
+    } else if (req.outboundApi === "anthropic") {
       errorPayload.proxy_note = `The requested Claude model might not exist, or the key might not be provisioned for it.`;
     }
   } else {
@@ -313,7 +311,6 @@ function handleAnthropicRateLimitError(
   req: Request,
   errorPayload: Record<string, any>
 ) {
-  //{"error":{"type":"rate_limit_error","message":"Number of concurrent connections to Claude exceeds your rate limit. Please try again, or contact sales@anthropic.com to discuss your options for a rate limit increase."}}
   if (errorPayload.error?.type === "rate_limit_error") {
     keyPool.markRateLimited(req.key!);
     if (config.queueMode !== "none") {

@@ -4,33 +4,40 @@ import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
 
 // https://console.anthropic.com/docs/api/reference#-v1-complete
 const AnthropicV1CompleteSchema = z.object({
-  model: z.string().regex(/^claude-/),
-  prompt: z.string(),
-  max_tokens_to_sample: z.number(),
+  model: z.string().regex(/^claude-/, "Model must start with 'claude-'"),
+  prompt: z.string({
+    required_error:
+      "No prompt found. Are you sending an OpenAI-formatted request to the Claude endpoint?",
+  }),
+  max_tokens_to_sample: z.coerce.number(),
   stop_sequences: z.array(z.string()).optional(),
   stream: z.boolean().optional().default(false),
-  temperature: z.number().optional().default(1),
-  top_k: z.number().optional().default(-1),
-  top_p: z.number().optional().default(-1),
+  temperature: z.coerce.number().optional().default(1),
+  top_k: z.coerce.number().optional().default(-1),
+  top_p: z.coerce.number().optional().default(-1),
   metadata: z.any().optional(),
 });
 
 // https://platform.openai.com/docs/api-reference/chat/create
 const OpenAIV1ChatCompletionSchema = z.object({
-  model: z.string().regex(/^gpt/),
+  model: z.string().regex(/^gpt/, "Model must start with 'gpt-'"),
   messages: z.array(
     z.object({
       role: z.enum(["system", "user", "assistant"]),
       content: z.string(),
       name: z.string().optional(),
-    })
+    }),
+    {
+      required_error:
+        "No prompt found. Are you sending an Anthropic-formatted request to the OpenAI endpoint?",
+    }
   ),
   temperature: z.number().optional().default(1),
   top_p: z.number().optional().default(1),
   n: z.literal(1).optional(),
   stream: z.boolean().optional().default(false),
   stop: z.union([z.string(), z.array(z.string())]).optional(),
-  max_tokens: z.number().optional(),
+  max_tokens: z.coerce.number().optional(),
   frequency_penalty: z.number().optional().default(0),
   presence_penalty: z.number().optional().default(0),
   logit_bias: z.any().optional(),
@@ -42,39 +49,47 @@ export const transformOutboundPayload: ExpressHttpProxyReqCallback = (
   _proxyReq,
   req
 ) => {
-  if (req.retryCount > 0 || !isCompletionRequest(req)) {
+  const sameService = req.inboundApi === req.outboundApi;
+  const alreadyTransformed = req.retryCount > 0;
+  const notTransformable = !isCompletionRequest(req);
+
+  if (alreadyTransformed || notTransformable) {
     return;
   }
 
-  const inboundService = req.api;
-  const outboundService = req.key!.service;
-
-  if (inboundService === outboundService) {
+  if (sameService) {
+    // Just validate, don't transform.
+    const validator =
+      req.outboundApi === "openai"
+        ? OpenAIV1ChatCompletionSchema
+        : AnthropicV1CompleteSchema;
+    const result = validator.safeParse(req.body);
+    if (!result.success) {
+      req.log.error(
+        { issues: result.error.issues, params: req.body },
+        "Request validation failed"
+      );
+      throw result.error;
+    }
     return;
   }
 
-  // Not supported yet and unnecessary as everything supports OpenAI.
-  if (inboundService === "anthropic" && outboundService === "openai") {
-    throw new Error(
-      "Anthropic -> OpenAI request transformation not supported. Provide an OpenAI-compatible payload, or use the /claude endpoint."
-    );
-  }
-
-  if (inboundService === "openai" && outboundService === "anthropic") {
+  if (req.inboundApi === "openai" && req.outboundApi === "anthropic") {
     req.body = openaiToAnthropic(req.body, req);
     return;
   }
 
   throw new Error(
-    `Unsupported transformation: ${inboundService} -> ${outboundService}`
+    `'${req.inboundApi}' -> '${req.outboundApi}' request proxying is not supported. Make sure your client is configured to use the correct API.`
   );
 };
 
 function openaiToAnthropic(body: any, req: Request) {
   const result = OpenAIV1ChatCompletionSchema.safeParse(body);
   if (!result.success) {
-    // don't log the prompt
-    const { messages, ...params } = body;
+    // don't log the prompt (usually `messages` but maybe `prompt` if the user
+    // misconfigured their client)
+    const { messages, prompt, ...params } = body;
     req.log.error(
       { issues: result.error.issues, params },
       "Invalid OpenAI-to-Anthropic request"

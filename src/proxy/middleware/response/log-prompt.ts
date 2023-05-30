@@ -1,3 +1,4 @@
+import { Request } from "express";
 import { config } from "../../../config";
 import { AIService } from "../../../key-management";
 import { logQueue } from "../../../prompt-logging";
@@ -22,19 +23,19 @@ export const logPrompt: ProxyResHandlerWithBody = async (
     return;
   }
 
-  const model = req.body.model;
-  const promptFlattened = flattenMessages(req.body.messages);
+  const promptPayload = getPromptForRequest(req);
+  const promptFlattened = flattenMessages(promptPayload);
   const response = getResponseForService({
-    service: req.key!.service,
+    service: req.outboundApi,
     body: responseBody,
   });
 
   logQueue.enqueue({
-    model,
-    endpoint: req.api,
-    promptRaw: JSON.stringify(req.body.messages),
+    endpoint: req.inboundApi,
+    promptRaw: JSON.stringify(promptPayload),
     promptFlattened,
-    response,
+    model: response.model, // may differ from the requested model
+    response: response.completion,
   });
 };
 
@@ -43,7 +44,21 @@ type OaiMessage = {
   content: string;
 };
 
-const flattenMessages = (messages: OaiMessage[]): string => {
+const getPromptForRequest = (req: Request): string | OaiMessage[] => {
+  // Since the prompt logger only runs after the request has been proxied, we
+  // can assume the body has already been transformed to the target API's
+  // format.
+  if (req.outboundApi === "anthropic") {
+    return req.body.prompt;
+  } else {
+    return req.body.messages;
+  }
+};
+
+const flattenMessages = (messages: string | OaiMessage[]): string => {
+  if (typeof messages === "string") {
+    return messages;
+  }
   return messages.map((m) => `${m.role}: ${m.content}`).join("\n");
 };
 
@@ -53,10 +68,10 @@ const getResponseForService = ({
 }: {
   service: AIService;
   body: Record<string, any>;
-}) => {
+}): { completion: string; model: string } => {
   if (service === "anthropic") {
-    return body.completion.trim();
+    return { completion: body.completion.trim(), model: body.model };
   } else {
-    return body.choices[0].message.content;
+    return { completion: body.choices[0].message.content, model: body.model };
   }
 };

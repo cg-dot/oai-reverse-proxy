@@ -9,7 +9,20 @@ export const addKey: ExpressHttpProxyReqCallback = (proxyReq, req) => {
     // Horrible, horrible hack to stop the proxy from complaining about clients
     // not sending a model when they are requesting the list of models (which
     // requires a key, but obviously not a model).
+    // TODO: shouldn't even proxy /models to the upstream API, just fake it
+    // using the models our key pool has available.
     req.body.model = "gpt-3.5-turbo";
+  }
+
+  if (!req.inboundApi || !req.outboundApi) {
+    const err = new Error(
+      "Request API format missing. Did you forget to add the `setApiFormat` middleware to your route?"
+    );
+    req.log.error(
+      { in: req.inboundApi, out: req.outboundApi, path: req.path },
+      err.message
+    );
+    throw err;
   }
 
   if (!req.body?.model) {
@@ -25,14 +38,8 @@ export const addKey: ExpressHttpProxyReqCallback = (proxyReq, req) => {
   // the requested model is an OpenAI one even though we're actually sending
   // an Anthropic request.
   // For such cases, ignore the requested model entirely.
-  // Real Anthropic requests come in via /proxy/anthropic/v1/complete
-  // The OpenAI-compatible endpoint is /proxy/anthropic/v1/chat/completions
-
-  const openaiCompatible =
-    req.originalUrl === "/proxy/anthropic/v1/chat/completions";
-  if (openaiCompatible) {
+  if (req.inboundApi === "openai" && req.outboundApi === "anthropic") {
     req.log.debug("Using an Anthropic key for an OpenAI-compatible request");
-    req.api = "openai";
     // We don't assign the model here, that will happen when transforming the
     // request body.
     assignedKey = keyPool.get("claude-v1");
@@ -45,8 +52,8 @@ export const addKey: ExpressHttpProxyReqCallback = (proxyReq, req) => {
     {
       key: assignedKey.hash,
       model: req.body?.model,
-      fromApi: req.api,
-      toApi: assignedKey.service,
+      fromApi: req.inboundApi,
+      toApi: req.outboundApi,
     },
     "Assigned key to request"
   );

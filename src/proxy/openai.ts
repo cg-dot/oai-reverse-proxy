@@ -18,13 +18,13 @@ import {
   handleInternalError,
   ProxyResHandlerWithBody,
 } from "./middleware/response";
+import { setApiFormat } from "./routes";
 
 const rewriteRequest = (
   proxyReq: http.ClientRequest,
   req: Request,
   res: http.ServerResponse
 ) => {
-  req.api = "openai";
   const rewriterPipeline = [
     addKey,
     languageFilter,
@@ -76,9 +76,7 @@ const openaiProxy = createProxyMiddleware({
 const queuedOpenaiProxy = createQueueMiddleware(openaiProxy);
 
 const openaiRouter = Router();
-// Some clients don't include the /v1/ prefix in their requests and users get
-// confused when they get a 404. Just fix the route for them so I don't have to
-// provide a bunch of different routes for each client's idiosyncrasies.
+// Fix paths because clients don't consistently use the /v1 prefix.
 openaiRouter.use((req, _res, next) => {
   if (!req.path.startsWith("/v1/")) {
     req.url = `/v1${req.url}`;
@@ -86,9 +84,13 @@ openaiRouter.use((req, _res, next) => {
   next();
 });
 openaiRouter.get("/v1/models", openaiProxy);
-openaiRouter.post("/v1/chat/completions", ipLimiter, queuedOpenaiProxy);
-// If a browser tries to visit a route that doesn't exist, redirect to the info
-// page to help them find the right URL.
+openaiRouter.post(
+  "/v1/chat/completions",
+  setApiFormat({ in: "openai", out: "openai" }),
+  ipLimiter,
+  queuedOpenaiProxy
+);
+// Redirect browser requests to the homepage.
 openaiRouter.get("*", (req, res, next) => {
   const isBrowser = req.headers["user-agent"]?.includes("Mozilla");
   if (isBrowser) {
