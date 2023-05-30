@@ -5,7 +5,6 @@ subset of the API is supported. Kobold requests must be transformed into
 equivalent OpenAI requests. */
 
 import * as express from "express";
-import { AIService } from "../key-management";
 import { gatekeeper } from "./auth/gatekeeper";
 import { kobold } from "./kobold";
 import { openai } from "./openai";
@@ -17,16 +16,4 @@ router.use(gatekeeper);
 router.use("/kobold", kobold);
 router.use("/openai", openai);
 router.use("/anthropic", anthropic);
-
-export function setApiFormat(api: {
-  in: express.Request["inboundApi"];
-  out: AIService;
-}): express.RequestHandler {
-  return (req, _res, next) => {
-    req.inboundApi = api.in;
-    req.outboundApi = api.out;
-    next();
-  };
-}
-
 export { router as proxyRouter };

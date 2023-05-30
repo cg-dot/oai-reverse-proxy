@@ -8,6 +8,7 @@ import {
   finalizeBody,
   languageFilter,
   limitOutputTokens,
+  setApiFormat,
   transformOutboundPayload,
 } from "./middleware/request";
 import {
@@ -16,7 +17,6 @@ import {
   handleInternalError,
 } from "./middleware/response";
 import { createQueueMiddleware } from "./queue";
-import { setApiFormat } from "./routes";
 
 const rewriteAnthropicRequest = (
   proxyReq: http.ClientRequest,

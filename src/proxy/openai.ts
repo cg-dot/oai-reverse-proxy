@@ -11,6 +11,7 @@ import {
   finalizeBody,
   limitOutputTokens,
   limitCompletions,
+  setApiFormat,
   transformOutboundPayload,
 } from "./middleware/request";
 import {
@@ -18,7 +19,6 @@ import {
   handleInternalError,
   ProxyResHandlerWithBody,
 } from "./middleware/response";
-import { setApiFormat } from "./routes";
 
 const rewriteRequest = (
   proxyReq: http.ClientRequest,

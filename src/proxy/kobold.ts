@@ -7,12 +7,12 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
 import { logger } from "../logger";
 import { ipLimiter } from "./rate-limit";
-import { setApiFormat } from "./routes";
 import {
   addKey,
   finalizeBody,
   languageFilter,
   limitOutputTokens,
+  setApiFormat,
   transformKoboldPayload,
 } from "./middleware/request";
 import {

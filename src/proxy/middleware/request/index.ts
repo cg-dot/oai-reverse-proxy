@@ -7,6 +7,7 @@ export { finalizeBody } from "./finalize-body";
 export { languageFilter } from "./language-filter";
 export { limitCompletions } from "./limit-completions";
 export { limitOutputTokens } from "./limit-output-tokens";
+export { setApiFormat } from "./set-api-format";
 export { transformKoboldPayload } from "./transform-kobold-payload";
 export { transformOutboundPayload } from "./transform-outbound-payload";
 

@@ -101,7 +101,7 @@ export class OpenAIKeyChecker {
       this.lastCheck + MIN_CHECK_INTERVAL
     );
 
-    this.log.info(
+    this.log.debug(
       { key: oldestKey.hash, nextCheck: new Date(nextCheck) },
       "Scheduling next check."
     );
@@ -119,7 +119,7 @@ export class OpenAIKeyChecker {
       return;
     }
 
-    this.log.info({ key: key.hash }, "Checking key...");
+    this.log.debug({ key: key.hash }, "Checking key...");
     let isInitialCheck = !key.lastChecked;
     try {
       // During the initial check we need to get the subscription first because
