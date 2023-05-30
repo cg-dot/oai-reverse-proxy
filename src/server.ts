@@ -7,7 +7,7 @@ import childProcess from "child_process";
 import { logger } from "./logger";
 import { keyPool } from "./key-management";
 import { adminRouter } from "./admin/routes";
-import { proxyRouter, rewriteTavernRequests } from "./proxy/routes";
+import { proxyRouter } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
 import { logQueue } from "./prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
@@ -18,7 +18,6 @@ const PORT = config.port;
 
 const app = express();
 // middleware
-app.use("/", rewriteTavernRequests);
 app.use(
   pinoHttp({
     quietReqLogger: true,
@@ -34,6 +33,7 @@ app.use(
         "req.headers.cookie",
         'res.headers["set-cookie"]',
         "req.headers.authorization",
+        'req.headers["x-api-key"]',
         'req.headers["x-forwarded-for"]',
         'req.headers["x-real-ip"]',
         'req.headers["true-client-ip"]',

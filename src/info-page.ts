@@ -90,9 +90,9 @@ function cacheInfoPageHtml(host: string) {
   const info = {
     uptime: process.uptime(),
     endpoints: {
-      kobold: host,
       openai: host + "/proxy/openai",
       anthropic: host + "/proxy/anthropic",
+      ["kobold (deprecated)"]: host + "/proxy/kobold",
     },
     proompts: keys.reduce((acc, k) => acc + k.promptCount, 0),
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
