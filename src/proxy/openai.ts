@@ -83,7 +83,11 @@ openaiRouter.use((req, _res, next) => {
   }
   next();
 });
-openaiRouter.get("/v1/models", openaiProxy);
+openaiRouter.get(
+  "/v1/models",
+  setApiFormat({ in: "openai", out: "openai" }),
+  openaiProxy // TODO: replace with fake model list instead of proxying
+);
 openaiRouter.post(
   "/v1/chat/completions",
   setApiFormat({ in: "openai", out: "openai" }),
