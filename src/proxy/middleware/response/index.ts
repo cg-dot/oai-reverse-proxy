@@ -223,7 +223,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   let errorPayload: Record<string, any>;
   // Subtract 1 from available keys because if this message is being shown,
   // it's because the key is about to be disabled.
-  const availableKeys = keyPool.available() - 1;
+  const availableKeys = keyPool.available(req.outboundApi) - 1;
   const tryAgainMessage = Boolean(availableKeys)
     ? `There are ${availableKeys} more keys available; try your request again.`
     : "There are no more keys available.";

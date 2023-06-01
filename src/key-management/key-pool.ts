@@ -13,7 +13,7 @@ export class KeyPool {
 
   public init() {
     this.keyProviders.forEach((provider) => provider.init());
-    const availableKeys = this.available();
+    const availableKeys = this.available("all");
     if (availableKeys === 0) {
       throw new Error(
         "No keys loaded. Ensure either OPENAI_KEY or ANTHROPIC_KEY is set."
@@ -35,14 +35,11 @@ export class KeyPool {
     service.disable(key);
   }
 
-  // TODO: this probably needs to be scoped to a specific provider. I think the
-  // only code calling this is the error handler which needs to know how many
-  // more keys are available for the provider the user tried to use.
-  public available(): number {
-    return this.keyProviders.reduce(
-      (sum, provider) => sum + provider.available(),
-      0
-    );
+  public available(service: AIService | "all" = "all"): number {
+    return this.keyProviders.reduce((sum, provider) => {
+      const includeProvider = service === "all" || service === provider.service;
+      return sum + (includeProvider ? provider.available() : 0);
+    }, 0);
   }
 
   public anyUnchecked(): boolean {
