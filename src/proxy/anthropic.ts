@@ -145,7 +145,16 @@ anthropicRouter.get("*", (req, res, next) => {
   }
 });
 
+let modelsCache: any = null;
+let modelsCacheTime = 0;
+
 function buildFakeModelsResponse() {
+  if (new Date().getTime() - modelsCacheTime < 1000 * 60) {
+    return modelsCache;
+  }
+
+  if (!config.anthropicKey) return { object: "list", data: [] };
+
   const claudeVariants = [
     "claude-v1",
     "claude-v1-100k",
@@ -170,7 +179,10 @@ function buildFakeModelsResponse() {
     parent: null,
   }));
 
-  return { models };
+  modelsCache = { object: "list", data: models };
+  modelsCacheTime = new Date().getTime();
+
+  return modelsCache;
 }
 
 export const anthropic = anthropicRouter;

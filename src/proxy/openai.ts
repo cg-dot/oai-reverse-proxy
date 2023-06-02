@@ -2,6 +2,7 @@ import { Request, Router } from "express";
 import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
+import { keyPool } from "../key-management";
 import { logger } from "../logger";
 import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";
@@ -86,7 +87,9 @@ openaiRouter.use((req, _res, next) => {
 openaiRouter.get(
   "/v1/models",
   setApiFormat({ in: "openai", out: "openai" }),
-  openaiProxy // TODO: replace with fake model list instead of proxying
+  (_req, res) => {
+    res.json(buildFakeModelsResponse());
+  }
 );
 openaiRouter.post(
   "/v1/chat/completions",
@@ -107,5 +110,58 @@ openaiRouter.use((req, res) => {
   req.log.warn(`Blocked openai proxy request: ${req.method} ${req.path}`);
   res.status(404).json({ error: "Not found" });
 });
+
+let modelsCache: any = null;
+let modelsCacheTime = 0;
+
+function buildFakeModelsResponse() {
+  if (new Date().getTime() - modelsCacheTime < 1000 * 60) {
+    return modelsCache;
+  }
+
+  const gptVariants = [
+    "gpt-4",
+    "gpt-4-0314",
+    "gpt-4-32k",
+    "gpt-4-32k-0314",
+    "gpt-3.5-turbo",
+    "gpt-3.5-turbo-0301",
+  ];
+
+  const gpt4Available = keyPool.list().filter((key) => {
+    return key.service === "openai" && !key.isDisabled && key.isGpt4;
+  }).length;
+
+  const models = gptVariants
+    .map((id) => ({
+      id,
+      object: "model",
+      created: new Date().getTime(),
+      owned_by: "openai",
+      permission: [
+        {
+          id: "modelperm-" + id,
+          object: "model_permission",
+          created: new Date().getTime(),
+          organization: "*",
+          group: null,
+          is_blocking: false,
+        },
+      ],
+      root: id,
+      parent: null,
+    }))
+    .filter((model) => {
+      if (model.id.startsWith("gpt-4")) {
+        return gpt4Available > 0;
+      }
+      return true;
+    });
+
+  modelsCache = { object: "list", data: models };
+  modelsCacheTime = new Date().getTime();
+
+  return modelsCache;
+}
 
 export const openai = openaiRouter;

@@ -6,7 +6,7 @@
     "build:watch": "esbuild src/server.ts --outfile=build/server.js --platform=node --target=es2020 --format=cjs --bundle --sourcemap --watch",
     "build": "tsc",
     "start:dev": "concurrently \"npm run build:watch\" \"npm run start:watch\"",
-    "start:dev:tsc": "nodemon --watch src --exec ts-node src/server.ts",
+    "start:dev:tsc": "nodemon --watch src --exec ts-node --transpile-only src/server.ts",
     "start:watch": "nodemon --require source-map-support/register build/server.js",
     "start:replit": "tsc && node build/server.js",
     "start": "node build/server.js",
