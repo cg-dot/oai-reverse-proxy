@@ -38,6 +38,9 @@ app.use(
         'req.headers["x-real-ip"]',
         'req.headers["true-client-ip"]',
         'req.headers["cf-connecting-ip"]',
+        // Don't log the prompt text on transform errors
+        "body.messages",
+        "body.prompt",
       ],
       censor: "********",
     },

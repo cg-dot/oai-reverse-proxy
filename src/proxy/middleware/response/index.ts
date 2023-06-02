@@ -1,16 +1,14 @@
 /* This file is fucking horrendous, sorry */
 import { Request, Response } from "express";
 import * as http from "http";
-import * as httpProxy from "http-proxy";
 import util from "util";
 import zlib from "zlib";
-import { ZodError } from "zod";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { keyPool } from "../../../key-management";
+import { enqueue, trackWaitTime } from "../../queue";
 import { incrementPromptCount } from "../../auth/user-store";
-import { buildFakeSseMessage, enqueue, trackWaitTime } from "../../queue";
-import { isCompletionRequest } from "../request";
+import { isCompletionRequest, writeErrorResponse } from "../common";
 import { handleStreamedResponse } from "./handle-streamed-response";
 import { logPrompt } from "./log-prompt";
 
@@ -353,69 +351,6 @@ function handleOpenAIRateLimitError(
   }
   return errorPayload;
 }
-
-function writeErrorResponse(
-  req: Request,
-  res: Response,
-  statusCode: number,
-  errorPayload: Record<string, any>
-) {
-  const errorSource = errorPayload.error?.type.startsWith("proxy")
-    ? "proxy"
-    : "upstream";
-
-  // If we're mid-SSE stream, send a data event with the error payload and end
-  // the stream. Otherwise just send a normal error response.
-  if (
-    res.headersSent ||
-    res.getHeader("content-type") === "text/event-stream"
-  ) {
-    const msg = buildFakeSseMessage(
-      `${errorSource} error (${statusCode})`,
-      JSON.stringify(errorPayload, null, 2),
-      req
-    );
-    res.write(msg);
-    res.write(`data: [DONE]\n\n`);
-    res.end();
-  } else {
-    res.status(statusCode).json(errorPayload);
-  }
-}
-
-/** Handles errors in rewriter pipelines. */
-export const handleInternalError: httpProxy.ErrorCallback = (err, req, res) => {
-  logger.error({ error: err }, "Error in http-proxy-middleware pipeline.");
-
-  try {
-    const isZod = err instanceof ZodError;
-    if (isZod) {
-      writeErrorResponse(req as Request, res as Response, 400, {
-        error: {
-          type: "proxy_validation_error",
-          proxy_note: `Reverse proxy couldn't validate your request when trying to transform it. Your client may be sending invalid data.`,
-          issues: err.issues,
-          stack: err.stack,
-          message: err.message,
-        },
-      });
-    } else {
-      writeErrorResponse(req as Request, res as Response, 500, {
-        error: {
-          type: "proxy_rewriter_error",
-          proxy_note: `Reverse proxy encountered an error before it could reach the upstream API.`,
-          message: err.message,
-          stack: err.stack,
-        },
-      });
-    }
-  } catch (e) {
-    logger.error(
-      { error: e },
-      `Error writing error response headers, giving up.`
-    );
-  }
-};
 
 const incrementKeyUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
   if (isCompletionRequest(req)) {

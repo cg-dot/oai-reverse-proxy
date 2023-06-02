@@ -1,15 +1,13 @@
 import { Request } from "express";
 import { config } from "../../../config";
-import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
+import { isCompletionRequest } from "../common";
+import { ProxyRequestMiddleware } from ".";
 
 const MAX_TOKENS = config.maxOutputTokens;
 
 /** Enforce a maximum number of tokens requested from the model. */
-export const limitOutputTokens: ExpressHttpProxyReqCallback = (
-  _proxyReq,
-  req
-) => {
-  if (isCompletionRequest(req) && req.body?.max_tokens) {
+export const limitOutputTokens: ProxyRequestMiddleware = (_proxyReq, req) => {
+  if (isCompletionRequest(req)) {
     const requestedMaxTokens = Number.parseInt(getMaxTokensFromRequest(req));
     let maxTokens = requestedMaxTokens;
 
@@ -39,5 +37,12 @@ export const limitOutputTokens: ExpressHttpProxyReqCallback = (
 };
 
 function getMaxTokensFromRequest(req: Request) {
-  return (req.body?.max_tokens || req.body?.max_tokens_to_sample) ?? MAX_TOKENS;
+  switch (req.outboundApi) {
+    case "anthropic":
+      return req.body?.max_tokens_to_sample;
+    case "openai":
+      return req.body?.max_tokens;
+    default:
+      throw new Error(`Unknown service: ${req.outboundApi}`);
+  }
 }

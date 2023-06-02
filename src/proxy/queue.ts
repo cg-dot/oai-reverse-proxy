@@ -20,6 +20,7 @@ import { config, DequeueMode } from "../config";
 import { keyPool, SupportedModel } from "../key-management";
 import { logger } from "../logger";
 import { AGNAI_DOT_CHAT_IP } from "./rate-limit";
+import { buildFakeSseMessage } from "./middleware/common";
 
 const queue: Request[] = [];
 const log = logger.child({ module: "request-queue" });
@@ -324,40 +325,6 @@ function initStreaming(req: Request) {
   res.flushHeaders();
   res.write("\n");
   res.write(": joining queue\n\n");
-}
-
-export function buildFakeSseMessage(
-  type: string,
-  string: string,
-  req: Request
-) {
-  let fakeEvent;
-
-  if (req.inboundApi === "anthropic") {
-    fakeEvent = {
-      completion: `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`,
-      stop_reason: type,
-      truncated: false, // I've never seen this be true
-      stop: null,
-      model: req.body?.model,
-      log_id: "proxy-req-" + req.id,
-    };
-  } else {
-    fakeEvent = {
-      id: "chatcmpl-" + req.id,
-      object: "chat.completion.chunk",
-      created: Date.now(),
-      model: req.body?.model,
-      choices: [
-        {
-          delta: { content: `\`\`\`\n[${type}: ${string}]\n\`\`\`\n` },
-          index: 0,
-          finish_reason: type,
-        },
-      ],
-    };
-  }
-  return `data: ${JSON.stringify(fakeEvent)}\n\n`;
 }
 
 /**

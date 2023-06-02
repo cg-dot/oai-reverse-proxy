@@ -2,7 +2,7 @@ import { Request } from "express";
 import { config } from "../../../config";
 import { AIService } from "../../../key-management";
 import { logQueue } from "../../../prompt-logging";
-import { isCompletionRequest } from "../request";
+import { isCompletionRequest } from "../common";
 import { ProxyResHandlerWithBody } from ".";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */

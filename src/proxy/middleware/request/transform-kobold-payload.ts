@@ -5,7 +5,7 @@
  * many edge cases to be worth maintaining and doesn't work with newer features.
  */
 import { logger } from "../../../logger";
-import type { ExpressHttpProxyReqCallback } from ".";
+import type { ProxyRequestMiddleware } from ".";
 
 // Kobold requests look like this:
 // body:
@@ -64,8 +64,11 @@ import type { ExpressHttpProxyReqCallback } from ".";
 // lines into user and assistant messages, but that's not always correct. For
 // now it will have to do.
 
-/** Transforms a KoboldAI payload into an OpenAI payload. */
-export const transformKoboldPayload: ExpressHttpProxyReqCallback = (
+/**
+ * Transforms a KoboldAI payload into an OpenAI payload.
+ * @deprecated Probably doesn't work anymore, idk.
+ **/
+export const transformKoboldPayload: ProxyRequestMiddleware = (
   _proxyReq,
   req
 ) => {

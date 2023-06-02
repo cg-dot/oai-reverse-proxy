@@ -1,6 +1,8 @@
+import { Request } from "express";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
-import type { ExpressHttpProxyReqCallback } from ".";
+import { isCompletionRequest } from "../common";
+import { ProxyRequestMiddleware } from ".";
 
 const DISALLOWED_REGEX =
   /[\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u3005\u3007\u3021-\u3029\u3038-\u303B\u3400-\u4DB5\u4E00-\u9FD5\uF900-\uFA6D\uFA70-\uFAD9]/;
@@ -19,18 +21,31 @@ const containsDisallowedCharacters = (text: string) => {
 };
 
 /** Block requests containing too many disallowed characters. */
-export const languageFilter: ExpressHttpProxyReqCallback = (_proxyReq, req) => {
+export const languageFilter: ProxyRequestMiddleware = (_proxyReq, req) => {
   if (!config.rejectDisallowed) {
     return;
   }
 
-  if (req.method === "POST" && req.body?.messages) {
-    const combinedText = req.body.messages
-      .map((m: { role: string; content: string }) => m.content)
-      .join(",");
+  if (isCompletionRequest(req)) {
+    const combinedText = getPromptFromRequest(req);
     if (containsDisallowedCharacters(combinedText)) {
       logger.warn(`Blocked request containing bad characters`);
       _proxyReq.destroy(new Error(config.rejectMessage));
     }
   }
 };
+
+function getPromptFromRequest(req: Request) {
+  const service = req.outboundApi;
+  const body = req.body;
+  switch (service) {
+    case "anthropic":
+      return body.prompt;
+    case "openai":
+      return body.messages
+        .map((m: { content: string }) => m.content)
+        .join("\n");
+    default:
+      throw new Error(`Unknown service: ${service}`);
+  }
+}

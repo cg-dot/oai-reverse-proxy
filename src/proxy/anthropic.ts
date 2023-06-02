@@ -1,22 +1,66 @@
-import { Request, Router } from "express";
+import { Request, RequestHandler, Router } from "express";
 import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
 import { logger } from "../logger";
+import { createQueueMiddleware } from "./queue";
+import { ipLimiter } from "./rate-limit";
+import { handleProxyError } from "./middleware/common";
 import {
   addKey,
+  createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
   limitOutputTokens,
-  setApiFormat,
-  transformOutboundPayload,
 } from "./middleware/request";
 import {
   ProxyResHandlerWithBody,
   createOnProxyResHandler,
-  handleInternalError,
 } from "./middleware/response";
-import { createQueueMiddleware } from "./queue";
+
+let modelsCache: any = null;
+let modelsCacheTime = 0;
+
+const getModelsResponse = () => {
+  if (new Date().getTime() - modelsCacheTime < 1000 * 60) {
+    return modelsCache;
+  }
+
+  if (!config.anthropicKey) return { object: "list", data: [] };
+
+  const claudeVariants = [
+    "claude-v1",
+    "claude-v1-100k",
+    "claude-instant-v1",
+    "claude-instant-v1-100k",
+    "claude-v1.3",
+    "claude-v1.3-100k",
+    "claude-v1.2",
+    "claude-v1.0",
+    "claude-instant-v1.1",
+    "claude-instant-v1.1-100k",
+    "claude-instant-v1.0",
+  ];
+
+  const models = claudeVariants.map((id) => ({
+    id,
+    object: "model",
+    created: new Date().getTime(),
+    owned_by: "anthropic",
+    permission: [],
+    root: "claude",
+    parent: null,
+  }));
+
+  modelsCache = { object: "list", data: models };
+  modelsCacheTime = new Date().getTime();
+
+  return modelsCache;
+};
+
+const handleModelRequest: RequestHandler = (_req, res) => {
+  res.status(200).json(getModelsResponse());
+};
 
 const rewriteAnthropicRequest = (
   proxyReq: http.ClientRequest,
@@ -27,7 +71,6 @@ const rewriteAnthropicRequest = (
     addKey,
     languageFilter,
     limitOutputTokens,
-    transformOutboundPayload,
     finalizeBody,
   ];
 
@@ -96,22 +139,23 @@ function transformAnthropicResponse(
   };
 }
 
-const anthropicProxy = createProxyMiddleware({
-  target: "https://api.anthropic.com",
-  changeOrigin: true,
-  on: {
-    proxyReq: rewriteAnthropicRequest,
-    proxyRes: createOnProxyResHandler([anthropicResponseHandler]),
-    error: handleInternalError,
-  },
-  selfHandleResponse: true,
-  logger,
-  pathRewrite: {
-    // Send OpenAI-compat requests to the real Anthropic endpoint.
-    "^/v1/chat/completions": "/v1/complete",
-  },
-});
-const queuedAnthropicProxy = createQueueMiddleware(anthropicProxy);
+const anthropicProxy = createQueueMiddleware(
+  createProxyMiddleware({
+    target: "https://api.anthropic.com",
+    changeOrigin: true,
+    on: {
+      proxyReq: rewriteAnthropicRequest,
+      proxyRes: createOnProxyResHandler([anthropicResponseHandler]),
+      error: handleProxyError,
+    },
+    selfHandleResponse: true,
+    logger,
+    pathRewrite: {
+      // Send OpenAI-compat requests to the real Anthropic endpoint.
+      "^/v1/chat/completions": "/v1/complete",
+    },
+  })
+);
 
 const anthropicRouter = Router();
 // Fix paths because clients don't consistently use the /v1 prefix.
@@ -121,19 +165,19 @@ anthropicRouter.use((req, _res, next) => {
   }
   next();
 });
-anthropicRouter.get("/v1/models", (req, res) => {
-  res.json(buildFakeModelsResponse());
-});
+anthropicRouter.get("/v1/models", handleModelRequest);
 anthropicRouter.post(
   "/v1/complete",
-  setApiFormat({ in: "anthropic", out: "anthropic" }),
-  queuedAnthropicProxy
+  ipLimiter,
+  createPreprocessorMiddleware({ inApi: "anthropic", outApi: "anthropic" }),
+  anthropicProxy
 );
 // OpenAI-to-Anthropic compatibility endpoint.
 anthropicRouter.post(
   "/v1/chat/completions",
-  setApiFormat({ in: "openai", out: "anthropic" }),
-  queuedAnthropicProxy
+  ipLimiter,
+  createPreprocessorMiddleware({ inApi: "openai", outApi: "anthropic" }),
+  anthropicProxy
 );
 // Redirect browser requests to the homepage.
 anthropicRouter.get("*", (req, res, next) => {
@@ -144,45 +188,5 @@ anthropicRouter.get("*", (req, res, next) => {
     next();
   }
 });
-
-let modelsCache: any = null;
-let modelsCacheTime = 0;
-
-function buildFakeModelsResponse() {
-  if (new Date().getTime() - modelsCacheTime < 1000 * 60) {
-    return modelsCache;
-  }
-
-  if (!config.anthropicKey) return { object: "list", data: [] };
-
-  const claudeVariants = [
-    "claude-v1",
-    "claude-v1-100k",
-    "claude-instant-v1",
-    "claude-instant-v1-100k",
-    "claude-v1.3",
-    "claude-v1.3-100k",
-    "claude-v1.2",
-    "claude-v1.0",
-    "claude-instant-v1.1",
-    "claude-instant-v1.1-100k",
-    "claude-instant-v1.0",
-  ];
-
-  const models = claudeVariants.map((id) => ({
-    id,
-    object: "model",
-    created: new Date().getTime(),
-    owned_by: "anthropic",
-    permission: [],
-    root: "claude",
-    parent: null,
-  }));
-
-  modelsCache = { object: "list", data: models };
-  modelsCacheTime = new Date().getTime();
-
-  return modelsCache;
-}
 
 export const anthropic = anthropicRouter;

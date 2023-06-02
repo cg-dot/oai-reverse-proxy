@@ -1,8 +1,9 @@
 import { Key, keyPool } from "../../../key-management";
-import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
+import { isCompletionRequest } from "../common";
+import { ProxyRequestMiddleware } from ".";
 
 /** Add a key that can service this request to the request object. */
-export const addKey: ExpressHttpProxyReqCallback = (proxyReq, req) => {
+export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
   let assignedKey: Key;
 
   if (!isCompletionRequest(req)) {
@@ -16,7 +17,7 @@ export const addKey: ExpressHttpProxyReqCallback = (proxyReq, req) => {
 
   if (!req.inboundApi || !req.outboundApi) {
     const err = new Error(
-      "Request API format missing. Did you forget to add the `setApiFormat` middleware to your route?"
+      "Request API format missing. Did you forget to add the request preprocessor to your router?"
     );
     req.log.error(
       { in: req.inboundApi, out: req.outboundApi, path: req.path },

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import * as http from "http";
+import { buildFakeSseMessage } from "../common";
 import { RawResponseBodyHandler, decodeResponseBody } from ".";
-import { buildFakeSseMessage } from "../../queue";
 
 type OpenAiChatCompletionResponse = {
   id: string;

@@ -1,6 +1,8 @@
 import { Request } from "express";
 import { z } from "zod";
-import { ExpressHttpProxyReqCallback, isCompletionRequest } from ".";
+import { isCompletionRequest } from "../common";
+import { RequestPreprocessor } from ".";
+// import { countTokens } from "../../../tokenization";
 
 // https://console.anthropic.com/docs/api/reference#-v1-complete
 const AnthropicV1CompleteSchema = z.object({
@@ -34,7 +36,13 @@ const OpenAIV1ChatCompletionSchema = z.object({
   ),
   temperature: z.number().optional().default(1),
   top_p: z.number().optional().default(1),
-  n: z.literal(1).optional(),
+  n: z
+    .literal(1, {
+      errorMap: () => ({
+        message: "You may only request a single completion at a time.",
+      }),
+    })
+    .optional(),
   stream: z.boolean().optional().default(false),
   stop: z.union([z.string(), z.array(z.string())]).optional(),
   max_tokens: z.coerce.number().optional(),
@@ -45,10 +53,7 @@ const OpenAIV1ChatCompletionSchema = z.object({
 });
 
 /** Transforms an incoming request body to one that matches the target API. */
-export const transformOutboundPayload: ExpressHttpProxyReqCallback = (
-  _proxyReq,
-  req
-) => {
+export const transformOutboundPayload: RequestPreprocessor = async (req) => {
   const sameService = req.inboundApi === req.outboundApi;
   const alreadyTransformed = req.retryCount > 0;
   const notTransformable = !isCompletionRequest(req);
@@ -66,7 +71,7 @@ export const transformOutboundPayload: ExpressHttpProxyReqCallback = (
     const result = validator.safeParse(req.body);
     if (!result.success) {
       req.log.error(
-        { issues: result.error.issues, params: req.body },
+        { issues: result.error.issues, body: req.body },
         "Request validation failed"
       );
       throw result.error;
@@ -87,11 +92,8 @@ export const transformOutboundPayload: ExpressHttpProxyReqCallback = (
 function openaiToAnthropic(body: any, req: Request) {
   const result = OpenAIV1ChatCompletionSchema.safeParse(body);
   if (!result.success) {
-    // don't log the prompt (usually `messages` but maybe `prompt` if the user
-    // misconfigured their client)
-    const { messages, prompt, ...params } = body;
     req.log.error(
-      { issues: result.error.issues, params },
+      { issues: result.error.issues, body: req.body },
       "Invalid OpenAI-to-Anthropic request"
     );
     throw result.error;
@@ -128,6 +130,14 @@ function openaiToAnthropic(body: any, req: Request) {
   // For smaller prompts we use 1.2 because it's not as annoying as 1.3
   // For big prompts (v1, auto-selects the latest model) is all we can use.
   const model = prompt.length > 25000 ? "claude-v1-100k" : "claude-v1.2";
+
+  // wip
+  // const tokens = countTokens({
+  //   prompt,
+  //   req,
+  //   service: "anthropic",
+  // });
+  // req.log.info({ tokens }, "Token count");
 
   let stops = rest.stop
     ? Array.isArray(rest.stop)

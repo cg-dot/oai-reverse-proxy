@@ -7,17 +7,17 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
 import { logger } from "../logger";
 import { ipLimiter } from "./rate-limit";
+import { handleProxyError } from "./middleware/common";
 import {
   addKey,
+  createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
   limitOutputTokens,
-  setApiFormat,
   transformKoboldPayload,
 } from "./middleware/request";
 import {
   createOnProxyResHandler,
-  handleInternalError,
   ProxyResHandlerWithBody,
 } from "./middleware/response";
 
@@ -91,7 +91,7 @@ const koboldOaiProxy = createProxyMiddleware({
   on: {
     proxyReq: rewriteRequest,
     proxyRes: createOnProxyResHandler([koboldResponseHandler]),
-    error: handleInternalError,
+    error: handleProxyError,
   },
   selfHandleResponse: true,
   logger,
@@ -102,8 +102,8 @@ koboldRouter.get("/api/v1/model", handleModelRequest);
 koboldRouter.get("/api/v1/config/soft_prompts_list", handleSoftPromptsRequest);
 koboldRouter.post(
   "/api/v1/generate",
-  setApiFormat({ in: "kobold", out: "openai" }),
   ipLimiter,
+  createPreprocessorMiddleware({ inApi: "kobold", outApi: "openai" }),
   koboldOaiProxy
 );
 koboldRouter.use((req, res) => {
