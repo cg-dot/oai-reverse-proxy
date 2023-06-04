@@ -14,7 +14,7 @@ const log = logger.child({ module: "log-queue" });
 let started = false;
 let timeoutId: NodeJS.Timeout | null = null;
 let retrying = false;
-let failedBatchCount = 0;
+let consecutiveFailedBatches = 0;
 
 export const enqueue = (payload: PromptLogEntry) => {
   if (!started) {
@@ -36,6 +36,7 @@ export const flush = async () => {
     try {
       await sheets.appendBatch(nextBatch);
       retrying = false;
+      consecutiveFailedBatches = 0;
     } catch (e: any) {
       if (retrying) {
         log.error(
@@ -43,7 +44,7 @@ export const flush = async () => {
           "Failed twice to flush batch, discarding."
         );
         retrying = false;
-        failedBatchCount++;
+        consecutiveFailedBatches++;
       } else {
         // Put the batch back at the front of the queue and try again
         log.warn(
@@ -83,12 +84,19 @@ export const stop = () => {
 };
 
 const scheduleFlush = (halfInterval = false) => {
-  if (failedBatchCount > 5) {
-    log.error(
-      { failedBatchCount },
-      "Too many failed batches. Stopping prompt logging."
+  if (consecutiveFailedBatches > 3) {
+    // TODO: may cause memory issues on busy servers, though if we crash that
+    // may actually fix the problem with logs randomly not being flushed.
+    const oneMinute = 60 * 1000;
+    const maxBackoff = 10 * oneMinute;
+    const backoff = Math.min(consecutiveFailedBatches * oneMinute, maxBackoff);
+    timeoutId = setTimeout(() => {
+      flush();
+    }, backoff);
+    log.warn(
+      { consecutiveFailedBatches, backoffMs: backoff },
+      "Failed to flush 3 batches in a row, pausing for a few minutes."
     );
-    stop();
     return;
   }
 
