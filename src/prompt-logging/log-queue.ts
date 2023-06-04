@@ -5,8 +5,8 @@ import { logger } from "../logger";
 import { PromptLogEntry } from ".";
 import { sheets } from "./backends";
 
-const FLUSH_INTERVAL = 1000 * 20; // 20 seconds
-const MAX_BATCH_SIZE = 100;
+const FLUSH_INTERVAL = 1000 * 10;
+const MAX_BATCH_SIZE = 25;
 
 const queue: PromptLogEntry[] = [];
 const log = logger.child({ module: "log-queue" });
