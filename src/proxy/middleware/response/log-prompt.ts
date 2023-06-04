@@ -4,6 +4,7 @@ import { AIService } from "../../../key-management";
 import { logQueue } from "../../../prompt-logging";
 import { isCompletionRequest } from "../common";
 import { ProxyResHandlerWithBody } from ".";
+import { logger } from "../../../logger";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */
 export const logPrompt: ProxyResHandlerWithBody = async (
@@ -57,7 +58,7 @@ const getPromptForRequest = (req: Request): string | OaiMessage[] => {
 
 const flattenMessages = (messages: string | OaiMessage[]): string => {
   if (typeof messages === "string") {
-    return messages;
+    return messages.trim();
   }
   return messages.map((m) => `${m.role}: ${m.content}`).join("\n");
 };

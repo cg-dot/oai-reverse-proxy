@@ -83,9 +83,8 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
       res.flushHeaders();
     }
 
-    const fullChunks: string[] = [];
-    let chunkBuffer: string[] = [];
-    let messageBuffer = "";
+    const originalEvents: string[] = [];
+    let partialMessage = "";
     let lastPosition = 0;
 
     type ProxyResHandler<T extends unknown> = (...args: T[]) => void;
@@ -101,20 +100,17 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
 
     proxyRes.on(
       "data",
-      withErrorHandling((chunk) => {
+      withErrorHandling((chunk: Buffer) => {
         // We may receive multiple (or partial) SSE messages in a single chunk,
         // so we need to buffer and emit seperate stream events for full
         // messages so we can parse/transform them properly.
         const str = chunk.toString();
-        chunkBuffer.push(str);
 
-        const newMessages = (messageBuffer + chunkBuffer.join("")).split(
-          /\r?\n\r?\n/ // Anthropic uses CRLF line endings (out-of-spec btw)
-        );
-        chunkBuffer = [];
-        messageBuffer = newMessages.pop() || "";
+        // Anthropic uses CRLF line endings (out-of-spec btw)
+        const fullMessages = (partialMessage + str).split(/\r?\n\r?\n/);
+        partialMessage = fullMessages.pop() || "";
 
-        for (const message of newMessages) {
+        for (const message of fullMessages) {
           proxyRes.emit("full-sse-event", message);
         }
       })
@@ -123,13 +119,13 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     proxyRes.on(
       "full-sse-event",
       withErrorHandling((data) => {
+        originalEvents.push(data);
         const { event, position } = transformEvent({
           data,
           requestApi: req.inboundApi,
           responseApi: req.outboundApi,
           lastPosition,
         });
-        fullChunks.push(event);
         lastPosition = position;
         res.write(event + "\n\n");
       })
@@ -138,7 +134,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     proxyRes.on(
       "end",
       withErrorHandling(() => {
-        let finalBody = convertEventsToFinalResponse(fullChunks, req);
+        let finalBody = convertEventsToFinalResponse(originalEvents, req);
         req.log.info({ key: key.hash }, `Finished proxying SSE stream.`);
         res.end();
         resolve(finalBody);
@@ -231,6 +227,12 @@ function copyHeaders(proxyRes: http.IncomingMessage, res: Response) {
   }
 }
 
+/**
+ * Converts the list of incremental SSE events into an object that resembles a
+ * full, non-streamed response from the API so that subsequent middleware can
+ * operate on it as if it were a normal response.
+ * Events are expected to be in the format they were received from the API.
+ */
 function convertEventsToFinalResponse(events: string[], req: Request) {
   if (req.outboundApi === "openai") {
     let response: OpenAiChatCompletionResponse = {
