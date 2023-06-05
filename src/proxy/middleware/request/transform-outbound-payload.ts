@@ -140,14 +140,6 @@ function openaiToAnthropic(body: any, req: Request) {
   // This currently uses _character count_, not token count.
   const model = prompt.length > 25000 ? CLAUDE_BIG : CLAUDE_SMALL;
 
-  // wip
-  // const tokens = countTokens({
-  //   prompt,
-  //   req,
-  //   service: "anthropic",
-  // });
-  // req.log.info({ tokens }, "Token count");
-
   let stops = rest.stop
     ? Array.isArray(rest.stop)
       ? rest.stop
@@ -161,10 +153,19 @@ function openaiToAnthropic(body: any, req: Request) {
   // Remove duplicates
   stops = [...new Set(stops)];
 
+  // TEMP: More shitty anthropic API hacks
+  // If you receive a 400 Bad Request error from Anthropic complaining about
+  // "prompt must start with a '\n\nHuman: ' turn", enable this setting.
+  // I will try to fix this when I can identify why it only happens sometimes.
+  let preamble = "";
+  if (process.env.CLAUDE_ADD_HUMAN_PREAMBLE) {
+    preamble = "\n\nHuman: Hello Claude.";
+  }
+
   return {
     ...rest,
     model,
-    prompt,
+    prompt: preamble + prompt,
     max_tokens_to_sample: rest.max_tokens,
     stop_sequences: stops,
   };
