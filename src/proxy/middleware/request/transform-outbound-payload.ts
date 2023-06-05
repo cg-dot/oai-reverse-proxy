@@ -119,17 +119,26 @@ function openaiToAnthropic(body: any, req: Request) {
       })
       .join("") + "\n\nAssistant: ";
 
-  // When translating from OpenAI to Anthropic, we obviously can't use the
-  // provided OpenAI model name as-is. We will instead select a Claude model,
-  // choosing either the 100k token model or the 9k token model depending on
-  // the length of the prompt. I'm not bringing in the full OpenAI tokenizer for
-  // this so we'll use Anthropic's guideline of ~28000 characters to about 8k
-  // tokens (https://console.anthropic.com/docs/prompt-design#prompt-length)
-  // as the cutoff, minus a little bit for safety.
+  // Claude 1.2 has been selected as the default for smaller prompts because it
+  // is said to be less pozzed than the newer 1.3 model. But this is not based
+  // on any empirical testing, just speculation based on Anthropic stating that
+  // 1.3 is "safer and less susceptible to adversarial attacks" than 1.2.
+  // From my own interactions, both are pretty easy to jailbreak so I don't
+  // think there's much of a difference, honestly.
 
-  // For smaller prompts we use 1.2 because it's not as annoying as 1.3
-  // For big prompts (v1, auto-selects the latest model) is all we can use.
-  const model = prompt.length > 25000 ? "claude-v1-100k" : "claude-v1.2";
+  // If you want to override the model selection, you can set the
+  // CLAUDE_BIG_MODEL and CLAUDE_SMALL_MODEL environment variables in your
+  // .env file.
+
+  // Using "v1" of a model will automatically select the latest version of that
+  // model on the Anthropic side.
+
+  const CLAUDE_BIG = process.env.CLAUDE_BIG_MODEL || "claude-v1-100k";
+  const CLAUDE_SMALL = process.env.CLAUDE_SMALL_MODEL || "claude-v1.2";
+
+  // TODO: Finish implementing tokenizer for more accurate model selection.
+  // This currently uses _character count_, not token count.
+  const model = prompt.length > 25000 ? CLAUDE_BIG : CLAUDE_SMALL;
 
   // wip
   // const tokens = countTokens({
