@@ -16,18 +16,17 @@ export const handleInfoPage = (req: Request, res: Response) => {
     return;
   }
 
-  // Some load balancers/reverse proxies don't give us the right protocol in
-  // the host header. Huggingface works this way, Cloudflare does not.
-  const host = req.get("host");
-  const isHuggingface = host?.includes("hf.space");
-  const protocol = isHuggingface ? "https" : req.protocol;
-  res.send(cacheInfoPageHtml(protocol + "://" + host));
+  const baseUrl = process.env.SPACE_ID
+    ? getExternalUrlForHuggingfaceSpaceId(process.env.SPACE_ID)
+    : req.protocol + "://" + req.get("host");
+
+  res.send(cacheInfoPageHtml(baseUrl));
 };
 
-function cacheInfoPageHtml(host: string) {
+function cacheInfoPageHtml(baseUrl: string) {
   const keys = keyPool.list();
   let keyInfo: Record<string, any> = { all: keys.length };
-  
+
   const openAIKeys = keys.filter((k) => k.service === "openai");
   const anthropicKeys = keys.filter((k) => k.service === "anthropic");
 
@@ -90,9 +89,8 @@ function cacheInfoPageHtml(host: string) {
   const info = {
     uptime: process.uptime(),
     endpoints: {
-      openai: host + "/proxy/openai",
-      anthropic: host + "/proxy/anthropic",
-      ["kobold (deprecated)"]: host + "/proxy/kobold",
+      openai: baseUrl + "/proxy/openai",
+      anthropic: baseUrl + "/proxy/anthropic",
     },
     proompts: keys.reduce((acc, k) => acc + k.promptCount, 0),
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
@@ -198,4 +196,15 @@ function getServerTitle() {
   }
 
   return "OAI Reverse Proxy";
+}
+
+function getExternalUrlForHuggingfaceSpaceId(spaceId: string) {
+  // Huggingface broke their amazon elb config and no longer sends the
+  // x-forwarded-host header. This is a workaround.
+  try {
+    const [username, spacename] = spaceId.split("/");
+    return `https://${username}-${spacename.replace(/_/g, "-")}.hf.space`;
+  } catch (e) {
+    return "";
+  }
 }
