@@ -4,6 +4,7 @@ This repository can be deployed to a [Huggingface Space](https://huggingface.co/
 
 ### 1. Get an API key
 - Go to [OpenAI](https://openai.com/) and sign up for an account. You can use a free trial key for this as long as you provide SMS verification.
+    - Claude is not publicly available yet, but if you have access to it via the [Anthropic](https://www.anthropic.com/) closed beta, you can also use that key with the proxy.
 
 ### 2. Create an empty Huggingface Space
 - Go to [Huggingface](https://huggingface.co/) and sign up for an account.
@@ -35,13 +36,15 @@ CMD [ "npm", "start" ]
 
 ![Commit](huggingface-savedockerfile.png)
 
-### 4. Set your OpenAI API key as a secret
+### 4. Set your API key as a secret
 - Click the Settings button in the top right corner of your repository.
 - Scroll down to the `Repository Secrets` section and click `New Secret`.
 
 ![Secrets](https://files.catbox.moe/irrp2p.png)
 
 - Enter `OPENAI_KEY` as the name and your OpenAI API key as the value.
+    - For Claude, set `ANTHROPIC_KEY` instead.
+    - You can use both types of keys at the same time if you want.
 
 ![New Secret](https://files.catbox.moe/ka6s1a.png)
 
@@ -49,8 +52,8 @@ CMD [ "npm", "start" ]
 - Your server should automatically deploy when you add the secret, but if not you can select `Factory Reboot` from that same Settings menu.
 
 ### 6. Share the link
-- The Service Info section below should show the URL for your server. You can share this with anyone to safely give them access to your OpenAI API key.
-- Your friend doesn't need any OpenAI API key of their own, they just need your link.
+- The Service Info section below should show the URL for your server. You can share this with anyone to safely give them access to your API key.
+- Your friend doesn't need any API key of their own, they just need your link.
 
 # Optional
 
@@ -71,12 +74,16 @@ The server will be started with some default configuration, but you can override
 Here are some example settings:
 ```shell
 # Requests per minute per IP address
-MODEL_RATE_LIMIT=2
+MODEL_RATE_LIMIT=4
 # Max tokens to request from OpenAI
-MAX_OUTPUT_TOKENS=256
+MAX_OUTPUT_TOKENS_OPENAI=256
+# Max tokens to request from Anthropic (Claude)
+MAX_OUTPUT_TOKENS_ANTHROPIC=512
 # Block prompts containing disallowed characters
 REJECT_DISALLOWED=false
 REJECT_MESSAGE="This content violates /aicg/'s acceptable use policy."
+# Show exact quota usage on the Server Info page
+QUOTA_DISPLAY_MODE=full
 ```
 
 See `.env.example` for a full list of available settings, or check `config.ts` for details on what each setting does.

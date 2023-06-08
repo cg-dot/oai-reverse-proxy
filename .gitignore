@@ -1,6 +1,6 @@
 .env
+.venv
 .vscode
 build
 greeting.md
 node_modules
-venv

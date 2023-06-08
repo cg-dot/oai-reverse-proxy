@@ -1,6 +1,10 @@
 import dotenv from "dotenv";
 import type firebase from "firebase-admin";
+import pino from "pino";
 dotenv.config();
+
+// Can't import the usual logger here because it itself needs the config.
+const startupLogger = pino({ level: "debug" }).child({ module: "startup" });
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -59,8 +63,10 @@ type Config = {
   maxIpsPerUser: number;
   /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
   modelRateLimit: number;
-  /** Max number of tokens to generate. Requests which specify a higher value will be rewritten to use this value. */
-  maxOutputTokens: number;
+  /** For OpenAI, the maximum number of sampled tokens a user can request. */
+  maxOutputTokensOpenAI: number;
+  /** For Anthropic, the maximum number of sampled tokens a user can request. */
+  maxOutputTokensAnthropic: number;
   /** Whether requests containing disallowed characters should be rejected. */
   rejectDisallowed?: boolean;
   /** Message to return when rejecting requests. */
@@ -129,7 +135,11 @@ export const config: Config = {
   firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
   firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
-  maxOutputTokens: getEnvWithDefault("MAX_OUTPUT_TOKENS", 300),
+  maxOutputTokensOpenAI: getEnvWithDefault("MAX_OUTPUT_TOKENS_OPENAI", 300),
+  maxOutputTokensAnthropic: getEnvWithDefault(
+    "MAX_OUTPUT_TOKENS_ANTHROPIC",
+    600
+  ),
   rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
   rejectMessage: getEnvWithDefault(
     "REJECT_MESSAGE",
@@ -154,8 +164,35 @@ export const config: Config = {
   blockRedirect: getEnvWithDefault("BLOCK_REDIRECT", "https://www.9gag.com"),
 } as const;
 
+function migrateConfigs() {
+  let migrated = false;
+  const deprecatedMax = process.env.MAX_OUTPUT_TOKENS;
+
+  if (!process.env.MAX_OUTPUT_TOKENS_OPENAI && deprecatedMax) {
+    migrated = true;
+    config.maxOutputTokensOpenAI = parseInt(deprecatedMax);
+  }
+  if (!process.env.MAX_OUTPUT_TOKENS_ANTHROPIC && deprecatedMax) {
+    migrated = true;
+    config.maxOutputTokensAnthropic = parseInt(deprecatedMax);
+  }
+
+  if (migrated) {
+    startupLogger.warn(
+      {
+        MAX_OUTPUT_TOKENS: deprecatedMax,
+        MAX_OUTPUT_TOKENS_OPENAI: config.maxOutputTokensOpenAI,
+        MAX_OUTPUT_TOKENS_ANTHROPIC: config.maxOutputTokensAnthropic,
+      },
+      "`MAX_OUTPUT_TOKENS` has been replaced with separate `MAX_OUTPUT_TOKENS_OPENAI` and `MAX_OUTPUT_TOKENS_ANTHROPIC` configs. You should update your .env file to remove `MAX_OUTPUT_TOKENS` and set the new configs."
+    );
+  }
+}
+
 /** Prevents the server from starting if config state is invalid. */
 export async function assertConfigIsValid() {
+  migrateConfigs();
+
   // Ensure gatekeeper mode is valid.
   if (!["none", "proxy_key", "user_token"].includes(config.gatekeeper)) {
     throw new Error(

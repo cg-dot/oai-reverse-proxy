@@ -3,34 +3,32 @@ import { config } from "../../../config";
 import { isCompletionRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
 
-const MAX_TOKENS = config.maxOutputTokens;
-
 /** Enforce a maximum number of tokens requested from the model. */
 export const limitOutputTokens: ProxyRequestMiddleware = (_proxyReq, req) => {
+  // TODO: do all of this shit in the zod validator
   if (isCompletionRequest(req)) {
-    const requestedMaxTokens = Number.parseInt(getMaxTokensFromRequest(req));
-    let maxTokens = requestedMaxTokens;
+    const requestedMax = Number.parseInt(getMaxTokensFromRequest(req));
+    const apiMax =
+      req.outboundApi === "openai"
+        ? config.maxOutputTokensOpenAI
+        : config.maxOutputTokensAnthropic;
+    let maxTokens = requestedMax;
 
-    if (typeof requestedMaxTokens !== "number") {
-      req.log.warn(
-        { requestedMaxTokens, clampedMaxTokens: MAX_TOKENS },
-        "Invalid max tokens value. Using default value."
-      );
-      maxTokens = MAX_TOKENS;
+    if (typeof requestedMax !== "number") {
+      maxTokens = apiMax;
     }
 
-    // TODO: this is not going to scale well, need to implement a better way
-    // of translating request parameters from one API to another.
-    maxTokens = Math.min(maxTokens, MAX_TOKENS);
+    maxTokens = Math.min(maxTokens, apiMax);
     if (req.outboundApi === "openai") {
       req.body.max_tokens = maxTokens;
     } else if (req.outboundApi === "anthropic") {
       req.body.max_tokens_to_sample = maxTokens;
     }
 
-    if (requestedMaxTokens !== maxTokens) {
-      req.log.warn(
-        `Limiting max tokens from ${requestedMaxTokens} to ${maxTokens}`
+    if (requestedMax !== maxTokens) {
+      req.log.info(
+        { requestedMax, configMax: apiMax, final: maxTokens },
+        "Limiting user's requested max output tokens"
       );
     }
   }
