@@ -22,6 +22,8 @@ import { logger } from "../logger";
 import { AGNAI_DOT_CHAT_IP } from "./rate-limit";
 import { buildFakeSseMessage } from "./middleware/common";
 
+export type QueuePartition = "claude" | "turbo" | "gpt-4";
+
 const queue: Request[] = [];
 const log = logger.child({ module: "request-queue" });
 
@@ -89,7 +91,8 @@ export function enqueue(req: Request) {
         req.res!.write(": queue heartbeat\n\n");
       } else {
         req.log.info(`Sending heartbeat to request in queue.`);
-        const avgWait = Math.round(getEstimatedWaitTime() / 1000);
+        const partition = getPartitionForRequest(req);
+        const avgWait = Math.round(getEstimatedWaitTime(partition) / 1000);
         const currentDuration = Math.round((Date.now() - req.startTime) / 1000);
         const debugMsg = `queue length: ${queue.length}; elapsed time: ${currentDuration}s; avg wait: ${avgWait}s`;
         req.res!.write(buildFakeSseMessage("heartbeat", debugMsg, req));
@@ -119,25 +122,29 @@ export function enqueue(req: Request) {
   }
 }
 
-type QueuePartition = "claude" | "turbo" | "gpt-4";
-export function dequeue(partition: QueuePartition): Request | undefined {
+function getPartitionForRequest(req: Request): QueuePartition {
   // There is a single request queue, but it is partitioned by model and API
   // provider.
   // - claude: requests for the Anthropic API, regardless of model
   // - gpt-4: requests for the OpenAI API, specifically for GPT-4 models
   // - turbo: effectively, all other requests
-  const modelQueue = queue.filter((req) => {
-    const provider = req.outboundApi;
-    const model = (req.body.model as SupportedModel) ?? "gpt-3.5-turbo";
-    switch (partition) {
-      case "claude":
-        return provider === "anthropic";
-      case "gpt-4":
-        return provider === "openai" && model.startsWith("gpt-4");
-      case "turbo":
-        return provider === "openai";
-    }
-  });
+  const provider = req.outboundApi;
+  const model = (req.body.model as SupportedModel) ?? "gpt-3.5-turbo";
+  if (provider === "anthropic") {
+    return "claude";
+  }
+  if (provider === "openai" && model.startsWith("gpt-4")) {
+    return "gpt-4";
+  }
+  return "turbo";
+}
+
+function getQueueForPartition(partition: QueuePartition): Request[] {
+  return queue.filter((req) => getPartitionForRequest(req) === partition);
+}
+
+export function dequeue(partition: QueuePartition): Request | undefined {
+  const modelQueue = getQueueForPartition(partition);
 
   if (modelQueue.length === 0) {
     return undefined;
@@ -226,7 +233,7 @@ function cleanQueue() {
     (waitTime) => now - waitTime.end > 300 * 1000
   );
   const removed = waitTimes.splice(0, index + 1);
-  log.debug(
+  log.trace(
     { stalledRequests: oldRequests.length, prunedWaitTimes: removed.length },
     `Cleaning up request queue.`
   );
@@ -239,20 +246,23 @@ export function start() {
   log.info(`Started request queue.`);
 }
 
-let waitTimes: { start: number; end: number }[] = [];
+let waitTimes: { partition: QueuePartition; start: number; end: number }[] = [];
 
 /** Adds a successful request to the list of wait times. */
 export function trackWaitTime(req: Request) {
   waitTimes.push({
+    partition: getPartitionForRequest(req),
     start: req.startTime!,
     end: req.queueOutTime ?? Date.now(),
   });
 }
 
 /** Returns average wait time in milliseconds. */
-export function getEstimatedWaitTime() {
+export function getEstimatedWaitTime(partition: QueuePartition) {
   const now = Date.now();
-  const recentWaits = waitTimes.filter((wt) => now - wt.end < 300 * 1000);
+  const recentWaits = waitTimes.filter(
+    (wt) => wt.partition === partition && now - wt.end < 300 * 1000
+  );
   if (recentWaits.length === 0) {
     return 0;
   }
@@ -263,8 +273,12 @@ export function getEstimatedWaitTime() {
   );
 }
 
-export function getQueueLength() {
-  return queue.length;
+export function getQueueLength(partition: QueuePartition | "all" = "all") {
+  if (partition === "all") {
+    return queue.length;
+  }
+  const modelQueue = getQueueForPartition(partition);
+  return modelQueue.length;
 }
 
 export function createQueueMiddleware(proxyMiddleware: Handler): Handler {
