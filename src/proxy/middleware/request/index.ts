@@ -9,6 +9,7 @@ export { transformOutboundPayload } from "./transform-outbound-payload";
 
 // HPM middleware (runs on onProxyReq, cannot be async)
 export { addKey } from "./add-key";
+export { addAnthropicPreamble } from "./add-anthropic-preamble";
 export { finalizeBody } from "./finalize-body";
 export { languageFilter } from "./language-filter";
 export { limitCompletions } from "./limit-completions";

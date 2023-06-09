@@ -8,6 +8,7 @@ import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
 import {
   addKey,
+  addAnthropicPreamble,
   createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
@@ -69,6 +70,7 @@ const rewriteAnthropicRequest = (
 ) => {
   const rewriterPipeline = [
     addKey,
+    addAnthropicPreamble,
     languageFilter,
     limitOutputTokens,
     finalizeBody,

@@ -47,6 +47,7 @@ export interface KeyProvider<T extends Key = Key> {
   get(model: Model): T;
   list(): Omit<T, "key">[];
   disable(key: T): void;
+  update(hash: string, update: Partial<T>): void;
   available(): number;
   anyUnchecked(): boolean;
   incrementPrompt(hash: string): void;
@@ -63,3 +64,5 @@ export const SUPPORTED_MODELS = [
 ] as const;
 export type SupportedModel = (typeof SUPPORTED_MODELS)[number];
 export { OPENAI_SUPPORTED_MODELS, ANTHROPIC_SUPPORTED_MODELS };
+export { AnthropicKey } from "./anthropic/provider";
+export { OpenAIKey } from "./openai/provider";

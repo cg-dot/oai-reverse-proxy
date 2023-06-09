@@ -135,7 +135,7 @@ export const createOnProxyResHandler = (apiMiddleware: ProxyResMiddleware) => {
 function reenqueueRequest(req: Request) {
   req.log.info(
     { key: req.key?.hash, retryCount: req.retryCount },
-    `Re-enqueueing request due to rate-limit error`
+    `Re-enqueueing request due to retryable error`
   );
   req.retryCount++;
   enqueue(req);
@@ -262,7 +262,11 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
 
   if (statusCode === 400) {
     // Bad request (likely prompt is too long)
-    errorPayload.proxy_note = `Upstream service rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
+    if (req.outboundApi === "openai") {
+      errorPayload.proxy_note = `Upstream service rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
+    } else if (req.outboundApi === "anthropic") {
+      maybeHandleMissingPreambleError(req, errorPayload);
+    }
   } else if (statusCode === 401) {
     // Key is invalid or was revoked
     keyPool.disable(req.key!);
@@ -271,7 +275,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     // OpenAI uses this for a bunch of different rate-limiting scenarios.
     if (req.outboundApi === "openai") {
       handleOpenAIRateLimitError(req, tryAgainMessage, errorPayload);
-    } else {
+    } else if (req.outboundApi === "anthropic") {
       handleAnthropicRateLimitError(req, errorPayload);
     }
   } else if (statusCode === 404) {
@@ -304,6 +308,48 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   writeErrorResponse(req, res, statusCode, errorPayload);
   throw new Error(errorPayload.error?.message);
 };
+
+/**
+ * This is a workaround for a very strange issue where certain API keys seem to
+ * enforce more strict input validation than others -- specifically, they will
+ * require a `\n\nHuman:` prefix on the prompt, perhaps to prevent the key from
+ * being used as a generic text completion service and to enforce the use of
+ * the chat RLHF.  This is not documented anywhere, and it's not clear why some
+ * keys enforce this and others don't.
+ * This middleware checks for that specific error and marks the key as being
+ * one that requires the prefix, and then re-enqueues the request.
+ * The exact error is:
+ * ```
+ * {
+ *   "error": {
+ *     "type": "invalid_request_error",
+ *     "message": "prompt must start with \"\n\nHuman:\" turn"
+ *   }
+ * }
+ * ```
+ */
+function maybeHandleMissingPreambleError(
+  req: Request,
+  errorPayload: Record<string, any>
+) {
+  if (
+    errorPayload.error?.type === "invalid_request_error" &&
+    errorPayload.error?.message === 'prompt must start with "\n\nHuman:" turn'
+  ) {
+    req.log.warn(
+      { key: req.key?.hash },
+      "Request failed due to missing preamble. Key will be marked as such for subsequent requests."
+    );
+    keyPool.update(req.key!, { requiresPreamble: true });
+    if (config.queueMode !== "none") {
+      reenqueueRequest(req);
+      throw new RetryableError("Claude request re-enqueued to add preamble.");
+    }
+    errorPayload.proxy_note = `This Claude key requires special prompt formatting. Try again; the proxy will reformat your prompt next time.`;
+  } else {
+    errorPayload.proxy_note = `Proxy received unrecognized error from Anthropic. Check the specific error for more information.`;
+  }
+}
 
 function handleAnthropicRateLimitError(
   req: Request,

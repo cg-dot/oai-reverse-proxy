@@ -1,7 +1,9 @@
 import type * as http from "http";
-import { AnthropicKeyProvider } from "./anthropic/provider";
-import { Key, AIService, Model, KeyProvider } from "./index";
-import { OpenAIKeyProvider } from "./openai/provider";
+import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
+import { Key, Model, KeyProvider, AIService } from "./index";
+import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
+
+type AllowedPartial = OpenAIKeyUpdate | AnthropicKeyUpdate;
 
 export class KeyPool {
   private keyProviders: KeyProvider[] = [];
@@ -33,6 +35,11 @@ export class KeyPool {
   public disable(key: Key): void {
     const service = this.getKeyProvider(key.service);
     service.disable(key);
+  }
+
+  public update(key: Key, props: AllowedPartial): void {
+    const service = this.getKeyProvider(key.service);
+    service.update(key.hash, props);
   }
 
   public available(service: AIService | "all" = "all"): number {
