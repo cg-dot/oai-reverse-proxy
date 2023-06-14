@@ -156,7 +156,7 @@ export const config: Config = {
     undefined
   ),
   queueMode: getEnvWithDefault("QUEUE_MODE", "fair"),
-  blockedOrigins: getEnvWithDefault("BLOCKED_ORIGINS", undefined),
+  blockedOrigins: getEnvWithDefault("BLOCKED_ORIGINS", "janitorai"),
   blockMessage: getEnvWithDefault(
     "BLOCK_MESSAGE",
     "You must be over the age of majority in your country to use this service."
