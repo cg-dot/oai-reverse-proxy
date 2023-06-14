@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import httpProxy from "http-proxy";
 import { ZodError } from "zod";
 
-
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";
 const ANTHROPIC_COMPLETION_ENDPOINT = "/v1/complete";
 
@@ -32,9 +31,14 @@ export function writeErrorResponse(
     res.headersSent ||
     res.getHeader("content-type") === "text/event-stream"
   ) {
+    const errorContent =
+      statusCode === 403
+        ? JSON.stringify(errorPayload)
+        : JSON.stringify(errorPayload, null, 2);
+
     const msg = buildFakeSseMessage(
       `${errorSource} error (${statusCode})`,
-      JSON.stringify(errorPayload, null, 2),
+      errorContent,
       req
     );
     res.write(msg);
@@ -57,6 +61,7 @@ export const handleInternalError = (
 ) => {
   try {
     const isZod = err instanceof ZodError;
+    const isForbidden = err.name === "ForbiddenError";
     if (isZod) {
       writeErrorResponse(req, res, 400, {
         error: {
@@ -64,6 +69,17 @@ export const handleInternalError = (
           proxy_note: `Reverse proxy couldn't validate your request when trying to transform it. Your client may be sending invalid data.`,
           issues: err.issues,
           stack: err.stack,
+          message: err.message,
+        },
+      });
+    } else if (isForbidden) {
+      // Spoofs a vaguely threatening OpenAI error message. Only invoked by the
+      // block-zoomers rewriter to scare off tiktokers.
+      writeErrorResponse(req, res, 403, {
+        error: {
+          type: "organization_account_disabled",
+          code: "policy_violation",
+          param: null,
           message: err.message,
         },
       });
@@ -91,10 +107,14 @@ export function buildFakeSseMessage(
   req: Request
 ) {
   let fakeEvent;
+  const useBackticks = !type.includes("403");
+  const msgContent = useBackticks
+    ? `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`
+    : `[${type}: ${string}]`;
 
   if (req.inboundApi === "anthropic") {
     fakeEvent = {
-      completion: `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`,
+      completion: msgContent,
       stop_reason: type,
       truncated: false, // I've never seen this be true
       stop: null,
@@ -109,7 +129,7 @@ export function buildFakeSseMessage(
       model: req.body?.model,
       choices: [
         {
-          delta: { content: `\`\`\`\n[${type}: ${string}]\n\`\`\`\n` },
+          delta: { content: msgContent },
           index: 0,
           finish_reason: type,
         },
