@@ -197,8 +197,8 @@ async function setBuildInfo() {
     logger.error(
       {
         error,
-        stdout: error.stdout.toString(),
-        stderr: error.stderr.toString(),
+        stdout: error.stdout?.toString(),
+        stderr: error.stderr?.toString(),
       },
       "Failed to get commit SHA.",
       error
