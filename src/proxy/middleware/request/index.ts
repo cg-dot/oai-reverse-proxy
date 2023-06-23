@@ -15,6 +15,7 @@ export { finalizeBody } from "./finalize-body";
 export { languageFilter } from "./language-filter";
 export { limitCompletions } from "./limit-completions";
 export { limitOutputTokens } from "./limit-output-tokens";
+export { removeOrigin } from "./remove-origin";
 export { transformKoboldPayload } from "./transform-kobold-payload";
 
 /**

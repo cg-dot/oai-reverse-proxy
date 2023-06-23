@@ -14,6 +14,7 @@ import {
   finalizeBody,
   languageFilter,
   limitOutputTokens,
+  removeOrigin,
 } from "./middleware/request";
 import {
   ProxyResHandlerWithBody,
@@ -75,6 +76,7 @@ const rewriteAnthropicRequest = (
     blockZoomers,
     languageFilter,
     limitOutputTokens,
+    removeOrigin,
     finalizeBody,
   ];
 
