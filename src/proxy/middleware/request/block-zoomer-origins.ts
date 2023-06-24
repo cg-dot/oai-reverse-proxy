@@ -14,7 +14,7 @@ class ForbiddenError extends Error {
  * Blocks requests from Janitor AI users with a fake, scary error message so I
  * stop getting emails asking for tech support.
  */
-export const blockZoomers: ProxyRequestMiddleware = (_proxyReq, req) => {
+export const blockZoomerOrigins: ProxyRequestMiddleware = (_proxyReq, req) => {
   if (!isCompletionRequest(req)) {
     return;
   }
@@ -28,7 +28,7 @@ export const blockZoomers: ProxyRequestMiddleware = (_proxyReq, req) => {
     }
 
     throw new ForbiddenError(
-      `This OpenAI account has been disabled due to fraud and potential CSAM violations. Your IP address, user agent, and request details have been logged and will be shared with the National Center for Missing and Exploited Children and local law enforcement's cybercrime division to assist in their investigation.`
+      `Your access was terminated due to violation of our policies, please check your email for more information. If you believe this is in error and would like to appeal, please contact us through our help center at help.openai.com.`
     );
   }
 };
