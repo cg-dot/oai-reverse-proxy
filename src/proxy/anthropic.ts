@@ -9,12 +9,12 @@ import { handleProxyError } from "./middleware/common";
 import {
   addKey,
   addAnthropicPreamble,
-  blockZoomers,
+  blockZoomerOrigins,
   createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
   limitOutputTokens,
-  removeOrigin,
+  removeOriginHeaders,
 } from "./middleware/request";
 import {
   ProxyResHandlerWithBody,
@@ -73,10 +73,10 @@ const rewriteAnthropicRequest = (
   const rewriterPipeline = [
     addKey,
     addAnthropicPreamble,
-    blockZoomers,
     languageFilter,
     limitOutputTokens,
-    removeOrigin,
+    blockZoomerOrigins,
+    removeOriginHeaders,
     finalizeBody,
   ];
 
