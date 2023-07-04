@@ -128,8 +128,8 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     );
     if (availableKeys.length === 0) {
       let message = needGpt4
-        ? "No active OpenAI keys available."
-        : "No GPT-4 keys available.  Try selecting a non-GPT-4 model.";
+        ? "No GPT-4 keys available.  Try selecting a non-GPT-4 model."
+        : "No active OpenAI keys available.";
       throw new Error(message);
     }
 
