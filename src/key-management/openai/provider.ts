@@ -77,7 +77,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
       const newKey = {
         key: k,
         service: "openai" as const,
-        isGpt4: false,
+        isGpt4: true,
         isTrial: false,
         isDisabled: false,
         softLimit: 0,
