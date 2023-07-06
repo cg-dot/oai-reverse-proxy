@@ -128,9 +128,15 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     );
     if (availableKeys.length === 0) {
       let message = needGpt4
-        ? "No GPT-4 keys available.  Try selecting a non-GPT-4 model."
+        ? "No GPT-4 keys available.  Try selecting a Turbo model."
         : "No active OpenAI keys available.";
       throw new Error(message);
+    }
+
+    if (needGpt4 && config.turboOnly) {
+      throw new Error(
+        "Proxy operator has disabled GPT-4 to reduce quota usage.  Try selecting a Turbo model."
+      );
     }
 
     // Select a key, from highest priority to lowest priority:

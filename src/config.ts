@@ -119,6 +119,11 @@ type Config = {
    * Desination URL to redirect blocked requests to, for non-JSON requests.
    */
   blockRedirect?: string;
+  /**
+   * Whether the proxy should disallow requests for GPT-4 models in order to
+   * prevent excessive spend.  Applies only to OpenAI.
+   */
+  turboOnly?: boolean;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -162,6 +167,7 @@ export const config: Config = {
     "You must be over the age of majority in your country to use this service."
   ),
   blockRedirect: getEnvWithDefault("BLOCK_REDIRECT", "https://www.9gag.com"),
+  turboOnly: getEnvWithDefault("TURBO_ONLY", false),
 } as const;
 
 function migrateConfigs() {

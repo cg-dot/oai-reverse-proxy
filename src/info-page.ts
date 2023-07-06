@@ -89,7 +89,7 @@ type ServiceInfo = {
 function getOpenAIInfo() {
   const info: { [model: string]: Partial<ServiceInfo> } = {};
   const keys = keyPool.list().filter((k) => k.service === "openai");
-  const hasGpt4 = keys.some((k) => k.isGpt4);
+  const hasGpt4 = keys.some((k) => k.isGpt4) && !config.turboOnly;
 
   if (keyPool.anyUnchecked()) {
     const uncheckedKeys = keys.filter((k) => !k.lastChecked);
@@ -197,7 +197,7 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
       const turboWait = getQueueInformation("turbo").estimatedQueueTime;
       const gpt4Wait = getQueueInformation("gpt-4").estimatedQueueTime;
       waits.push(`**Turbo:** ${turboWait}`);
-      if (keyPool.list().some((k) => k.isGpt4)) {
+      if (keyPool.list().some((k) => k.isGpt4) && !config.turboOnly) {
         waits.push(`**GPT-4:** ${gpt4Wait}`);
       }
     }
