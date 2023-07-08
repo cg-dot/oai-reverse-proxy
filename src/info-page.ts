@@ -137,6 +137,9 @@ function getOpenAIInfo() {
   } else {
     info.status = "Key checking is disabled." as any;
     info.turbo = { activeKeys: keys.filter((k) => !k.isDisabled).length };
+    info.gpt4 = {
+      activeKeys: keys.filter((k) => !k.isDisabled && k.isGpt4).length,
+    };
   }
 
   if (config.queueMode !== "none") {
