@@ -256,9 +256,9 @@ export const appendBatch = async (batch: PromptLogEntry[]) => {
     return [
       entry.model,
       entry.endpoint,
-      entry.promptRaw,
-      entry.promptFlattened,
-      entry.response,
+      entry.promptRaw.slice(0, 50000),
+      entry.promptFlattened.slice(0, 50000),
+      entry.response.slice(0, 50000),
     ];
   });
   log.info({ sheetName, rowCount: newRows.length }, "Appending log batch.");
