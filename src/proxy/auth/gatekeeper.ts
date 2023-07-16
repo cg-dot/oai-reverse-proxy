@@ -33,7 +33,7 @@ export const gatekeeper: RequestHandler = (req, res, next) => {
   // TODO: Generate anonymous users based on IP address for public or proxy_key
   // modes so that all middleware can assume a user of some sort is present.
 
-  if (token === ADMIN_KEY) {
+  if (ADMIN_KEY && token === ADMIN_KEY) {
     return next();
   }
 
