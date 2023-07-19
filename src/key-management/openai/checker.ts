@@ -221,6 +221,13 @@ export class OpenAIKeyChecker {
           "Key is out of quota. Disabling key."
         );
         this.updateKey(key.hash, { isDisabled: true });
+      }
+      else if (status === 429 && data.error.type === "access_terminated") {
+        this.log.warn(
+          { key: key.hash, isTrial: key.isTrial, error: data },
+          "Key has been terminated due to policy violations. Disabling key."
+        );
+        this.updateKey(key.hash, { isDisabled: true });
       } else {
         this.log.error(
           { key: key.hash, status, error: data },

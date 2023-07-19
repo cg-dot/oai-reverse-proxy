@@ -377,6 +377,10 @@ function handleOpenAIRateLimitError(
     // Billing quota exceeded (key is dead, disable it)
     keyPool.disable(req.key!);
     errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${tryAgainMessage}`;
+  } else if (type === "access_terminated") {
+    // Account banned (key is dead, disable it)
+    keyPool.disable(req.key!);
+    errorPayload.proxy_note = `Assigned key has been banned by OpenAI for policy violations. ${tryAgainMessage}`;
   } else if (type === "billing_not_active") {
     // Billing is not active (key is dead, disable it)
     keyPool.disable(req.key!);
