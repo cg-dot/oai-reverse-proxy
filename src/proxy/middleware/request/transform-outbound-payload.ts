@@ -126,22 +126,14 @@ function openaiToAnthropic(body: any, req: Request) {
       })
       .join("") + "\n\nAssistant: ";
 
-  // Claude 1.2 has been selected as the default for smaller prompts because it
-  // is said to be less pozzed than the newer 1.3 model. But this is not based
-  // on any empirical testing, just speculation based on Anthropic stating that
-  // 1.3 is "safer and less susceptible to adversarial attacks" than 1.2.
-  // From my own interactions, both are pretty easy to jailbreak so I don't
-  // think there's much of a difference, honestly.
-
-  // If you want to override the model selection, you can set the
-  // CLAUDE_BIG_MODEL and CLAUDE_SMALL_MODEL environment variables in your
-  // .env file.
-
-  // Using "v1" of a model will automatically select the latest version of that
-  // model on the Anthropic side.
+  // No longer defaulting to `claude-v1.2` because it seems to be in the process
+  // of being deprecated. `claude-v1` is the new default.
+  // If you have keys that can still use `claude-v1.2`, you can set the
+  // CLAUDE_BIG_MODEL and CLAUDE_SMALL_MODEL environment variables in your .env
+  // file.
 
   const CLAUDE_BIG = process.env.CLAUDE_BIG_MODEL || "claude-v1-100k";
-  const CLAUDE_SMALL = process.env.CLAUDE_SMALL_MODEL || "claude-v1.2";
+  const CLAUDE_SMALL = process.env.CLAUDE_SMALL_MODEL || "claude-v1";
 
   // TODO: Finish implementing tokenizer for more accurate model selection.
   // This currently uses _character count_, not token count.
