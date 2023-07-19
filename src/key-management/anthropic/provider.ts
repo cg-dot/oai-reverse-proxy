@@ -40,10 +40,16 @@ export interface AnthropicKey extends Key {
 }
 
 /**
- * We don't get rate limit headers from Anthropic so if we get a 429, we just
- * lock out the key for a few seconds
+ * Upon being rate limited, a key will be locked out for this many milliseconds
+ * while we wait for other concurrent requests to finish.
  */
-const RATE_LIMIT_LOCKOUT = 5000;
+const RATE_LIMIT_LOCKOUT = 2000;
+/**
+ * Upon assigning a key, we will wait this many milliseconds before allowing it
+ * to be used again. This is to prevent the queue from flooding a key with too
+ * many requests while we wait to learn whether previous ones succeeded.
+ */
+const KEY_REUSE_DELAY = 500;
 
 export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
   readonly service = "anthropic";
@@ -129,7 +135,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     // Intended to throttle the queue processor as otherwise it will just
     // flood the API with requests and we want to wait a sec to see if we're
     // going to get a rate limit error on this key.
-    selectedKey.rateLimitedUntil = now + 1000;
+    selectedKey.rateLimitedUntil = now + KEY_REUSE_DELAY;
     return { ...selectedKey };
   }
 
@@ -183,15 +189,9 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
   /**
    * This is called when we receive a 429, which means there are already five
    * concurrent requests running on this key. We don't have any information on
-   * when these requests will resolve so all we can do is wait a bit and try
-   * again.
-   * We will lock the key for 10 seconds, which should let a few of the other
-   * generations finish. This is an arbitrary number but the goal is to balance
-   * between not hammering the API with requests and not locking out a key that
-   * is actually available.
-   * TODO; Try to assign requests to slots on each key so we have an idea of how
-   * long each slot has been running and can make a more informed decision on
-   * how long to lock the key.
+   * when these requests will resolve, so all we can do is wait a bit and try
+   * again. We will lock the key for 2 seconds after getting a 429 before
+   * retrying in order to give the other requests a chance to finish.
    */
   public markRateLimited(keyHash: string) {
     this.log.warn({ key: keyHash }, "Key rate limited");
