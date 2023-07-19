@@ -108,7 +108,7 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
     body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
   }
 
-  if (!req.originalUrl.includes("/v1/complete")) {
+  if (!req.originalUrl.includes("/v1/complete") && !req.originalUrl.includes("/complete")) {
     req.log.info("Transforming Anthropic response to OpenAI format");
     body = transformAnthropicResponse(body);
   }
