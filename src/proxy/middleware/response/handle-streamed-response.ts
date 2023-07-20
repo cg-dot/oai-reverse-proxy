@@ -282,7 +282,7 @@ function convertEventsToFinalResponse(events: string[], req: Request) {
      * the final SSE event before the "DONE" event, so we can reuse that
      */
     const lastEvent = events[events.length - 2].toString();
-    const data = JSON.parse(lastEvent.slice("data: ".length));
+    const data = JSON.parse(lastEvent.slice(lastEvent.indexOf("data: ") + "data: ".length));
     const response: AnthropicCompletionResponse = {
       ...data,
       log_id: req.id,
