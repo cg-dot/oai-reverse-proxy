@@ -301,15 +301,18 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     }
   }
 
-  /** Returns the remaining aggregate quota for all keys as a percentage. */
+  /**
+   * Returns the remaining aggregate quota for all keys as a percentage.
+   * Can go slightly negative because keys will typically go slightly over their
+   * limit before being disabled.  Can sometimes go *really* negative if the
+   * cron job OpenAI uses to disable keys fails, as the key will essentially
+   * have unlimited quota.
+   **/
   public remainingQuota({ gpt4 }: { gpt4: boolean } = { gpt4: false }): number {
     const keys = this.keys.filter((k) => k.isGpt4 === gpt4);
     if (keys.length === 0) return 0;
 
-    const totalUsage = keys.reduce((acc, key) => {
-      // Keys can slightly exceed their quota
-      return acc + Math.min(key.usage, key.hardLimit);
-    }, 0);
+    const totalUsage = keys.reduce((acc, key) => acc + key.usage, 0);
     const totalLimit = keys.reduce((acc, { hardLimit }) => acc + hardLimit, 0);
 
     return 1 - totalUsage / totalLimit;
@@ -320,16 +323,10 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     const keys = this.keys.filter((k) => k.isGpt4 === gpt4);
     if (keys.length === 0) return "???";
 
-    const totalHardLimit = keys.reduce(
-      (acc, { hardLimit }) => acc + hardLimit,
-      0
-    );
-    const totalUsage = keys.reduce((acc, key) => {
-      // Keys can slightly exceed their quota
-      return acc + Math.min(key.usage, key.hardLimit);
-    }, 0);
+    const totalUsage = keys.reduce((acc, key) => acc + key.usage, 0);
+    const totalLimit = keys.reduce((acc, { hardLimit }) => acc + hardLimit, 0);
 
-    return `$${totalUsage.toFixed(2)} / $${totalHardLimit.toFixed(2)}`;
+    return `$${totalUsage.toFixed(2)} / $${totalLimit.toFixed(2)}`;
   }
 
   /** Writes key status to disk. */
