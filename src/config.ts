@@ -88,11 +88,11 @@ type Config = {
    *
    * `none`: Hide quota information
    *
-   * `partial`: Display quota information only as a percentage
+   * `partial`: (deprecated) Same as `full` because usage is no longer tracked
    *
-   * `full`: Display quota information as usage against total capacity
+   * `full`: Displays information about keys' quota limits
    */
-  quotaDisplayMode: "none" | "partial" | "full";
+  quotaDisplayMode: "none" | "full";
   /**
    * Which request queueing strategy to use when keys are over their rate limit.
    *
@@ -152,7 +152,7 @@ export const config: Config = {
   ),
   logLevel: getEnvWithDefault("LOG_LEVEL", "info"),
   checkKeys: getEnvWithDefault("CHECK_KEYS", !isDev),
-  quotaDisplayMode: getEnvWithDefault("QUOTA_DISPLAY_MODE", "partial"),
+  quotaDisplayMode: getEnvWithDefault("QUOTA_DISPLAY_MODE", "full"),
   promptLogging: getEnvWithDefault("PROMPT_LOGGING", false),
   promptLoggingBackend: getEnvWithDefault("PROMPT_LOGGING_BACKEND", undefined),
   googleSheetsKey: getEnvWithDefault("GOOGLE_SHEETS_KEY", undefined),

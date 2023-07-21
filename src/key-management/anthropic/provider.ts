@@ -201,14 +201,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     key.rateLimitedUntil = now + RATE_LIMIT_LOCKOUT;
   }
 
-  public remainingQuota() {
-    const activeKeys = this.keys.filter((k) => !k.isDisabled).length;
-    const allKeys = this.keys.length;
-    if (activeKeys === 0) return 0;
-    return Math.round((activeKeys / allKeys) * 100) / 100;
-  }
-
-  public usageInUsd() {
-    return "$0.00 / ∞";
+  public activeLimitInUsd() {
+    return "∞";
   }
 }

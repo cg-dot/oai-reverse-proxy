@@ -32,9 +32,15 @@ export class KeyPool {
     return this.keyProviders.flatMap((provider) => provider.list());
   }
 
-  public disable(key: Key): void {
+  public disable(key: Key, reason: "quota" | "revoked"): void {
     const service = this.getKeyProvider(key.service);
     service.disable(key);
+    if (service instanceof OpenAIKeyProvider) {
+      service.update(key.hash, {
+        isRevoked: reason === "revoked",
+        isOverQuota: reason === "quota",
+      });
+    }
   }
 
   public update(key: Key, props: AllowedPartial): void {
@@ -75,18 +81,11 @@ export class KeyPool {
     }
   }
 
-  public remainingQuota(
-    service: AIService,
-    options?: Record<string, unknown>
-  ): number {
-    return this.getKeyProvider(service).remainingQuota(options);
-  }
-
-  public usageInUsd(
+  public activeLimitInUsd(
     service: AIService,
     options?: Record<string, unknown>
   ): string {
-    return this.getKeyProvider(service).usageInUsd(options);
+    return this.getKeyProvider(service).activeLimitInUsd(options);
   }
 
   private getService(model: Model): AIService {

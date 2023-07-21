@@ -269,7 +269,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     }
   } else if (statusCode === 401) {
     // Key is invalid or was revoked
-    keyPool.disable(req.key!);
+    keyPool.disable(req.key!, "revoked");
     errorPayload.proxy_note = `API key is invalid or revoked. ${tryAgainMessage}`;
   } else if (statusCode === 429) {
     // OpenAI uses this for a bunch of different rate-limiting scenarios.
@@ -375,15 +375,15 @@ function handleOpenAIRateLimitError(
   const type = errorPayload.error?.type;
   if (type === "insufficient_quota") {
     // Billing quota exceeded (key is dead, disable it)
-    keyPool.disable(req.key!);
+    keyPool.disable(req.key!, "quota");
     errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${tryAgainMessage}`;
   } else if (type === "access_terminated") {
     // Account banned (key is dead, disable it)
-    keyPool.disable(req.key!);
+    keyPool.disable(req.key!, "revoked");
     errorPayload.proxy_note = `Assigned key has been banned by OpenAI for policy violations. ${tryAgainMessage}`;
   } else if (type === "billing_not_active") {
     // Billing is not active (key is dead, disable it)
-    keyPool.disable(req.key!);
+    keyPool.disable(req.key!, "revoked");
     errorPayload.proxy_note = `Assigned key was deactivated by OpenAI. ${tryAgainMessage}`;
   } else if (type === "requests" || type === "tokens") {
     // Per-minute request or token rate limit is exceeded, which we can retry

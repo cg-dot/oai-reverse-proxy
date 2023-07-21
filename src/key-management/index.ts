@@ -52,8 +52,7 @@ export interface KeyProvider<T extends Key = Key> {
   anyUnchecked(): boolean;
   incrementPrompt(hash: string): void;
   getLockoutPeriod(model: Model): number;
-  remainingQuota(options?: Record<string, unknown>): number;
-  usageInUsd(options?: Record<string, unknown>): string;
+  activeLimitInUsd(options?: Record<string, unknown>): string;
   markRateLimited(hash: string): void;
 }
 

@@ -1,14 +1,24 @@
 import axios, { AxiosError } from "axios";
-import { Configuration, OpenAIApi } from "openai";
 import { logger } from "../../logger";
 import type { OpenAIKey, OpenAIKeyProvider } from "./provider";
 
+/** Minimum time in between any two key checks. */
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
-const KEY_CHECK_PERIOD = 5 * 60 * 1000; // 5 minutes
+/**
+ * Minimum time in between checks for a given key. Because we can no longer
+ * read quota usage, there is little reason to check a single key more often
+ * than this.
+ **/
+const KEY_CHECK_PERIOD = 60 * 60 * 1000; // 1 hour
 
+const POST_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
+const GET_MODELS_URL = "https://api.openai.com/v1/models";
 const GET_SUBSCRIPTION_URL =
   "https://api.openai.com/dashboard/billing/subscription";
-const GET_USAGE_URL = "https://api.openai.com/dashboard/billing/usage";
+
+type GetModelsResponse = {
+  data: [{ id: string }];
+};
 
 type GetSubscriptionResponse = {
   plan: { title: string };
@@ -16,10 +26,6 @@ type GetSubscriptionResponse = {
   soft_limit_usd: number;
   hard_limit_usd: number;
   system_hard_limit_usd: number;
-};
-
-type GetUsageResponse = {
-  total_usage: number;
 };
 
 type OpenAIError = {
@@ -54,7 +60,8 @@ export class OpenAIKeyChecker {
   /**
    * Schedules the next check. If there are still keys yet to be checked, it
    * will schedule a check immediately for the next unchecked key. Otherwise,
-   * it will schedule a check in several minutes for the oldest key.
+   * it will schedule a check for the least recently checked key, respecting
+   * the minimum check interval.
    **/
   private scheduleNextCheck() {
     const enabledKeys = this.keys.filter((key) => !key.isDisabled);
@@ -94,8 +101,8 @@ export class OpenAIKeyChecker {
       key.lastChecked < oldest.lastChecked ? key : oldest
     );
 
-    // Don't check any individual key more than once every 5 minutes.
-    // Also, don't check anything more often than once every 3 seconds.
+    // Don't check any individual key too often.
+    // Don't check anything at all at a rate faster than once per 3 seconds.
     const nextCheck = Math.max(
       oldestKey.lastChecked + KEY_CHECK_PERIOD,
       this.lastCheck + MIN_CHECK_INTERVAL
@@ -122,47 +129,37 @@ export class OpenAIKeyChecker {
     this.log.debug({ key: key.hash }, "Checking key...");
     let isInitialCheck = !key.lastChecked;
     try {
-      // During the initial check we need to get the subscription first because
-      // trials have different behavior.
+      // We only need to check for provisioned models on the initial check.
       if (isInitialCheck) {
-        const subscription = await this.getSubscription(key);
-        this.updateKey(key.hash, { isTrial: !subscription.has_payment_method });
-        if (key.isTrial) {
-          this.log.debug(
-            { key: key.hash },
-            "Attempting generation on trial key."
-          );
-          await this.assertCanGenerate(key);
-        }
-        const [provisionedModels, usage] = await Promise.all([
-          this.getProvisionedModels(key),
-          this.getUsage(key),
-        ]);
+        const [subscription, provisionedModels, _livenessTest] =
+          await Promise.all([
+            this.getSubscription(key),
+            this.getProvisionedModels(key),
+            this.testLiveness(key),
+          ]);
         const updates = {
           isGpt4: provisionedModels.gpt4,
+          isTrial: !subscription.has_payment_method,
           softLimit: subscription.soft_limit_usd,
           hardLimit: subscription.hard_limit_usd,
           systemHardLimit: subscription.system_hard_limit_usd,
-          usage,
         };
         this.updateKey(key.hash, updates);
       } else {
-        // Don't check provisioned models after the initial check because it's
-        // not likely to change.
-        const [subscription, usage] = await Promise.all([
+        // Provisioned models don't change, so we don't need to check them again
+        const [subscription, _livenessTest] = await Promise.all([
           this.getSubscription(key),
-          this.getUsage(key),
+          this.testLiveness(key),
         ]);
         const updates = {
           softLimit: subscription.soft_limit_usd,
           hardLimit: subscription.hard_limit_usd,
           systemHardLimit: subscription.system_hard_limit_usd,
-          usage,
         };
         this.updateKey(key.hash, updates);
       }
       this.log.info(
-        { key: key.hash, usage: key.usage, hardLimit: key.hardLimit },
+        { key: key.hash, hardLimit: key.hardLimit },
         "Key check complete."
       );
     } catch (error) {
@@ -182,10 +179,21 @@ export class OpenAIKeyChecker {
   private async getProvisionedModels(
     key: OpenAIKey
   ): Promise<{ turbo: boolean; gpt4: boolean }> {
-    const openai = new OpenAIApi(new Configuration({ apiKey: key.key }));
-    const models = (await openai.listModels()!).data.data;
+    const opts = { headers: { Authorization: `Bearer ${key.key}` } };
+    const { data } = await axios.get<GetModelsResponse>(GET_MODELS_URL, opts);
+    const models = data.data;
     const turbo = models.some(({ id }) => id.startsWith("gpt-3.5"));
     const gpt4 = models.some(({ id }) => id.startsWith("gpt-4"));
+    // We want to update the key's `isGpt4` flag here, but we don't want to
+    // update its `lastChecked` timestamp because we need to let the liveness
+    // check run before we can consider the key checked.
+
+    // Need to use `find` here because keys are cloned from the pool.
+    const keyFromPool = this.keys.find((k) => k.hash === key.hash)!;
+    this.updateKey(key.hash, {
+      isGpt4: gpt4,
+      lastChecked: keyFromPool.lastChecked,
+    });
     return { turbo, gpt4 };
   }
 
@@ -197,86 +205,124 @@ export class OpenAIKeyChecker {
     return data;
   }
 
-  private async getUsage(key: OpenAIKey) {
-    const querystring = OpenAIKeyChecker.getUsageQuerystring(key.isTrial);
-    const url = `${GET_USAGE_URL}?${querystring}`;
-    const { data } = await axios.get<GetUsageResponse>(url, {
-      headers: { Authorization: `Bearer ${key.key}` },
-    });
-    return parseFloat((data.total_usage / 100).toFixed(2));
-  }
-
   private handleAxiosError(key: OpenAIKey, error: AxiosError) {
-    if (error.response && OpenAIKeyChecker.errorIsOpenAiError(error)) {
+    if (error.response && OpenAIKeyChecker.errorIsOpenAIError(error)) {
       const { status, data } = error.response;
       if (status === 401) {
         this.log.warn(
           { key: key.hash, error: data },
           "Key is invalid or revoked. Disabling key."
         );
-        this.updateKey(key.hash, { isDisabled: true });
-      } else if (status === 429 && data.error.type === "insufficient_quota") {
-        this.log.warn(
-          { key: key.hash, isTrial: key.isTrial, error: data },
-          "Key is out of quota. Disabling key."
-        );
-        this.updateKey(key.hash, { isDisabled: true });
-      }
-      else if (status === 429 && data.error.type === "access_terminated") {
-        this.log.warn(
-          { key: key.hash, isTrial: key.isTrial, error: data },
-          "Key has been terminated due to policy violations. Disabling key."
-        );
-        this.updateKey(key.hash, { isDisabled: true });
+        this.updateKey(key.hash, {
+          isDisabled: true,
+          isRevoked: true,
+          isGpt4: false,
+        });
+      } else if (status === 429) {
+        switch (data.error.type) {
+          case "insufficient_quota":
+          case "access_terminated":
+          case "billing_not_active":
+            const isOverQuota = data.error.type === "insufficient_quota";
+            const isRevoked = !isOverQuota;
+            const isGpt4 = isRevoked ? false : key.isGpt4;
+            this.log.warn(
+              { key: key.hash, rateLimitType: data.error.type, error: data },
+              "Key returned a non-transient 429 error. Disabling key."
+            );
+            this.updateKey(key.hash, {
+              isDisabled: true,
+              isRevoked,
+              isOverQuota,
+              isGpt4,
+            });
+            break;
+          case "requests":
+            // Trial keys have extremely low requests-per-minute limits and we
+            // can often hit them just while checking the key, so we need to
+            // retry the check later to know if the key has quota remaining.
+            this.log.warn(
+              { key: key.hash, error: data },
+              "Key is currently rate limited, so its liveness cannot be checked. Retrying in fifteen seconds."
+            );
+            // To trigger a shorter than usual delay before the next check, we
+            // will set its `lastChecked` to (NOW - (KEY_CHECK_PERIOD - 15s)).
+            // This will cause the usual key check scheduling logic to schedule
+            // the next check in 15 seconds. This also prevents the key from
+            // holding up startup checks for other keys.
+            const fifteenSeconds = 15 * 1000;
+            const next = Date.now() - (KEY_CHECK_PERIOD - fifteenSeconds);
+            this.updateKey(key.hash, { lastChecked: next });
+            break;
+          case "tokens":
+            // Hitting a token rate limit, even on a trial key, actually implies
+            // that the key is valid and can generate completions, so we will
+            // treat this as effectively a successful `testLiveness` call.
+            this.log.info(
+              { key: key.hash },
+              "Key is currently `tokens` rate limited; assuming it is operational."
+            );
+            this.updateKey(key.hash, { lastChecked: Date.now() });
+            break;
+          default:
+            this.log.error(
+              { key: key.hash, rateLimitType: data.error.type, error: data },
+              "Encountered unexpected rate limit error class while checking key. This may indicate a change in the API; please report this."
+            );
+            // We don't know what this error means, so we just let the key
+            // through and maybe it will fail when someone tries to use it.
+            this.updateKey(key.hash, { lastChecked: Date.now() });
+        }
       } else {
         this.log.error(
           { key: key.hash, status, error: data },
-          "Encountered API error while checking key."
+          "Encountered unexpected error status while checking key. This may indicate a change in the API; please report this."
         );
+        this.updateKey(key.hash, { lastChecked: Date.now() });
       }
       return;
     }
     this.log.error(
-      { key: key.hash, error },
-      "Network error while checking key; trying again later."
+      { key: key.hash, error: error.message },
+      "Network error while checking key; trying this key again in a minute."
     );
+    const oneMinute = 60 * 1000;
+    const next = Date.now() - (KEY_CHECK_PERIOD - oneMinute);
+    this.updateKey(key.hash, { lastChecked: next });
   }
 
   /**
-   * Trial key usage reporting is inaccurate, so we need to run an actual
-   * completion to test them for liveness.
+   * Tests whether the key is valid and has quota remaining. The request we send
+   * is actually not valid, but keys which are revoked or out of quota will fail
+   * with a 401 or 429 error instead of the expected 400 Bad Request error.
+   * This lets us avoid test keys without spending any quota.
    */
-  private async assertCanGenerate(key: OpenAIKey): Promise<void> {
-    const openai = new OpenAIApi(new Configuration({ apiKey: key.key }));
-    // This will throw an AxiosError if the key is invalid or out of quota.
-    await openai.createChatCompletion({
+  private async testLiveness(key: OpenAIKey): Promise<void> {
+    const payload = {
       model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: "Hello" }],
-      max_tokens: 1,
-    });
+      max_tokens: -1,
+      messages: [{ role: "user", content: "" }],
+    };
+    const { data } = await axios.post<OpenAIError>(
+      POST_CHAT_COMPLETIONS_URL,
+      payload,
+      {
+        headers: { Authorization: `Bearer ${key.key}` },
+        validateStatus: (status) => status === 400,
+      }
+    );
+    if (data.error.type === "invalid_request_error") {
+      // This is the expected error type for our bad prompt, so key is valid.
+      return;
+    } else {
+      this.log.warn(
+        { key: key.hash, error: data },
+        "Unexpected 400 error class while checking key; assuming key is valid, but this may indicate a change in the API."
+      );
+    }
   }
 
-  static getUsageQuerystring(isTrial: boolean) {
-    // For paid keys, the limit resets every month, so we can use the first day
-    // of the current month.
-    // For trial keys, the limit does not reset and we don't know when the key
-    // was created, so we use 99 days ago because that's as far back as the API
-    // will let us go.
-
-    // End date needs to be set to the beginning of the next day so that we get
-    // usage for the current day.
-
-    const today = new Date();
-    const startDate = isTrial
-      ? new Date(today.getTime() - 99 * 24 * 60 * 60 * 1000)
-      : new Date(today.getFullYear(), today.getMonth(), 1);
-    const endDate = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-    return `start_date=${startDate.toISOString().split("T")[0]}&end_date=${
-      endDate.toISOString().split("T")[0]
-    }`;
-  }
-
-  static errorIsOpenAiError(
+  static errorIsOpenAIError(
     error: AxiosError
   ): error is AxiosError<OpenAIError> {
     const data = error.response?.data as any;
