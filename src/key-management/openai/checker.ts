@@ -202,6 +202,12 @@ export class OpenAIKeyChecker {
       GET_SUBSCRIPTION_URL,
       { headers: { Authorization: `Bearer ${key.key}` } }
     );
+    // See note above about updating the key's `lastChecked` timestamp.
+    const keyFromPool = this.keys.find((k) => k.hash === key.hash)!;
+    this.updateKey(key.hash, {
+      isTrial: !data.has_payment_method,
+      lastChecked: keyFromPool.lastChecked,
+    });
     return data;
   }
 
