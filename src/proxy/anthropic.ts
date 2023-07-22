@@ -13,7 +13,6 @@ import {
   createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
-  limitOutputTokens,
   removeOriginHeaders,
 } from "./middleware/request";
 import {
@@ -76,7 +75,6 @@ const rewriteAnthropicRequest = (
     addKey,
     addAnthropicPreamble,
     languageFilter,
-    limitOutputTokens,
     blockZoomerOrigins,
     removeOriginHeaders,
     finalizeBody,
@@ -108,10 +106,16 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
     body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
   }
 
-  if (!req.originalUrl.includes("/v1/complete") && !req.originalUrl.includes("/complete")) {
+  if (req.inboundApi === "openai") {
     req.log.info("Transforming Anthropic response to OpenAI format");
     body = transformAnthropicResponse(body);
   }
+
+  // TODO: Remove once tokenization is stable
+  if (req.debug) {
+    body.proxy_tokenizer_debug_info = req.debug;
+  }
+
   res.status(200).json(body);
 };
 

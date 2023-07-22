@@ -199,7 +199,7 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
   }
 
   if (config.queueMode !== "none") {
-    const waits = [];
+    const waits: string[] = [];
     infoBody += `\n## Estimated Wait Times\nIf the AI is busy, your prompt will processed when a slot frees up.`;
 
     if (config.openaiKey) {

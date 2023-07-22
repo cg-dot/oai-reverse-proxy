@@ -1,4 +1,4 @@
-import { RequestHandler, Router } from "express";
+import express, { RequestHandler, Router } from "express";
 import { config } from "../config";
 import { usersRouter } from "./users";
 
@@ -32,5 +32,9 @@ const auth: RequestHandler = (req, res, next) => {
 };
 
 adminRouter.use(auth);
+adminRouter.use(
+  express.json({ limit: "20mb" }),
+  express.urlencoded({ extended: true, limit: "20mb" })
+);
 adminRouter.use("/users", usersRouter);
 export { adminRouter };

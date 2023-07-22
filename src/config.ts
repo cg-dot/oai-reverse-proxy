@@ -63,6 +63,20 @@ type Config = {
   maxIpsPerUser: number;
   /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
   modelRateLimit: number;
+  /**
+   * For OpenAI, the maximum number of context tokens (prompt + max output) a
+   * user can request before their request is rejected.
+   * Context limits can help prevent excessive spend.
+   * Defaults to 0, which means no limit beyond OpenAI's stated maximums.
+   */
+  maxContextTokensOpenAI: number;
+  /**
+   * For Anthropic, the maximum number of context tokens a user can request.
+   * Claude context limits can prevent requests from tying up concurrency slots
+   * for too long, which can lengthen queue times for other users.
+   * Defaults to 0, which means no limit beyond Anthropic's stated maximums.
+   */
+  maxContextTokensAnthropic: number;
   /** For OpenAI, the maximum number of sampled tokens a user can request. */
   maxOutputTokensOpenAI: number;
   /** For Anthropic, the maximum number of sampled tokens a user can request. */
@@ -140,6 +154,11 @@ export const config: Config = {
   firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
   firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
+  maxContextTokensOpenAI: getEnvWithDefault("MAX_CONTEXT_TOKENS_OPENAI", 0),
+  maxContextTokensAnthropic: getEnvWithDefault(
+    "MAX_CONTEXT_TOKENS_ANTHROPIC",
+    0
+  ),
   maxOutputTokensOpenAI: getEnvWithDefault("MAX_OUTPUT_TOKENS_OPENAI", 300),
   maxOutputTokensAnthropic: getEnvWithDefault(
     "MAX_OUTPUT_TOKENS_ANTHROPIC",

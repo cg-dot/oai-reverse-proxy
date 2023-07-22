@@ -12,6 +12,7 @@ import { handleInfoPage } from "./info-page";
 import { logQueue } from "./prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
 import { init as initUserStore } from "./proxy/auth/user-store";
+import { init as initTokenizers } from "./tokenization";
 import { checkOrigin } from "./proxy/check-origin";
 
 const PORT = config.port;
@@ -47,25 +48,16 @@ app.use(
   })
 );
 
-app.get("/health", (_req, res) => res.sendStatus(200));
-app.use((req, _res, next) => {
-  req.startTime = Date.now();
-  req.retryCount = 0;
-  next();
-});
-app.use(cors());
-app.use(
-  express.json({ limit: "10mb" }),
-  express.urlencoded({ extended: true, limit: "10mb" })
-);
-
 // TODO: Detect (or support manual configuration of) whether the app is behind
 // a load balancer/reverse proxy, which is necessary to determine request IP
 // addresses correctly.
 app.set("trust proxy", true);
 
-// routes
+app.get("/health", (_req, res) => res.sendStatus(200));
+app.use(cors());
 app.use(checkOrigin);
+
+// routes
 app.get("/", handleInfoPage);
 app.use("/admin", adminRouter);
 app.use("/proxy", proxyRouter);
@@ -98,6 +90,8 @@ async function start() {
   await assertConfigIsValid();
 
   keyPool.init();
+
+  await initTokenizers();
 
   if (config.gatekeeper === "user_token") {
     await initUserStore();

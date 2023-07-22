@@ -1,6 +1,11 @@
 import { RequestHandler } from "express";
 import { handleInternalError } from "../common";
-import { RequestPreprocessor, setApiFormat, transformOutboundPayload } from ".";
+import {
+  RequestPreprocessor,
+  checkContextSize,
+  setApiFormat,
+  transformOutboundPayload,
+} from ".";
 
 /**
  * Returns a middleware function that processes the request body into the given
@@ -13,6 +18,7 @@ export const createPreprocessorMiddleware = (
   const preprocessors: RequestPreprocessor[] = [
     setApiFormat(apiFormat),
     transformOutboundPayload,
+    checkContextSize,
     ...(additionalPreprocessors ?? []),
   ];
 

@@ -41,8 +41,6 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
   // For such cases, ignore the requested model entirely.
   if (req.inboundApi === "openai" && req.outboundApi === "anthropic") {
     req.log.debug("Using an Anthropic key for an OpenAI-compatible request");
-    // We don't assign the model here, that will happen when transforming the
-    // request body.
     assignedKey = keyPool.get("claude-v1");
   } else {
     assignedKey = keyPool.get(req.body.model);

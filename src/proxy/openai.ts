@@ -14,7 +14,6 @@ import {
   finalizeBody,
   languageFilter,
   limitCompletions,
-  limitOutputTokens,
   removeOriginHeaders,
 } from "./middleware/request";
 import {
@@ -93,7 +92,6 @@ const rewriteRequest = (
   const rewriterPipeline = [
     addKey,
     languageFilter,
-    limitOutputTokens,
     limitCompletions,
     blockZoomerOrigins,
     removeOriginHeaders,
@@ -123,6 +121,11 @@ const openaiResponseHandler: ProxyResHandlerWithBody = async (
   if (config.promptLogging) {
     const host = req.get("host");
     body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
+  }
+
+  // TODO: Remove once tokenization is stable
+  if (req.debug) {
+    body.proxy_tokenizer_debug_info = req.debug;
   }
 
   res.status(200).json(body);

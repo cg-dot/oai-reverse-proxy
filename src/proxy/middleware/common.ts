@@ -45,6 +45,9 @@ export function writeErrorResponse(
     res.write(`data: [DONE]\n\n`);
     res.end();
   } else {
+    if (req.debug) {
+      errorPayload.error.proxy_tokenizer_debug_info = req.debug;
+    }
     res.status(statusCode).json(errorPayload);
   }
 }
@@ -86,7 +89,7 @@ export const handleInternalError = (
     } else {
       writeErrorResponse(req, res, 500, {
         error: {
-          type: "proxy_rewriter_error",
+          type: "proxy_internal_error",
           proxy_note: `Reverse proxy encountered an error before it could reach the upstream API.`,
           message: err.message,
           stack: err.stack,

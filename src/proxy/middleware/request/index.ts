@@ -4,6 +4,7 @@ import type { ProxyReqCallback } from "http-proxy";
 
 // Express middleware (runs before http-proxy-middleware, can be async)
 export { createPreprocessorMiddleware } from "./preprocess";
+export { checkContextSize } from "./check-context-size";
 export { setApiFormat } from "./set-api-format";
 export { transformOutboundPayload } from "./transform-outbound-payload";
 
@@ -14,7 +15,6 @@ export { blockZoomerOrigins } from "./block-zoomer-origins";
 export { finalizeBody } from "./finalize-body";
 export { languageFilter } from "./language-filter";
 export { limitCompletions } from "./limit-completions";
-export { limitOutputTokens } from "./limit-output-tokens";
 export { removeOriginHeaders } from "./remove-origin-headers";
 export { transformKoboldPayload } from "./transform-kobold-payload";
 

@@ -13,7 +13,6 @@ import {
   createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
-  limitOutputTokens,
   transformKoboldPayload,
 } from "./middleware/request";
 import {
@@ -45,7 +44,6 @@ const rewriteRequest = (
     addKey,
     transformKoboldPayload,
     languageFilter,
-    limitOutputTokens,
     finalizeBody,
   ];
 

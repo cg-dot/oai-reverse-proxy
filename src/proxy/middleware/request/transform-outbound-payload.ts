@@ -1,8 +1,12 @@
 import { Request } from "express";
 import { z } from "zod";
+import { config } from "../../../config";
+import { OpenAIPromptMessage } from "../../../tokenization";
 import { isCompletionRequest } from "../common";
 import { RequestPreprocessor } from ".";
-// import { countTokens } from "../../../tokenization";
+
+const CLAUDE_OUTPUT_MAX = config.maxOutputTokensAnthropic;
+const OPENAI_OUTPUT_MAX = config.maxOutputTokensOpenAI;
 
 // https://console.anthropic.com/docs/api/reference#-v1-complete
 const AnthropicV1CompleteSchema = z.object({
@@ -11,7 +15,10 @@ const AnthropicV1CompleteSchema = z.object({
     required_error:
       "No prompt found. Are you sending an OpenAI-formatted request to the Claude endpoint?",
   }),
-  max_tokens_to_sample: z.coerce.number(),
+  max_tokens_to_sample: z.coerce
+    .number()
+    .int()
+    .transform((v) => Math.min(v, CLAUDE_OUTPUT_MAX)),
   stop_sequences: z.array(z.string()).optional(),
   stream: z.boolean().optional().default(false),
   temperature: z.coerce.number().optional().default(1),
@@ -32,6 +39,8 @@ const OpenAIV1ChatCompletionSchema = z.object({
     {
       required_error:
         "No prompt found. Are you sending an Anthropic-formatted request to the OpenAI endpoint?",
+      invalid_type_error:
+        "Messages were not formatted correctly. Refer to the OpenAI Chat API documentation for more information.",
     }
   ),
   temperature: z.number().optional().default(1),
@@ -45,7 +54,12 @@ const OpenAIV1ChatCompletionSchema = z.object({
     .optional(),
   stream: z.boolean().optional().default(false),
   stop: z.union([z.string(), z.array(z.string())]).optional(),
-  max_tokens: z.coerce.number().optional(),
+  max_tokens: z.coerce
+    .number()
+    .int()
+    .optional()
+    .default(16)
+    .transform((v) => Math.min(v, OPENAI_OUTPUT_MAX)),
   frequency_penalty: z.number().optional().default(0),
   presence_penalty: z.number().optional().default(0),
   logit_bias: z.any().optional(),
@@ -63,7 +77,6 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
   }
 
   if (sameService) {
-    // Just validate, don't transform.
     const validator =
       req.outboundApi === "openai"
         ? OpenAIV1ChatCompletionSchema
@@ -76,11 +89,12 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
       );
       throw result.error;
     }
+    req.body = result.data;
     return;
   }
 
   if (req.inboundApi === "openai" && req.outboundApi === "anthropic") {
-    req.body = openaiToAnthropic(req.body, req);
+    req.body = await openaiToAnthropic(req.body, req);
     return;
   }
 
@@ -89,7 +103,7 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
   );
 };
 
-function openaiToAnthropic(body: any, req: Request) {
+async function openaiToAnthropic(body: any, req: Request) {
   const result = OpenAIV1ChatCompletionSchema.safeParse(body);
   if (!result.success) {
     req.log.error(
@@ -107,37 +121,7 @@ function openaiToAnthropic(body: any, req: Request) {
   req.headers["anthropic-version"] = "2023-01-01";
 
   const { messages, ...rest } = result.data;
-  const prompt =
-    result.data.messages
-      .map((m) => {
-        let role: string = m.role;
-        if (role === "assistant") {
-          role = "Assistant";
-        } else if (role === "system") {
-          role = "System";
-        } else if (role === "user") {
-          role = "Human";
-        }
-        // https://console.anthropic.com/docs/prompt-design
-        // `name` isn't supported by Anthropic but we can still try to use it.
-        return `\n\n${role}: ${m.name?.trim() ? `(as ${m.name}) ` : ""}${
-          m.content
-        }`;
-      })
-      .join("") + "\n\nAssistant: ";
-
-  // No longer defaulting to `claude-v1.2` because it seems to be in the process
-  // of being deprecated. `claude-v1` is the new default.
-  // If you have keys that can still use `claude-v1.2`, you can set the
-  // CLAUDE_BIG_MODEL and CLAUDE_SMALL_MODEL environment variables in your .env
-  // file.
-
-  const CLAUDE_BIG = process.env.CLAUDE_BIG_MODEL || "claude-v1-100k";
-  const CLAUDE_SMALL = process.env.CLAUDE_SMALL_MODEL || "claude-v1";
-
-  // TODO: Finish implementing tokenizer for more accurate model selection.
-  // This currently uses _character count_, not token count.
-  const model = prompt.length > 25000 ? CLAUDE_BIG : CLAUDE_SMALL;
+  const prompt = openAIMessagesToClaudePrompt(messages);
 
   let stops = rest.stop
     ? Array.isArray(rest.stop)
@@ -154,9 +138,35 @@ function openaiToAnthropic(body: any, req: Request) {
 
   return {
     ...rest,
-    model,
+    // Model may be overridden in `calculate-context-size.ts` to avoid having
+    // a circular dependency (`calculate-context-size.ts` needs an already-
+    // transformed request body to count tokens, but this function would like
+    // to know the count to select a model).
+    model: process.env.CLAUDE_SMALL_MODEL || "claude-v1",
     prompt: prompt,
     max_tokens_to_sample: rest.max_tokens,
     stop_sequences: stops,
   };
+}
+
+export function openAIMessagesToClaudePrompt(messages: OpenAIPromptMessage[]) {
+  return (
+    messages
+      .map((m) => {
+        let role: string = m.role;
+        if (role === "assistant") {
+          role = "Assistant";
+        } else if (role === "system") {
+          role = "System";
+        } else if (role === "user") {
+          role = "Human";
+        }
+        // https://console.anthropic.com/docs/prompt-design
+        // `name` isn't supported by Anthropic but we can still try to use it.
+        return `\n\n${role}: ${m.name?.trim() ? `(as ${m.name}) ` : ""}${
+          m.content
+        }`;
+      })
+      .join("") + "\n\nAssistant:"
+  );
 }

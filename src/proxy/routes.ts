@@ -10,10 +10,18 @@ import { kobold } from "./kobold";
 import { openai } from "./openai";
 import { anthropic } from "./anthropic";
 
-const router = express.Router();
-
-router.use(gatekeeper);
-router.use("/kobold", kobold);
-router.use("/openai", openai);
-router.use("/anthropic", anthropic);
-export { router as proxyRouter };
+const proxyRouter = express.Router();
+proxyRouter.use(
+  express.json({ limit: "1536kb" }),
+  express.urlencoded({ extended: true, limit: "1536kb" })
+);
+proxyRouter.use(gatekeeper);
+proxyRouter.use((req, _res, next) => {
+  req.startTime = Date.now();
+  req.retryCount = 0;
+  next();
+});
+proxyRouter.use("/kobold", kobold);
+proxyRouter.use("/openai", openai);
+proxyRouter.use("/anthropic", anthropic);
+export { proxyRouter as proxyRouter };
