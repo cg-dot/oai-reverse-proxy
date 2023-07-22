@@ -162,7 +162,7 @@ export const config: Config = {
   maxOutputTokensOpenAI: getEnvWithDefault("MAX_OUTPUT_TOKENS_OPENAI", 300),
   maxOutputTokensAnthropic: getEnvWithDefault(
     "MAX_OUTPUT_TOKENS_ANTHROPIC",
-    600
+    400
   ),
   rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
   rejectMessage: getEnvWithDefault(
