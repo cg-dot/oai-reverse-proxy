@@ -6,6 +6,7 @@ equivalent OpenAI requests. */
 
 import * as express from "express";
 import { gatekeeper } from "./auth/gatekeeper";
+import { checkRisuToken } from "./auth/check-risu-token";
 import { kobold } from "./kobold";
 import { openai } from "./openai";
 import { anthropic } from "./anthropic";
@@ -16,6 +17,7 @@ proxyRouter.use(
   express.urlencoded({ extended: true, limit: "1536kb" })
 );
 proxyRouter.use(gatekeeper);
+proxyRouter.use(checkRisuToken);
 proxyRouter.use((req, _res, next) => {
   req.startTime = Date.now();
   req.retryCount = 0;

@@ -34,23 +34,33 @@ const AGNAI_CONCURRENCY_LIMIT = 15;
 /** Maximum number of queue slots for individual users. */
 const USER_CONCURRENCY_LIMIT = 1;
 
-const sameIpPredicate = (incoming: Request) => (queued: Request) =>
-  queued.ip === incoming.ip;
+/**
+ * Returns a unique identifier for a request. This is used to determine if a
+ * request is already in the queue.
+ * This can be (in order of preference):
+ * - user token assigned by the proxy operator
+ * - x-risu-tk header, if the request is from RisuAI.xyz
+ * - IP address
+ */
+function getIdentifier(req: Request) {
+  if (req.user) {
+    return req.user.token;
+  }
+  if (req.risuToken) {
+    return req.risuToken;
+  }
+  return req.ip;
+}
+
 const sameUserPredicate = (incoming: Request) => (queued: Request) => {
-  const incomingUser = incoming.user ?? { token: incoming.ip };
-  const queuedUser = queued.user ?? { token: queued.ip };
-  return queuedUser.token === incomingUser.token;
+  const queuedId = getIdentifier(queued);
+  const incomingId = getIdentifier(incoming);
+  return queuedId === incomingId;
 };
 
 export function enqueue(req: Request) {
-  let enqueuedRequestCount = 0;
+  const enqueuedRequestCount = queue.filter(sameUserPredicate(req)).length;
   let isGuest = req.user?.token === undefined;
-
-  if (isGuest) {
-    enqueuedRequestCount = queue.filter(sameIpPredicate(req)).length;
-  } else {
-    enqueuedRequestCount = queue.filter(sameUserPredicate(req)).length;
-  }
 
   // All Agnai.chat requests come from the same IP, so we allow them to have
   // more spots in the queue. Can't make it unlimited because people will

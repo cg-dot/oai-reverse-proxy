@@ -10,6 +10,8 @@ declare global {
       inboundApi: AIService | "kobold";
       /** Denotes the format of the request being proxied to the API. */
       outboundApi: AIService;
+      /** If the request comes from a RisuAI.xyz user, this is their token. */
+      risuToken?: string;
       user?: User;
       isStreaming?: boolean;
       startTime: number;
