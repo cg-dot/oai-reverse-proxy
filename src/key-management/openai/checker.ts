@@ -131,30 +131,37 @@ export class OpenAIKeyChecker {
     try {
       // We only need to check for provisioned models on the initial check.
       if (isInitialCheck) {
-        const [subscription, provisionedModels, _livenessTest] =
+        const [/* subscription,*/ provisionedModels, _livenessTest] =
           await Promise.all([
-            this.getSubscription(key),
+            // this.getSubscription(key),
             this.getProvisionedModels(key),
             this.testLiveness(key),
           ]);
         const updates = {
           isGpt4: provisionedModels.gpt4,
-          isTrial: !subscription.has_payment_method,
-          softLimit: subscription.soft_limit_usd,
-          hardLimit: subscription.hard_limit_usd,
-          systemHardLimit: subscription.system_hard_limit_usd,
+          // isTrial: !subscription.has_payment_method,
+          // softLimit: subscription.soft_limit_usd,
+          // hardLimit: subscription.hard_limit_usd,
+          // systemHardLimit: subscription.system_hard_limit_usd,
+          isTrial: false,
+          softLimit: 0,
+          hardLimit: 0,
+          systemHardLimit: 0,
         };
         this.updateKey(key.hash, updates);
       } else {
         // Provisioned models don't change, so we don't need to check them again
-        const [subscription, _livenessTest] = await Promise.all([
-          this.getSubscription(key),
+        const [/* subscription, */ _livenessTest] = await Promise.all([
+          // this.getSubscription(key),
           this.testLiveness(key),
         ]);
         const updates = {
-          softLimit: subscription.soft_limit_usd,
-          hardLimit: subscription.hard_limit_usd,
-          systemHardLimit: subscription.system_hard_limit_usd,
+          // softLimit: subscription.soft_limit_usd,
+          // hardLimit: subscription.hard_limit_usd,
+          // systemHardLimit: subscription.system_hard_limit_usd,
+          softLimit: 0,
+          hardLimit: 0,
+          systemHardLimit: 0,
         };
         this.updateKey(key.hash, updates);
       }
@@ -172,7 +179,7 @@ export class OpenAIKeyChecker {
     // Only enqueue the next check if this wasn't a startup check, since those
     // are batched together elsewhere.
     if (!isInitialCheck) {
-      this.scheduleNextCheck();
+      // this.scheduleNextCheck();
     }
   }
 
