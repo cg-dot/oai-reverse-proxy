@@ -77,8 +77,8 @@ function cacheInfoPageHtml(baseUrl: string) {
 
 type ServiceInfo = {
   activeKeys: number;
-  trialKeys?: number;
-  activeLimit: string;
+  // trialKeys?: number;
+  // activeLimit: string;
   revokedKeys?: number;
   overQuotaKeys?: number;
   proomptersInQueue: number;
@@ -120,8 +120,8 @@ function getOpenAIInfo() {
 
     info.turbo = {
       activeKeys: turboKeys.filter((k) => !k.isDisabled).length,
-      trialKeys: turboKeys.filter((k) => k.isTrial).length,
-      activeLimit: quota.turbo,
+      // trialKeys: turboKeys.filter((k) => k.isTrial).length,
+      // activeLimit: quota.turbo,
       revokedKeys: turboKeys.filter((k) => k.isRevoked).length,
       overQuotaKeys: turboKeys.filter((k) => k.isOverQuota).length,
     };
@@ -129,16 +129,16 @@ function getOpenAIInfo() {
     if (hasGpt4) {
       info.gpt4 = {
         activeKeys: gpt4Keys.filter((k) => !k.isDisabled).length,
-        trialKeys: gpt4Keys.filter((k) => k.isTrial).length,
-        activeLimit: quota.gpt4,
+        // trialKeys: gpt4Keys.filter((k) => k.isTrial).length,
+        // activeLimit: quota.gpt4,
         revokedKeys: gpt4Keys.filter((k) => k.isRevoked).length,
         overQuotaKeys: gpt4Keys.filter((k) => k.isOverQuota).length,
       };
     }
 
     if (config.quotaDisplayMode === "none") {
-      delete info.turbo?.activeLimit;
-      delete info.gpt4?.activeLimit;
+      // delete info.turbo?.activeLimit;
+      // delete info.gpt4?.activeLimit;
     }
   } else {
     info.status = "Key checking is disabled." as any;
