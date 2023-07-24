@@ -77,7 +77,7 @@ function cacheInfoPageHtml(baseUrl: string) {
 
 type ServiceInfo = {
   activeKeys: number;
-  // trialKeys?: number;
+  trialKeys?: number;
   // activeLimit: string;
   revokedKeys?: number;
   overQuotaKeys?: number;
@@ -120,7 +120,7 @@ function getOpenAIInfo() {
 
     info.turbo = {
       activeKeys: turboKeys.filter((k) => !k.isDisabled).length,
-      // trialKeys: turboKeys.filter((k) => k.isTrial).length,
+      trialKeys: turboKeys.filter((k) => k.isTrial).length,
       // activeLimit: quota.turbo,
       revokedKeys: turboKeys.filter((k) => k.isRevoked).length,
       overQuotaKeys: turboKeys.filter((k) => k.isOverQuota).length,
@@ -129,7 +129,7 @@ function getOpenAIInfo() {
     if (hasGpt4) {
       info.gpt4 = {
         activeKeys: gpt4Keys.filter((k) => !k.isDisabled).length,
-        // trialKeys: gpt4Keys.filter((k) => k.isTrial).length,
+        trialKeys: gpt4Keys.filter((k) => k.isTrial).length,
         // activeLimit: quota.gpt4,
         revokedKeys: gpt4Keys.filter((k) => k.isRevoked).length,
         overQuotaKeys: gpt4Keys.filter((k) => k.isOverQuota).length,
