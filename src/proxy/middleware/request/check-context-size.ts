@@ -62,12 +62,14 @@ function validateContextSize(req: Request) {
     Number.MAX_SAFE_INTEGER;
   let modelMax = 0;
 
-  if (model.match(/gpt-3.5/)) {
+  if (model.match(/gpt-3.5-turbo-16k/)) {
+    modelMax = 16384;
+  } else if (model.match(/gpt-3.5-turbo/)) {
     modelMax = 4096;
-  } else if (model.match(/gpt-4/)) {
-    modelMax = 8192;
   } else if (model.match(/gpt-4-32k/)) {
     modelMax = 32768;
+  } else if (model.match(/gpt-4/)) {
+    modelMax = 8192;
   } else if (model.match(/claude-(?:instant-)?v1(?:\.\d)?(?:-100k)/)) {
     modelMax = 100000 * CLAUDE_TOKEN_LIMIT_ADJUSTMENT;
   } else if (model.match(/claude-(?:instant-)?v1(?:\.\d)?$/)) {
