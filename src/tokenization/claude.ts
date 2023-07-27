@@ -20,7 +20,9 @@ export function init() {
 }
 
 export function getTokenCount(prompt: string, _model: string) {
-  if (prompt.length > 250000) {
+  // Don't try tokenizing if the prompt is massive to prevent DoS.
+  // 500k characters should be sufficient for all supported models.
+  if (prompt.length > 500000) {
     return {
       tokenizer: "tiktoken (prompt length limit exceeded)",
       token_count: 100000,
