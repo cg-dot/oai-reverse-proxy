@@ -21,7 +21,7 @@ export function writeErrorResponse(
   statusCode: number,
   errorPayload: Record<string, any>
 ) {
-  const errorSource = errorPayload.error?.type.startsWith("proxy")
+  const errorSource = errorPayload.error?.type?.startsWith("proxy")
     ? "proxy"
     : "upstream";
 
