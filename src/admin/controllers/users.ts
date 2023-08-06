@@ -3,7 +3,6 @@ import { Query } from "express-serve-static-core";
 import multer from "multer";
 import { z } from "zod";
 import * as userStore from "../../proxy/auth/user-store";
-import { config } from "../../config";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -59,7 +58,11 @@ function sortBy(fields: string[], asc = true) {
         // always sort nulls to the end
         if (a[field] == null) return 1;
         if (b[field] == null) return -1;
-        const result = a[field] < b[field] ? -1 : 1;
+
+        const valA = Array.isArray(a[field]) ? a[field].length : a[field];
+        const valB = Array.isArray(b[field]) ? b[field].length : b[field];
+
+        const result = valA < valB ? -1 : 1;
         return asc ? result : -result;
       }
     }
