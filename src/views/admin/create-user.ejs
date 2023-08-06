@@ -1,0 +1,17 @@
+<%- include("../_partials/admin-header", { title: "Create User - OAI Reverse Proxy Admin" }) %>
+<!-- 
+ -->
+<h1>Create User Token</h1>
+<form action="/admin/users" method="post">
+  <input type="submit" value="Create" />
+</form>
+<% if (newToken) { %>
+  <p>Just created <code><%= recentUsers[0].token %></code>.</p>
+<% } %>
+<h3>Recent Tokens</h2>
+<ul>
+  <% recentUsers.forEach(function(user) { %>
+  <li><a href="/admin/users/<%= user.token %>"><%= user.token %></a></li>
+  <% }) %>
+</ul>
+<%- include("../_partials/admin-footer") %>

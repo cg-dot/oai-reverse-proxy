@@ -1,0 +1,20 @@
+<%- include("../_partials/admin-header", { title: "OAI Reverse Proxy Admin" }) %>
+<h1>OAI Reverse Proxy Admin</h1>
+<% if (!isPersistenceEnabled) { %>
+<p style="color: red; background-color: #eedddd; padding: 1em">
+  <strong>⚠️ Users will be lost when the server restarts because persistence is
+  not configured.</strong><br />
+  <br />Be sure to export your users and import them again after restarting the
+  server if you want to keep them.<br />
+  <br /> See the <a target="_blank"
+  href="https://gitgud.io/khanon/oai-reverse-proxy/-/blob/main/docs/user-management.md#firebase-realtime-database">
+  user management documentation</a> to learn how to set up persistence.
+</p>
+<% } %>
+<ul>
+  <li><a href="/admin/users">List Users</a></li>
+  <li><a href="/admin/users/create-user">Create User</a></li>
+  <li><a href="/admin/users/import-users">Import Users</a></li>
+  <li><a href="/admin/users/export-users">Export Users</a></li>
+</ul>
+<%- include("../_partials/admin-footer") %>

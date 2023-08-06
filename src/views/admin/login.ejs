@@ -1,0 +1,13 @@
+<%- include("../_partials/admin-header", { title: "Login" }) %>
+  <body>
+    <h1>Login</h1>
+    <% if (failed) { %>
+    <p style="color: red;">Please try again.</p>
+    <% } %>
+    <form action="/admin/login" method="post">
+      <label for="token">Admin Key</label>
+      <input type="password" name="token" />
+      <input type="submit" value="Login" />
+    </form>
+  </body>
+</html>

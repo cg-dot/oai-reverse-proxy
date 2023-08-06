@@ -1,0 +1,44 @@
+<%- include("../_partials/admin-header", { title: "Import Users - OAI Reverse Proxy Admin" }) %>
+<h1>Import Users</h1>
+<p>
+  Import users from JSON. The JSON should be an array of objects under the key
+  <code>users</code>. Each object should have the following fields:
+</p>
+<ul>
+  <li><code>token</code> (required): a unique identifier for the user</li>
+  <li><code>ip</code> (optional): IP addresses the user has connected from</li>
+  <li>
+    <code>type</code> (optional): either <code>normal</code> or
+    <code>special</code>
+  </li>
+  <li>
+    <code>promptCount</code> (optional): the number of times the user has sent a
+    prompt
+  </li>
+  <li>
+    <code>tokenCount</code> (optional): the number of tokens the user has
+    consumed (not yet implemented)
+  </li>
+  <li>
+    <code>createdAt</code> (optional): the timestamp when the user was created
+  </li>
+  <li>
+    <code>disabledAt</code> (optional): the timestamp when the user was disabled
+  </li>
+  <li>
+    <code>disabledReason</code> (optional): the reason the user was disabled
+  </li>
+</ul>
+<p>
+  If a user with the same token already exists, the existing user will be
+  updated with the new values.
+</p>
+<form action="/admin/users/import-users" method="post" enctype="multipart/form-data">
+  <input type="file" name="users" />
+  <input type="submit" value="Import" />
+</form>
+</form>
+<% if (imported > 0) { %>
+<p>Imported <code><%= imported %></code> users.</p>
+<% } %>
+<%- include("../_partials/admin-footer") %>

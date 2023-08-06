@@ -2,6 +2,7 @@ import { assertConfigIsValid, config } from "./config";
 import "source-map-support/register";
 import express from "express";
 import cors from "cors";
+import path from "path";
 import pinoHttp from "pino-http";
 import childProcess from "child_process";
 import { logger } from "./logger";
@@ -52,6 +53,9 @@ app.use(
 // a load balancer/reverse proxy, which is necessary to determine request IP
 // addresses correctly.
 app.set("trust proxy", true);
+
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "views"));
 
 app.get("/health", (_req, res) => res.sendStatus(200));
 app.use(cors());
