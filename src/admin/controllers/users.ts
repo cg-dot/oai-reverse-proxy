@@ -37,8 +37,10 @@ const UserSchemaWithToken = UserSchema.extend({
 function paginate(set: unknown[], page: number, pageSize: number = 20) {
   return {
     page,
-    pageCount: Math.ceil(set.length / pageSize),
     items: set.slice((page - 1) * pageSize, page * pageSize),
+    pageSize,
+    pageCount: Math.ceil(set.length / pageSize),
+    totalCount: set.length,
     nextPage: page * pageSize < set.length ? page + 1 : null,
     prevPage: page > 1 ? page - 1 : null,
   };

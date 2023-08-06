@@ -3,7 +3,7 @@
     
     <% if (users.length === 0) { %>
     <p>No users found.</p>
-    <% } %>
+    <% } else { %>
     <table>
       <thead>
         <tr>
@@ -46,6 +46,9 @@
       <li><a href="/admin/users?sort=<%= sort %>&page=<%= page + 1 %>">&raquo;</a></li>
       <% } %>
     </ul>
+    
+    <p>Showing <%= page * pageSize - pageSize + 1 %> to <%= users.length + page * pageSize - pageSize %> of <%= totalCount %> users.</p>
+    <% } %>
     
 <script>
   document.querySelectorAll("td.actions a.ban").forEach(function (a) {
