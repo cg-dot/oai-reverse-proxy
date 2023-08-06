@@ -8,11 +8,11 @@
       <thead>
         <tr>
           <th>Token</th>
-          <th <% if (sort==="ip") { %>class="active"<% } %> ><a href="/admin/users?sort=ip">IPs</a></th>
-          <th <% if (sort==="promptCount") { %>class="active"<% } %> ><a href="/admin/users?sort=promptCount">Prompts</a></th>
+          <th <% if (sort.includes("ip")) { %>class="active"<% } %> ><a href="/admin/users?sort=ip">IPs</a></th>
+          <th <% if (sort.includes("promptCount")) { %>class="active"<% } %> ><a href="/admin/users?sort=promptCount">Prompts</a></th>
           <th>Type</th>
-          <th <% if (sort==="createdAt") { %>class="active"<% } %> ><a href="/admin/users?sort=createdAt">Created (UTC)</a></th>
-          <th <% if (sort==="lastUsedAt") { %>class="active"<% } %> ><a href="/admin/users?sort=lastUsedAt">Last Used (UTC)</a></th>
+          <th <% if (sort.includes("createdAt")) { %>class="active"<% } %> ><a href="/admin/users?sort=createdAt">Created (UTC)</a></th>
+          <th <% if (sort.includes("lastUsedAt")) { %>class="active"<% } %> ><a href="/admin/users?sort=lastUsedAt">Last Used (UTC)</a></th>
           <th colspan="2">Banned?</th>
         </tr>
       </thead>
@@ -39,11 +39,11 @@
 
     <ul class="pagination">
       <% if (page > 1) { %>
-      <li><a href="/admin/users?page=<%= page - 1 %>">&laquo;</a></li>
+      <li><a href="/admin/users?sort=<%= sort %>&page=<%= page - 1 %>">&laquo;</a></li>
       <% } %> <% for (var i = 1; i <= pageCount; i++) { %>
-      <li <% if (i === page) { %>class="active"<% } %>><a href="/admin/users?page=<%= i %>"><%= i %></a></li>
+      <li <% if (i === page) { %>class="active"<% } %>><a href="/admin/users?sort=<%= sort %>&page=<%= i %>"><%= i %></a></li>
       <% } %> <% if (page < pageCount) { %>
-      <li><a href="/admin/users?page=<%= page + 1 %>">&raquo;</a></li>
+      <li><a href="/admin/users?sort=<%= sort %>&page=<%= page + 1 %>">&raquo;</a></li>
       <% } %>
     </ul>
     
