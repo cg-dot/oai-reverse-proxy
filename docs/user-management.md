@@ -24,19 +24,19 @@ To set the password, create a `PROXY_KEY` secret in your environment.
 
 ## Per-user authentication (`GATEKEEPER=user_token`)
 
-This mode allows you to provision separate Bearer tokens for each user. You can manage users via the /admin/users REST API, which itself requires an admin Bearer token.
+This mode allows you to provision separate Bearer tokens for each user. You can manage users via the /admin/users via REST or through the admin interface at `/admin`.
 
-To begin, set `ADMIN_KEY` to a secret value.  This will be used to authenticate requests to the /admin/users REST API.
+To begin, set `ADMIN_KEY` to a secret value.  This will be used to authenticate requests to the REST API or to log in to the UI.
 
 [You can find an OpenAPI specification for the /admin/users REST API here.](openapi-admin-users.yaml)
  
-By default, the proxy will store user data in memory. Naturally, this means that user data will be lost when the proxy is restarted, though you can use the bulk user import/export feature to save and restore user data manually or via a script. However, the proxy also supports persisting user data to an external data store with some additional configuration.
+By default, the proxy will store user data in memory. Naturally, this means that user data will be lost when the proxy is restarted, though you can use the user import/export feature to save and restore user data manually or via a script. However, the proxy also supports persisting user data to an external data store with some additional configuration.
 
 Below are the supported data stores and their configuration options.
 
 ### Memory
 
-This is the default data store (`GATEKEEPER_STORE=memory`)  User data will be stored in memory and will be lost when the proxy is restarted. You are responsible for downloading and re-uploading user data via the REST API if you want to persist it.
+This is the default data store (`GATEKEEPER_STORE=memory`)  User data will be stored in memory and will be lost when the server is restarted. You are responsible for exporting and re-importing user data after a restart.
 
 ### Firebase Realtime Database
 
@@ -58,8 +58,4 @@ To use Firebase Realtime Database to persist user data, set the following enviro
 7. Set `FIREBASE_RTDB_URL` to the reference URL of your Firebase Realtime Database, e.g. `https://my-project-default-rtdb.firebaseio.com`.
 8. Set `GATEKEEPER_STORE` to `firebase_rtdb` in your environment if you haven't already.
 
-The proxy will attempt to connect to your Firebase Realtime Database at startup and will throw an error if it cannot connect.  If you see this error, check that your `FIREBASE_RTDB_URL` and `FIREBASE_KEY` secrets are set correctly.
-
----
-
-Users are loaded from the database and changes are flushed periodically.  You can use the PUT /admin/users API to bulk import users and force a flush to the database.
+The proxy server will attempt to connect to your Firebase Realtime Database at startup and will throw an error if it cannot connect.  If you see this error, check that your `FIREBASE_RTDB_URL` and `FIREBASE_KEY` secrets are set correctly.
