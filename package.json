@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Reverse proxy for the OpenAI API",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && copyfiles -u 1 src/**/*.ejs build",
     "start:dev": "nodemon --watch src --exec ts-node --transpile-only src/server.ts",
     "start:watch": "nodemon --require source-map-support/register build/server.js",
     "start:replit": "tsc && node build/server.js",
@@ -18,6 +18,7 @@
   "dependencies": {
     "axios": "^1.3.5",
     "cookie-parser": "^1.4.6",
+    "copyfiles": "^2.4.1",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "ejs": "^3.1.9",
