@@ -22,6 +22,6 @@ export function getTokenCount(prompt: string, _model: string) {
 
   return {
     tokenizer: "@anthropic-ai/tokenizer",
-    token_count: encoder.encode(prompt).length,
+    token_count: encoder.encode(prompt.normalize("NFKC"), "all").length,
   };
 }
