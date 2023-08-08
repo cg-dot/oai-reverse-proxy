@@ -8,14 +8,6 @@ const CLAUDE_MAX_CONTEXT = config.maxContextTokensAnthropic;
 const OPENAI_MAX_CONTEXT = config.maxContextTokensOpenAI;
 
 /**
- * Claude models don't throw an error if you exceed the token limit and
- * instead just become extremely slow and provide schizo output. To be safe,
- * we will only allow 95% of the stated limit, which also accounts for our
- * tokenization being slightly different than Anthropic's.
- */
-const CLAUDE_TOKEN_LIMIT_ADJUSTMENT = 0.95;
-
-/**
  * Assigns `req.promptTokens` and `req.outputTokens` based on the request body
  * and outbound API format, which combined determine the size of the context.
  * If the context is too large, an error is thrown.
@@ -71,11 +63,11 @@ function validateContextSize(req: Request) {
   } else if (model.match(/gpt-4/)) {
     modelMax = 8192;
   } else if (model.match(/claude-(?:instant-)?v1(?:\.\d)?(?:-100k)/)) {
-    modelMax = 100000 * CLAUDE_TOKEN_LIMIT_ADJUSTMENT;
+    modelMax = 100000;
   } else if (model.match(/claude-(?:instant-)?v1(?:\.\d)?$/)) {
-    modelMax = 9000 * CLAUDE_TOKEN_LIMIT_ADJUSTMENT;
+    modelMax = 9000;
   } else if (model.match(/claude-2/)) {
-    modelMax = 100000 * CLAUDE_TOKEN_LIMIT_ADJUSTMENT;
+    modelMax = 100000;
   } else {
     // Don't really want to throw here because I don't want to have to update
     // this ASAP every time a new model is released.
