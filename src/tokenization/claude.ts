@@ -1,6 +1,12 @@
-import { countTokens } from "@anthropic-ai/tokenizer";
+import { getTokenizer } from "@anthropic-ai/tokenizer";
+import { Tiktoken } from "tiktoken/lite";
+
+let encoder: Tiktoken;
 
 export function init() {
+  // they export a `countTokens` function too but it instantiates a new
+  // tokenizer every single time and it is not fast...
+  encoder = getTokenizer();
   return true;
 }
 
@@ -16,6 +22,6 @@ export function getTokenCount(prompt: string, _model: string) {
 
   return {
     tokenizer: "@anthropic-ai/tokenizer",
-    token_count: countTokens(prompt),
+    token_count: encoder.encode(prompt).length,
   };
 }
