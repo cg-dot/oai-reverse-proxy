@@ -1,6 +1,8 @@
 <%- include("../_partials/admin-header", { title: "Users - OAI Reverse Proxy Admin" }) %>
     <h1>User Token List</h1>
     
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    
     <% if (users.length === 0) { %>
     <p>No users found.</p>
     <% } else { %>
@@ -8,18 +10,20 @@
       <thead>
         <tr>
           <th>Token</th>
-          <th <% if (sort.includes("ip")) { %>class="active"<% } %> ><a href="/admin/users?sort=ip">IPs</a></th>
-          <th <% if (sort.includes("promptCount")) { %>class="active"<% } %> ><a href="/admin/users?sort=promptCount">Prompts</a></th>
+          <th <% if (sort.includes("ip")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=ip">IPs</a></th>
+          <th <% if (sort.includes("promptCount")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=promptCount">Prompts</a></th>
           <th>Type</th>
-          <th <% if (sort.includes("createdAt")) { %>class="active"<% } %> ><a href="/admin/users?sort=createdAt">Created (UTC)</a></th>
-          <th <% if (sort.includes("lastUsedAt")) { %>class="active"<% } %> ><a href="/admin/users?sort=lastUsedAt">Last Used (UTC)</a></th>
+          <th <% if (sort.includes("createdAt")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=createdAt">Created (UTC)</a></th>
+          <th <% if (sort.includes("lastUsedAt")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=lastUsedAt">Last Used (UTC)</a></th>
           <th colspan="2">Banned?</th>
         </tr>
       </thead>
       <tbody>
         <% users.forEach(function(user){ %>
         <tr>
-          <td><%= user.token %></td>
+          <td>
+            <code><a href="/admin/manage/view-user/<%= user.token %>"><%= user.token %></a></code>
+          </td>
           <td><%= user.ip.length %></td>
           <td><%= user.promptCount %></td>
           <td><%= user.type %></td>
@@ -39,15 +43,16 @@
 
     <ul class="pagination">
       <% if (page > 1) { %>
-      <li><a href="/admin/users?sort=<%= sort %>&page=<%= page - 1 %>">&laquo;</a></li>
+      <li><a href="/admin/manage/list-users?sort=<%= sort %>&page=<%= page - 1 %>">&laquo;</a></li>
       <% } %> <% for (var i = 1; i <= pageCount; i++) { %>
-      <li <% if (i === page) { %>class="active"<% } %>><a href="/admin/users?sort=<%= sort %>&page=<%= i %>"><%= i %></a></li>
+      <li <% if (i === page) { %>class="active"<% } %>><a href="/admin/manage/list-users?sort=<%= sort %>&page=<%= i %>"><%= i %></a></li>
       <% } %> <% if (page < pageCount) { %>
-      <li><a href="/admin/users?sort=<%= sort %>&page=<%= page + 1 %>">&raquo;</a></li>
+      <li><a href="/admin/manage/list-users?sort=<%= sort %>&page=<%= page + 1 %>">&raquo;</a></li>
       <% } %>
     </ul>
     
     <p>Showing <%= page * pageSize - pageSize + 1 %> to <%= users.length + page * pageSize - pageSize %> of <%= totalCount %> users.</p>
+    <%- include("../_partials/pagination") %>
     <% } %>
     
 <script>
@@ -57,9 +62,14 @@
       var token = a.getAttribute("data-token");
       if (confirm("Are you sure you want to ban this user?")) {
         let reason = prompt("Reason for ban:");
-        fetch("/admin/users/" + token + "?disabledReason=" + encodeURIComponent(reason), {
-          method: "DELETE",
-        }).then(() => window.location.reload());
+        fetch(
+          "/admin/manage/disable-user/" + token,
+          { 
+            method: "POST", 
+            credentials: "same-origin",
+            body: JSON.stringify({ reason, _csrf: document.querySelector("meta[name=csrf-token]").getAttribute("content") }),
+            headers: { "Content-Type": "application/json" }
+          }).then(() => window.location.reload());
       }
     });
   });
@@ -70,11 +80,13 @@
       var token = a.getAttribute("data-token");
       if (confirm("Are you sure you want to unban this user?")) {
         fetch(
-          "/admin/users/" + token,
-          { method: "PUT",
-            body: JSON.stringify({ disabledReason: "", disabledAt: 0 }),
-            headers: { "Content-Type": "application/json" },
-           },
+          "/admin/manage/reactivate-user/" + token,
+          { 
+            method: "POST", 
+            credentials: "same-origin",
+            body: JSON.stringify({ _csrf: document.querySelector("meta[name=csrf-token]").getAttribute("content") }),
+            headers: { "Content-Type": "application/json" }
+          }
         ).then(() => window.location.reload());
       }
     });

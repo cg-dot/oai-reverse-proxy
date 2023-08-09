@@ -4,6 +4,7 @@
     <p style="color: red;">Please try again.</p>
     <% } %>
     <form action="/admin/login" method="post">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
       <label for="token">Admin Key</label>
       <input type="password" name="token" />
       <input type="submit" value="Login" />

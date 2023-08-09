@@ -1,0 +1,64 @@
+<%- include("../_partials/admin-header", { title: "View User - OAI Reverse Proxy Admin" }) %>
+<h1>View User</h1>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th scope="col">Key</th>
+      <th scope="col">Value</th>
+    </tr>
+  <tbody>
+    <tr>
+      <th scope="row">Token</th>
+      <td><%- user.token %></td>
+    <tr>
+      <th scope="row">Type</th>
+      <td><%- user.type %></td>
+    </tr>
+    <tr>
+      <th scope="row">Prompt Count</th>
+      <td><%- user.promptCount %></td>
+    </tr>
+    <tr>
+      <th scope="row">Token Count</th>
+      <td><%- user.tokenCount %></td>
+    </tr>
+    <tr>
+      <th scope="row">Created At</th>
+      <td><%- user.createdAt %></td>
+    </tr>
+    <tr>
+      <th scope="row">Last Used At</th>
+      <td><%- user.lastUsedAt || "never" %></td>
+    </tr>
+    <tr>
+      <th scope="row">Disabled At</th>
+      <td><%- user.disabledAt %></td>
+    </tr>
+    <tr>
+      <th scope="row">Disabled Reason</th>
+      <td><%- user.disabledReason %></td>  
+    </tr>
+    <tr>
+      <th scope="row">IPs</th>
+      <td>
+        <a href="#" id="ip-list-toggle">Show all (<%- user.ip.length %>)</a>
+        <ol id="ip-list" style="display:none; padding-left:1em; margin: 0;">
+          <% user.ip.forEach((ip) => { %>
+            <li><code><%- ip %></code></li>
+          <% }) %>
+          </ol>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<script>
+  document.getElementById("ip-list-toggle").addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("ip-list").style.display = "block";
+    document.getElementById("ip-list-toggle").style.display = "none";
+  });
+</script>
+  
+<%- include("../_partials/admin-footer") %>

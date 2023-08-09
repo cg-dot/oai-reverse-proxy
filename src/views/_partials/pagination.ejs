@@ -1,0 +1,23 @@
+<div>
+  <label for="pageSize">Page Size</label>
+  <select id="pageSize" onchange="setPageSize(this.value)" style="margin-bottom: 1rem;">
+    <option value="10" <% if (pageSize === 10) { %>selected<% } %>>10</option>
+    <option value="20" <% if (pageSize === 20) { %>selected<% } %>>20</option>
+    <option value="50" <% if (pageSize === 50) { %>selected<% } %>>50</option>
+    <option value="100" <% if (pageSize === 100) { %>selected<% } %>>100</option>
+    <option value="200" <% if (pageSize === 200) { %>selected<% } %>>200</option>
+  </select>
+</div>
+
+
+<script>
+  function getPageSize() {
+    var match = window.location.search.match(/perPage=(\d+)/);
+    if (match) return parseInt(match[1]); else return document.cookie.match(/perPage=(\d+)/)?.[1] ?? 10;
+  }
+  function setPageSize(size) {
+    document.cookie = "perPage=" + size + "; path=/admin";
+    window.location.reload();
+  }
+  document.getElementById("pageSize").value = getPageSize();
+</script>

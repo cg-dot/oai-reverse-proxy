@@ -33,7 +33,7 @@
   If a user with the same token already exists, the existing user will be
   updated with the new values.
 </p>
-<form action="/admin/users/import-users" method="post" enctype="multipart/form-data">
+<form action="/admin/manage/import-users?_csrf=<%= csrfToken %>" method="post" enctype="multipart/form-data">
   <input type="file" name="users" />
   <input type="submit" value="Import" />
 </form>

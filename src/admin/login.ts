@@ -19,4 +19,11 @@ loginRouter.get("/logout", (req, res) => {
   res.redirect("/admin/login");
 });
 
+loginRouter.get("/", (req, res) => {
+  if (req.cookies["admin-token"]) {
+    return res.redirect("/admin/manage");
+  }
+  res.redirect("/admin/login");
+});
+
 export { loginRouter };

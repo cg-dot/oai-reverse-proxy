@@ -7,7 +7,7 @@
 <script>
   function exportUsers() {
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", "/admin/users", true);
+    xhr.open("GET", "/admin/manage/export-users.json", true);
     xhr.responseType = "blob";
     xhr.onload = function() {
       if (this.status === 200) {
