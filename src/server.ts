@@ -102,10 +102,8 @@ async function start() {
     logQueue.start();
   }
 
-  if (config.queueMode !== "none") {
-    logger.info("Starting request queue...");
-    startRequestQueue();
-  }
+  logger.info("Starting request queue...");
+  startRequestQueue();
 
   app.listen(PORT, async () => {
     logger.info({ port: PORT }, "Now listening for connections.");

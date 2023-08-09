@@ -148,17 +148,15 @@ function getOpenAIInfo() {
     };
   }
 
-  if (config.queueMode !== "none") {
-    const turboQueue = getQueueInformation("turbo");
+  const turboQueue = getQueueInformation("turbo");
 
-    info.turbo.proomptersInQueue = turboQueue.proomptersInQueue;
-    info.turbo.estimatedQueueTime = turboQueue.estimatedQueueTime;
+  info.turbo.proomptersInQueue = turboQueue.proomptersInQueue;
+  info.turbo.estimatedQueueTime = turboQueue.estimatedQueueTime;
 
-    if (hasGpt4) {
-      const gpt4Queue = getQueueInformation("gpt-4");
-      info.gpt4.proomptersInQueue = gpt4Queue.proomptersInQueue;
-      info.gpt4.estimatedQueueTime = gpt4Queue.estimatedQueueTime;
-    }
+  if (hasGpt4) {
+    const gpt4Queue = getQueueInformation("gpt-4");
+    info.gpt4.proomptersInQueue = gpt4Queue.proomptersInQueue;
+    info.gpt4.estimatedQueueTime = gpt4Queue.estimatedQueueTime;
   }
 
   return info;
@@ -168,11 +166,9 @@ function getAnthropicInfo() {
   const claudeInfo: Partial<ServiceInfo> = {};
   const keys = keyPool.list().filter((k) => k.service === "anthropic");
   claudeInfo.activeKeys = keys.filter((k) => !k.isDisabled).length;
-  if (config.queueMode !== "none") {
-    const queue = getQueueInformation("claude");
-    claudeInfo.proomptersInQueue = queue.proomptersInQueue;
-    claudeInfo.estimatedQueueTime = queue.estimatedQueueTime;
-  }
+  const queue = getQueueInformation("claude");
+  claudeInfo.proomptersInQueue = queue.proomptersInQueue;
+  claudeInfo.estimatedQueueTime = queue.estimatedQueueTime;
   return { claude: claudeInfo };
 }
 
@@ -198,25 +194,23 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
 **If you are uncomfortable with this, don't send prompts to this proxy!**`;
   }
 
-  if (config.queueMode !== "none") {
-    const waits: string[] = [];
-    infoBody += `\n## Estimated Wait Times\nIf the AI is busy, your prompt will processed when a slot frees up.`;
+  const waits: string[] = [];
+  infoBody += `\n## Estimated Wait Times\nIf the AI is busy, your prompt will processed when a slot frees up.`;
 
-    if (config.openaiKey) {
-      const turboWait = getQueueInformation("turbo").estimatedQueueTime;
-      const gpt4Wait = getQueueInformation("gpt-4").estimatedQueueTime;
-      waits.push(`**Turbo:** ${turboWait}`);
-      if (keyPool.list().some((k) => k.isGpt4) && !config.turboOnly) {
-        waits.push(`**GPT-4:** ${gpt4Wait}`);
-      }
+  if (config.openaiKey) {
+    const turboWait = getQueueInformation("turbo").estimatedQueueTime;
+    const gpt4Wait = getQueueInformation("gpt-4").estimatedQueueTime;
+    waits.push(`**Turbo:** ${turboWait}`);
+    if (keyPool.list().some((k) => k.isGpt4) && !config.turboOnly) {
+      waits.push(`**GPT-4:** ${gpt4Wait}`);
     }
-
-    if (config.anthropicKey) {
-      const claudeWait = getQueueInformation("claude").estimatedQueueTime;
-      waits.push(`**Claude:** ${claudeWait}`);
-    }
-    infoBody += "\n\n" + waits.join(" / ");
   }
+
+  if (config.anthropicKey) {
+    const claudeWait = getQueueInformation("claude").estimatedQueueTime;
+    waits.push(`**Claude:** ${claudeWait}`);
+  }
+  infoBody += "\n\n" + waits.join(" / ");
 
   if (customGreeting) {
     infoBody += `\n## Server Greeting\n
@@ -227,9 +221,6 @@ ${customGreeting}`;
 
 /** Returns queue time in seconds, or minutes + seconds if over 60 seconds. */
 function getQueueInformation(partition: QueuePartition) {
-  if (config.queueMode === "none") {
-    return {};
-  }
   const waitMs = getEstimatedWaitTime(partition);
   const waitTime =
     waitMs < 60000

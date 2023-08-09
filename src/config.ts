@@ -9,7 +9,6 @@ const startupLogger = pino({ level: "debug" }).child({ module: "startup" });
 const isDev = process.env.NODE_ENV !== "production";
 
 type PromptLoggingBackend = "google_sheets";
-export type DequeueMode = "fair" | "random" | "none";
 
 type Config = {
   /** The port the proxy server will listen on. */
@@ -108,16 +107,6 @@ type Config = {
    */
   quotaDisplayMode: "none" | "full";
   /**
-   * Which request queueing strategy to use when keys are over their rate limit.
-   *
-   * `fair`: Requests are serviced in the order they were received (default)
-   *
-   * `random`: Requests are serviced randomly
-   *
-   * `none`: Requests are not queued and users have to retry manually
-   */
-  queueMode: DequeueMode;
-  /**
    * Comma-separated list of origins to block. Requests matching any of these
    * origins or referers will be rejected.
    * Partial matches are allowed, so `reddit` will match `www.reddit.com`.
@@ -179,7 +168,6 @@ export const config: Config = {
     "GOOGLE_SHEETS_SPREADSHEET_ID",
     undefined
   ),
-  queueMode: getEnvWithDefault("QUEUE_MODE", "fair"),
   blockedOrigins: getEnvWithDefault("BLOCKED_ORIGINS", undefined),
   blockMessage: getEnvWithDefault(
     "BLOCK_MESSAGE",

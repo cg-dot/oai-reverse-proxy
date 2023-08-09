@@ -16,7 +16,6 @@
  */
 
 import type { Handler, Request } from "express";
-import { config, DequeueMode } from "../config";
 import { keyPool, SupportedModel } from "../key-management";
 import { logger } from "../logger";
 import { AGNAI_DOT_CHAT_IP } from "./rate-limit";
@@ -26,8 +25,6 @@ export type QueuePartition = "claude" | "turbo" | "gpt-4";
 
 const queue: Request[] = [];
 const log = logger.child({ module: "request-queue" });
-
-let dequeueMode: DequeueMode = "fair";
 
 /** Maximum number of queue slots for Agnai.chat requests. */
 const AGNAI_CONCURRENCY_LIMIT = 15;
@@ -160,18 +157,9 @@ export function dequeue(partition: QueuePartition): Request | undefined {
     return undefined;
   }
 
-  let req: Request;
-
-  if (dequeueMode === "fair") {
-    // Dequeue the request that has been waiting the longest
-    req = modelQueue.reduce((prev, curr) =>
-      prev.startTime < curr.startTime ? prev : curr
-    );
-  } else {
-    // Dequeue a random request
-    const index = Math.floor(Math.random() * modelQueue.length);
-    req = modelQueue[index];
-  }
+  const req = modelQueue.reduce((prev, curr) =>
+    prev.startTime < curr.startTime ? prev : curr
+  );
   queue.splice(queue.indexOf(req), 1);
 
   if (req.onAborted) {
@@ -293,10 +281,6 @@ export function getQueueLength(partition: QueuePartition | "all" = "all") {
 
 export function createQueueMiddleware(proxyMiddleware: Handler): Handler {
   return (req, res, next) => {
-    if (config.queueMode === "none") {
-      return proxyMiddleware(req, res, next);
-    }
-
     req.proceed = () => {
       proxyMiddleware(req, res, next);
     };

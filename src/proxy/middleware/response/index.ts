@@ -341,11 +341,8 @@ function maybeHandleMissingPreambleError(
       "Request failed due to missing preamble. Key will be marked as such for subsequent requests."
     );
     keyPool.update(req.key!, { requiresPreamble: true });
-    if (config.queueMode !== "none") {
-      reenqueueRequest(req);
-      throw new RetryableError("Claude request re-enqueued to add preamble.");
-    }
-    errorPayload.proxy_note = `This Claude key requires special prompt formatting. Try again; the proxy will reformat your prompt next time.`;
+    reenqueueRequest(req);
+    throw new RetryableError("Claude request re-enqueued to add preamble.");
   } else {
     errorPayload.proxy_note = `Proxy received unrecognized error from Anthropic. Check the specific error for more information.`;
   }
@@ -357,11 +354,8 @@ function handleAnthropicRateLimitError(
 ) {
   if (errorPayload.error?.type === "rate_limit_error") {
     keyPool.markRateLimited(req.key!);
-    if (config.queueMode !== "none") {
-      reenqueueRequest(req);
-      throw new RetryableError("Claude rate-limited request re-enqueued.");
-    }
-    errorPayload.proxy_note = `There are too many in-flight requests for this key. Try again later.`;
+    reenqueueRequest(req);
+    throw new RetryableError("Claude rate-limited request re-enqueued.");
   } else {
     errorPayload.proxy_note = `Unrecognized rate limit error from Anthropic. Key may be over quota.`;
   }
@@ -388,13 +382,11 @@ function handleOpenAIRateLimitError(
   } else if (type === "requests" || type === "tokens") {
     // Per-minute request or token rate limit is exceeded, which we can retry
     keyPool.markRateLimited(req.key!);
-    if (config.queueMode !== "none") {
-      reenqueueRequest(req);
-      // This is confusing, but it will bubble up to the top-level response
-      // handler and cause the request to go back into the request queue.
-      throw new RetryableError("Rate-limited request re-enqueued.");
-    }
-    errorPayload.proxy_note = `Assigned key's '${type}' rate limit has been exceeded. Try again later.`;
+    // I'm aware this is confusing -- throwing this class of error will cause
+    // the proxy response handler to return without terminating the request,
+    // so that it can be placed back in the queue.
+    reenqueueRequest(req);
+    throw new RetryableError("Rate-limited request re-enqueued.");
   } else {
     // OpenAI probably overloaded
     errorPayload.proxy_note = `This is likely a temporary error with OpenAI. Try again in a few seconds.`;
