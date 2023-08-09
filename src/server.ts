@@ -36,10 +36,6 @@ app.use(
         'res.headers["set-cookie"]',
         "req.headers.authorization",
         'req.headers["x-api-key"]',
-        'req.headers["x-forwarded-for"]',
-        'req.headers["x-real-ip"]',
-        'req.headers["true-client-ip"]',
-        'req.headers["cf-connecting-ip"]',
         // Don't log the prompt text on transform errors
         "body.messages",
         "body.prompt",
