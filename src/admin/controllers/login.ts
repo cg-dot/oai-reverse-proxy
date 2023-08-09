@@ -9,6 +9,7 @@ loginRouter.get("/login", (req, res) => {
 loginRouter.post("/login", (req, res) => {
   res.cookie("admin-token", req.body.token, {
     maxAge: 1000 * 60 * 60 * 24 * 14,
+    httpOnly: true,
   });
   res.redirect("/admin");
 });
