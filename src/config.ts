@@ -97,16 +97,6 @@ type Config = {
   /** Whether to periodically check keys for usage and validity. */
   checkKeys?: boolean;
   /**
-   * How to display quota information on the info page.
-   *
-   * `none`: Hide quota information
-   *
-   * `partial`: (deprecated) Same as `full` because usage is no longer tracked
-   *
-   * `full`: Displays information about keys' quota limits
-   */
-  quotaDisplayMode: "none" | "full";
-  /**
    * Comma-separated list of origins to block. Requests matching any of these
    * origins or referers will be rejected.
    * Partial matches are allowed, so `reddit` will match `www.reddit.com`.
@@ -160,7 +150,6 @@ export const config: Config = {
   ),
   logLevel: getEnvWithDefault("LOG_LEVEL", "info"),
   checkKeys: getEnvWithDefault("CHECK_KEYS", !isDev),
-  quotaDisplayMode: getEnvWithDefault("QUOTA_DISPLAY_MODE", "full"),
   promptLogging: getEnvWithDefault("PROMPT_LOGGING", false),
   promptLoggingBackend: getEnvWithDefault("PROMPT_LOGGING_BACKEND", undefined),
   googleSheetsKey: getEnvWithDefault("GOOGLE_SHEETS_KEY", undefined),
@@ -278,7 +267,6 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "proxyKey",
   "adminKey",
   "checkKeys",
-  "quotaDisplayMode",
   "googleSheetsKey",
   "firebaseKey",
   "firebaseRtdbUrl",
