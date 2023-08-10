@@ -15,13 +15,10 @@ adminRouter.use(
 adminRouter.use(cookieParser());
 adminRouter.use(injectCsrfToken);
 
-adminRouter.use("/", checkCsrfToken, loginRouter);
 adminRouter.use("/users", authorize({ via: "header" }), apiRouter);
-adminRouter.use(
-  "/manage",
-  authorize({ via: "cookie" }),
-  checkCsrfToken,
-  uiRouter
-);
+
+adminRouter.use(checkCsrfToken); // All UI routes require CSRF token
+adminRouter.use("/", loginRouter);
+adminRouter.use("/manage", authorize({ via: "cookie" }), uiRouter);
 
 export { adminRouter };
