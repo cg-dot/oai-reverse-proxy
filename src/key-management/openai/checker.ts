@@ -13,36 +13,34 @@ const KEY_CHECK_PERIOD = 60 * 60 * 1000; // 1 hour
 
 const POST_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
 const GET_MODELS_URL = "https://api.openai.com/v1/models";
-const GET_SUBSCRIPTION_URL =
-  "https://api.openai.com/dashboard/billing/subscription";
+const GET_ORGANIZATIONS_URL = "https://api.openai.com/v1/organizations";
 
 type GetModelsResponse = {
   data: [{ id: string }];
 };
 
-type GetSubscriptionResponse = {
-  plan: { title: string };
-  has_payment_method: boolean;
-  soft_limit_usd: number;
-  hard_limit_usd: number;
-  system_hard_limit_usd: number;
+type GetOrganizationsResponse = {
+  data: [{ id: string; is_default: boolean }];
 };
 
 type OpenAIError = {
   error: { type: string; code: string; param: unknown; message: string };
 };
 
+type CloneFn = typeof OpenAIKeyProvider.prototype.clone;
 type UpdateFn = typeof OpenAIKeyProvider.prototype.update;
 
 export class OpenAIKeyChecker {
   private readonly keys: OpenAIKey[];
   private log = logger.child({ module: "key-checker", service: "openai" });
   private timeout?: NodeJS.Timeout;
+  private cloneKey: CloneFn;
   private updateKey: UpdateFn;
   private lastCheck = 0;
 
-  constructor(keys: OpenAIKey[], updateKey: UpdateFn) {
+  constructor(keys: OpenAIKey[], cloneFn: CloneFn, updateKey: UpdateFn) {
     this.keys = keys;
+    this.cloneKey = cloneFn;
     this.updateKey = updateKey;
   }
 
@@ -131,17 +129,13 @@ export class OpenAIKeyChecker {
     try {
       // We only need to check for provisioned models on the initial check.
       if (isInitialCheck) {
-        const [/* subscription,*/ provisionedModels, livenessTest] =
-          await Promise.all([
-            // this.getSubscription(key),
-            this.getProvisionedModels(key),
-            this.testLiveness(key),
-          ]);
+        const [provisionedModels, livenessTest] = await Promise.all([
+          this.getProvisionedModels(key),
+          this.testLiveness(key),
+          this.maybeCreateOrganizationClones(key),
+        ]);
         const updates = {
           isGpt4: provisionedModels.gpt4,
-          // softLimit: subscription.soft_limit_usd,
-          // hardLimit: subscription.hard_limit_usd,
-          // systemHardLimit: subscription.system_hard_limit_usd,
           isTrial: livenessTest.rateLimit <= 250,
           softLimit: 0,
           hardLimit: 0,
@@ -150,18 +144,8 @@ export class OpenAIKeyChecker {
         this.updateKey(key.hash, updates);
       } else {
         // Provisioned models don't change, so we don't need to check them again
-        const [/* subscription, */ _livenessTest] = await Promise.all([
-          // this.getSubscription(key),
-          this.testLiveness(key),
-        ]);
-        const updates = {
-          // softLimit: subscription.soft_limit_usd,
-          // hardLimit: subscription.hard_limit_usd,
-          // systemHardLimit: subscription.system_hard_limit_usd,
-          softLimit: 0,
-          hardLimit: 0,
-          systemHardLimit: 0,
-        };
+        const [_livenessTest] = await Promise.all([this.testLiveness(key)]);
+        const updates = { softLimit: 0, hardLimit: 0, systemHardLimit: 0 };
         this.updateKey(key.hash, updates);
       }
       this.log.info({ key: key.hash }, "Key check complete.");
@@ -182,7 +166,7 @@ export class OpenAIKeyChecker {
   private async getProvisionedModels(
     key: OpenAIKey
   ): Promise<{ turbo: boolean; gpt4: boolean }> {
-    const opts = { headers: { Authorization: `Bearer ${key.key}` } };
+    const opts = { headers: OpenAIKeyChecker.getHeaders(key) };
     const { data } = await axios.get<GetModelsResponse>(GET_MODELS_URL, opts);
     const models = data.data;
     const turbo = models.some(({ id }) => id.startsWith("gpt-3.5"));
@@ -200,18 +184,27 @@ export class OpenAIKeyChecker {
     return { turbo, gpt4 };
   }
 
-  private async getSubscription(key: OpenAIKey) {
-    const { data } = await axios.get<GetSubscriptionResponse>(
-      GET_SUBSCRIPTION_URL,
-      { headers: { Authorization: `Bearer ${key.key}` } }
+  private async maybeCreateOrganizationClones(key: OpenAIKey) {
+    if (key.organizationId) return; // already cloned
+    const opts = { headers: { Authorization: `Bearer ${key.key}` } };
+    const { data } = await axios.get<GetOrganizationsResponse>(
+      GET_ORGANIZATIONS_URL,
+      opts
     );
-    // See note above about updating the key's `lastChecked` timestamp.
-    const keyFromPool = this.keys.find((k) => k.hash === key.hash)!;
-    this.updateKey(key.hash, {
-      isTrial: !data.has_payment_method,
-      lastChecked: keyFromPool.lastChecked,
-    });
-    return data;
+    const organizations = data.data;
+    if (organizations.length <= 1) return undefined;
+
+    this.log.info(
+      { parent: key.hash, organizations: organizations.map((org) => org.id) },
+      "Key is associated with multiple organizations; cloning key for each organization."
+    );
+
+    const defaultOrg = organizations.find(({ is_default }) => is_default);
+    const ids = organizations
+      .filter(({ is_default }) => !is_default)
+      .map(({ id }) => id);
+    this.updateKey(key.hash, { organizationId: defaultOrg?.id });
+    this.cloneKey(key.hash, ids);
   }
 
   private handleAxiosError(key: OpenAIKey, error: AxiosError) {
@@ -318,7 +311,7 @@ export class OpenAIKeyChecker {
       POST_CHAT_COMPLETIONS_URL,
       payload,
       {
-        headers: { Authorization: `Bearer ${key.key}` },
+        headers: OpenAIKeyChecker.getHeaders(key),
         validateStatus: (status) => status === 400,
       }
     );
@@ -340,5 +333,13 @@ export class OpenAIKeyChecker {
   ): error is AxiosError<OpenAIError> {
     const data = error.response?.data as any;
     return data?.error?.type;
+  }
+
+  static getHeaders(key: OpenAIKey) {
+    const headers = {
+      Authorization: `Bearer ${key.key}`,
+      ...(key.organizationId && { "OpenAI-Organization": key.organizationId }),
+    };
+    return headers;
   }
 }

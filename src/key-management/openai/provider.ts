@@ -18,6 +18,12 @@ export const OPENAI_SUPPORTED_MODELS: readonly OpenAIModel[] = [
 
 export interface OpenAIKey extends Key {
   readonly service: "openai";
+  /**
+   * Some keys are assigned to multiple organizations, each with their own quota
+   * limits. We clone the key for each organization and track usage/disabled
+   * status separately.
+   */
+  organizationId?: string;
   /** Set when key check returns a 401. */
   isRevoked: boolean;
   /** Set when key check returns a non-transient 429. */
@@ -107,7 +113,9 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
 
   public init() {
     if (config.checkKeys) {
-      this.checker = new OpenAIKeyChecker(this.keys, this.update.bind(this));
+      const cloneFn = this.clone.bind(this);
+      const updateFn = this.update.bind(this);
+      this.checker = new OpenAIKeyChecker(this.keys, cloneFn, updateFn);
       this.checker.start();
     }
   }
@@ -189,6 +197,29 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     const keyFromPool = this.keys.find((k) => k.hash === keyHash)!;
     Object.assign(keyFromPool, { lastChecked: Date.now(), ...update });
     // this.writeKeyStatus();
+  }
+
+  /** Called by the key checker to create clones of keys for the given orgs. */
+  public clone(keyHash: string, newOrgIds: string[]) {
+    const keyFromPool = this.keys.find((k) => k.hash === keyHash)!;
+    const clones = newOrgIds.map((orgId) => {
+      const clone: OpenAIKey = {
+        ...keyFromPool,
+        organizationId: orgId,
+        hash: `oai-${crypto
+          .createHash("sha256")
+          .update(keyFromPool.key + orgId)
+          .digest("hex")
+          .slice(0, 8)}`,
+        lastChecked: 0, // Force re-check in case the org has different models
+      };
+      this.log.info(
+        { cloneHash: clone.hash, parentHash: keyFromPool.hash, orgId },
+        "Cloned organization key"
+      );
+      return clone;
+    });
+    this.keys.push(...clones);
   }
 
   /** Disables a key, or does nothing if the key isn't in this pool. */

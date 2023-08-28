@@ -1,4 +1,4 @@
-import { Key, keyPool } from "../../../key-management";
+import { Key, OpenAIKey, keyPool } from "../../../key-management";
 import { isCompletionRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
 
@@ -57,9 +57,16 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
     "Assigned key to request"
   );
 
+  // TODO: KeyProvider should assemble all necessary headers
   if (assignedKey.service === "anthropic") {
     proxyReq.setHeader("X-API-Key", assignedKey.key);
-  } else {
+  } else if (assignedKey.service === "openai") {
+    const key: OpenAIKey = assignedKey as OpenAIKey;
+    if (key.organizationId) {
+      proxyReq.setHeader("OpenAI-Organization", key.organizationId);
+    }
     proxyReq.setHeader("Authorization", `Bearer ${assignedKey.key}`);
+  } else {
+    throw new Error(`Unknown service '${assignedKey.service}'`);
   }
 };
