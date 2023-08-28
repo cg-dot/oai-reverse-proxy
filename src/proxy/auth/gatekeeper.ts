@@ -1,6 +1,6 @@
 import type { Request, RequestHandler } from "express";
 import { config } from "../../config";
-import { authenticate, getUser, hasAvailableQuota } from "./user-store";
+import { authenticate, getUser } from "./user-store";
 
 const GATEKEEPER = config.gatekeeper;
 const PROXY_KEY = config.proxyKey;
