@@ -5,13 +5,41 @@
  * distinguished.
  * Contributors: @kwaroran
  */
-
-import axios from "axios";
+import crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
+import { logger } from "../../logger";
 
-const RISUAI_TOKEN_CHECKER_URL = "https://sv.risuai.xyz/public/api/checktoken";
-const validRisuTokens = new Set<string>();
-let lastFailedRisuTokenCheck = 0;
+const log = logger.child({ module: "check-risu-token" });
+
+const RISUAI_PUBLIC_KEY = `
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArEXBmHQfy/YdNIu9lfNC
+xHbVwb2aYx07pBEmqQJtvVEOISj80fASxg+cMJH+/0a/Z4gQgzUJl0HszRpMXAfu
+wmRoetedyC/6CLraHke0Qad/AEHAKwG9A+NwsHRv/cDfP8euAr20cnOyVa79bZsl
+1wlHYQQGo+ve+P/FXtjLGJ/KZYr479F5jkIRKZxPE8mRmkhAVS/u+18QM94BzfoI
+0LlbwvvCHe18QSX6viDK+HsqhhyYDh+0FgGNJw6xKYLdExbQt77FSukH7NaJmVAs
+kYuIJbnAGw5Oq0L6dXFW2DFwlcLz51kPVOmDc159FsQjyuPnta7NiZAANS8KM1CJ
+pwIDAQAB`;
+let IMPORTED_RISU_KEY: CryptoKey | null = null;
+
+type RisuToken = { id: Uint8Array; expiresIn: number };
+type SignedToken = { data: RisuToken; sig: string };
+
+(async () => {
+  try {
+    log.debug("Importing Risu public key");
+    IMPORTED_RISU_KEY = await crypto.subtle.importKey(
+      "spki",
+      Buffer.from(RISUAI_PUBLIC_KEY.replace(/\s/g, ""), "base64"),
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      true,
+      ["verify"]
+    );
+    log.debug("Imported Risu public key");
+  } catch (err) {
+    log.warn({ error: err.message }, "Error importing Risu public key");
+    IMPORTED_RISU_KEY = null;
+  }
+})();
 
 export async function checkRisuToken(
   req: Request,
@@ -19,46 +47,55 @@ export async function checkRisuToken(
   next: NextFunction
 ) {
   let header = req.header("x-risu-tk") || null;
-  if (!header) {
-    return next();
-  }
-
-  const timeSinceLastFailedCheck = Date.now() - lastFailedRisuTokenCheck;
-  if (timeSinceLastFailedCheck < 60 * 1000) {
-    req.log.warn(
-      { timeSinceLastFailedCheck },
-      "Skipping RisuAI token check due to recent failed check"
-    );
+  if (!header || !IMPORTED_RISU_KEY) {
     return next();
   }
 
   try {
-    if (!validRisuTokens.has(header)) {
-      req.log.info("Authenticating new RisuAI token");
-      const validCheck = await axios.post<{ vaild: boolean }>(
-        RISUAI_TOKEN_CHECKER_URL,
-        { token: header },
-        { headers: { "Content-Type": "application/json" } }
-      );
+    const { valid, data } = await validCheck(header);
 
-      if (!validCheck.data.vaild) {
-        req.log.warn("Invalid RisuAI token; using IP instead");
-      } else {
-        req.log.info("RisuAI token authenticated");
-        validRisuTokens.add(header);
-        req.risuToken = header;
-      }
+    if (!valid) {
+      req.log.warn(
+        { token: header, data },
+        "Invalid RisuAI token; using IP instead"
+      );
     } else {
-      req.log.debug("RisuAI token already known");
+      req.log.info("RisuAI token validated");
       req.risuToken = header;
     }
   } catch (err) {
-    lastFailedRisuTokenCheck = Date.now();
     req.log.warn(
       { error: err.message },
-      "Error authenticating RisuAI token; using IP instead"
+      "Error validating RisuAI token; using IP instead"
     );
   }
 
   next();
+}
+
+async function validCheck(header: string) {
+  let tk: SignedToken;
+  try {
+    tk = JSON.parse(
+      Buffer.from(decodeURIComponent(header), "base64").toString("utf-8")
+    );
+  } catch (err) {
+    log.warn({ error: err.message }, "Provided unparseable RisuAI token");
+    return { valid: false, data: "[unparseable]" };
+  }
+  const data: RisuToken = tk.data;
+  const sig = Buffer.from(tk.sig, "base64");
+
+  if (data.expiresIn < Math.floor(Date.now() / 1000)) {
+    return { valid: false };
+  }
+
+  const valid = await crypto.subtle.verify(
+    { name: "RSASSA-PKCS1-v1_5" },
+    IMPORTED_RISU_KEY!,
+    sig,
+    Buffer.from(JSON.stringify(data))
+  );
+
+  return { valid, data };
 }
