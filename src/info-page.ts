@@ -36,7 +36,7 @@ function cacheInfoPageHtml(baseUrl: string) {
   const anthropicKeys = keys.filter((k) => k.service === "anthropic").length;
 
   const info = {
-    uptime: process.uptime(),
+    uptime: Math.floor(process.uptime()),
     endpoints: {
       ...(openaiKeys ? { openai: baseUrl + "/proxy/openai" } : {}),
       ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),

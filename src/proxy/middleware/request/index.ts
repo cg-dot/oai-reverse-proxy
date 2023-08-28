@@ -3,6 +3,7 @@ import type { ClientRequest } from "http";
 import type { ProxyReqCallback } from "http-proxy";
 
 // Express middleware (runs before http-proxy-middleware, can be async)
+export { applyQuotaLimits } from "./apply-quota-limits";
 export { createPreprocessorMiddleware } from "./preprocess";
 export { checkContextSize } from "./check-context-size";
 export { setApiFormat } from "./set-api-format";

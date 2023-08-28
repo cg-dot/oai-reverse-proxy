@@ -1,17 +1,17 @@
 <%- include("../_partials/admin-header", { title: "Users - OAI Reverse Proxy Admin" }) %>
     <h1>User Token List</h1>
     
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-    
+    <!-- <input type="hidden" name="_csrf" value="<%= csrfToken %>" /> -->    
     <% if (users.length === 0) { %>
     <p>No users found.</p>
     <% } else { %>
     <table>
       <thead>
         <tr>
-          <th>Token</th>
+          <th>User Token</th>
           <th <% if (sort.includes("ip")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=ip">IPs</a></th>
           <th <% if (sort.includes("promptCount")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=promptCount">Prompts</a></th>
+          <th <% if (sort.includes("sumTokenCounts")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=sumTokenCounts">Tokens</a></th>
           <th>Type</th>
           <th <% if (sort.includes("createdAt")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=createdAt">Created (UTC)</a></th>
           <th <% if (sort.includes("lastUsedAt")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=lastUsedAt">Last Used (UTC)</a></th>
@@ -26,6 +26,7 @@
           </td>
           <td><%= user.ip.length %></td>
           <td><%= user.promptCount %></td>
+          <td><%= user.sumTokenCounts %></td>
           <td><%= user.type %></td>
           <td><%= user.createdAt %></td>
           <td><%= user.lastUsedAt ?? "never" %></td>
@@ -40,6 +41,13 @@
         </tr>
         <% }); %>
     </table>
+    
+    <% if (quotasEnabled) { %>
+      <form action="/admin/manage/refresh-all-quotas" method="POST">
+        <input type="hidden" name="_csrf" value="<%- csrfToken %>" />
+        <button type="submit" class="btn btn-primary">Refresh All Quotas</button>
+      </form>
+    <% } %>
 
     <ul class="pagination">
       <% if (page > 1) { %>

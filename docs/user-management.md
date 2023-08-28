@@ -11,6 +11,7 @@ Several of these features require you to set secrets in your environment.  If us
   - [Memory](#memory)
   - [Firebase Realtime Database](#firebase-realtime-database)
     - [Firebase setup instructions](#firebase-setup-instructions)
+- [User quotas](#user-quotas)
 
 ## No user management (`GATEKEEPER=none`)
 
@@ -59,3 +60,5 @@ To use Firebase Realtime Database to persist user data, set the following enviro
 8. Set `GATEKEEPER_STORE` to `firebase_rtdb` in your environment if you haven't already.
 
 The proxy server will attempt to connect to your Firebase Realtime Database at startup and will throw an error if it cannot connect.  If you see this error, check that your `FIREBASE_RTDB_URL` and `FIREBASE_KEY` secrets are set correctly.
+
+# User quotas

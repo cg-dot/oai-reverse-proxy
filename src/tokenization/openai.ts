@@ -15,7 +15,14 @@ export function init() {
 // Tested against:
 // https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
 
-export function getTokenCount(messages: any[], model: string) {
+export function getTokenCount(
+  prompt: string | OpenAIPromptMessage[],
+  model: string
+) {
+  if (typeof prompt === "string") {
+    return getTextTokenCount(prompt);
+  }
+
   const gpt4 = model.startsWith("gpt-4");
 
   const tokensPerMessage = gpt4 ? 3 : 4;
@@ -23,11 +30,12 @@ export function getTokenCount(messages: any[], model: string) {
 
   let numTokens = 0;
 
-  for (const message of messages) {
+  for (const message of prompt) {
     numTokens += tokensPerMessage;
     for (const key of Object.keys(message)) {
       {
-        const value = message[key];
+        const value = message[key as keyof OpenAIPromptMessage];
+        if (!value || typeof value !== "string") continue;
         // Break if we get a huge message or exceed the token limit to prevent
         // DoS.
         // 100k tokens allows for future 100k GPT-4 models and 500k characters
@@ -40,7 +48,7 @@ export function getTokenCount(messages: any[], model: string) {
           };
         }
 
-        numTokens += encoder.encode(message[key]).length;
+        numTokens += encoder.encode(value).length;
         if (key === "name") {
           numTokens += tokensPerName;
         }
@@ -49,6 +57,20 @@ export function getTokenCount(messages: any[], model: string) {
   }
   numTokens += 3; // every reply is primed with <|start|>assistant<|message|>
   return { tokenizer: "tiktoken", token_count: numTokens };
+}
+
+function getTextTokenCount(prompt: string) {
+  if (prompt.length > 500000) {
+    return {
+      tokenizer: "length fallback",
+      token_count: 100000,
+    };
+  }
+
+  return {
+    tokenizer: "tiktoken",
+    token_count: encoder.encode(prompt).length,
+  };
 }
 
 export type OpenAIPromptMessage = {

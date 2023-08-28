@@ -1,10 +1,8 @@
 import { Request } from "express";
 import { config } from "../../../config";
-import { AIService } from "../../../key-management";
 import { logQueue } from "../../../prompt-logging";
-import { isCompletionRequest } from "../common";
+import { getCompletionForService, isCompletionRequest } from "../common";
 import { ProxyResHandlerWithBody } from ".";
-import { logger } from "../../../logger";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */
 export const logPrompt: ProxyResHandlerWithBody = async (
@@ -26,7 +24,7 @@ export const logPrompt: ProxyResHandlerWithBody = async (
 
   const promptPayload = getPromptForRequest(req);
   const promptFlattened = flattenMessages(promptPayload);
-  const response = getResponseForService({
+  const response = getCompletionForService({
     service: req.outboundApi,
     body: responseBody,
   });
@@ -61,18 +59,4 @@ const flattenMessages = (messages: string | OaiMessage[]): string => {
     return messages.trim();
   }
   return messages.map((m) => `${m.role}: ${m.content}`).join("\n");
-};
-
-const getResponseForService = ({
-  service,
-  body,
-}: {
-  service: AIService;
-  body: Record<string, any>;
-}): { completion: string; model: string } => {
-  if (service === "anthropic") {
-    return { completion: body.completion.trim(), model: body.model };
-  } else {
-    return { completion: body.choices[0].message.content, model: body.model };
-  }
 };

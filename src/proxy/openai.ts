@@ -9,6 +9,7 @@ import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
 import {
   addKey,
+  applyQuotaLimits,
   blockZoomerOrigins,
   createPreprocessorMiddleware,
   finalizeBody,
@@ -90,6 +91,7 @@ const rewriteRequest = (
   res: http.ServerResponse
 ) => {
   const rewriterPipeline = [
+    applyQuotaLimits,
     addKey,
     languageFilter,
     limitCompletions,

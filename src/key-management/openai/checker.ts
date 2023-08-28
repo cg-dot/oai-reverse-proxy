@@ -164,10 +164,7 @@ export class OpenAIKeyChecker {
         };
         this.updateKey(key.hash, updates);
       }
-      this.log.info(
-        { key: key.hash, hardLimit: key.hardLimit },
-        "Key check complete."
-      );
+      this.log.info({ key: key.hash }, "Key check complete.");
     } catch (error) {
       // touch the key so we don't check it again for a while
       this.updateKey(key.hash, {});
@@ -308,7 +305,7 @@ export class OpenAIKeyChecker {
    * is actually not valid, but keys which are revoked or out of quota will fail
    * with a 401 or 429 error instead of the expected 400 Bad Request error.
    * This lets us avoid test keys without spending any quota.
-   * 
+   *
    * We use the rate limit header to determine whether it's a trial key.
    */
   private async testLiveness(key: OpenAIKey): Promise<{ rateLimit: number }> {

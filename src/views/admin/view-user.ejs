@@ -7,10 +7,14 @@
       <th scope="col">Key</th>
       <th scope="col">Value</th>
     </tr>
+  </thead>
+
   <tbody>
     <tr>
       <th scope="row">Token</th>
       <td><%- user.token %></td>
+    </tr>
+
     <tr>
       <th scope="row">Type</th>
       <td><%- user.type %></td>
@@ -20,8 +24,24 @@
       <td><%- user.promptCount %></td>
     </tr>
     <tr>
-      <th scope="row">Token Count</th>
-      <td><%- user.tokenCount %></td>
+      <th scope="row">Token Counts</th>
+      <td>
+        <ul style="padding-left: 1em; margin: 0">
+          <% Object.entries(user.tokenCounts).forEach(([key, count]) => { %>
+          <li><strong><%- key %></strong>: <%- count %></li>
+          <% }) %>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <th scope="row">Token Limits</th>
+      <td>
+        <ul style="padding-left: 1em; margin: 0">
+          <% Object.entries(user.tokenLimits).forEach(([key, count]) => { %>
+          <li><strong><%- key %></strong>: <%- count %></li>
+          <% }) %>
+        </ul>
+      </td>
     </tr>
     <tr>
       <th scope="row">Created At</th>
@@ -37,21 +57,29 @@
     </tr>
     <tr>
       <th scope="row">Disabled Reason</th>
-      <td><%- user.disabledReason %></td>  
+      <td><%- user.disabledReason %></td>
     </tr>
     <tr>
       <th scope="row">IPs</th>
       <td>
         <a href="#" id="ip-list-toggle">Show all (<%- user.ip.length %>)</a>
-        <ol id="ip-list" style="display:none; padding-left:1em; margin: 0;">
+        <ol id="ip-list" style="display: none; padding-left: 1em; margin: 0">
           <% user.ip.forEach((ip) => { %>
-            <li><code><%- ip %></code></li>
+          <li><code><%- ip %></code></li>
           <% }) %>
-          </ol>
+        </ol>
       </td>
     </tr>
   </tbody>
 </table>
+
+<% if (quotasEnabled) { %>
+<form action="/admin/manage/refresh-user-quota" method="POST">
+  <input type="hidden" name="token" value="<%- user.token %>" />
+  <input type="hidden" name="_csrf" value="<%- csrfToken %>" />
+  <button type="submit" class="btn btn-primary">Refresh Quotas for User</button>
+</form>
+<% } %>
 
 <script>
   document.getElementById("ip-list-toggle").addEventListener("click", (e) => {
@@ -60,5 +88,5 @@
     document.getElementById("ip-list-toggle").style.display = "none";
   });
 </script>
-  
+
 <%- include("../_partials/admin-footer") %>

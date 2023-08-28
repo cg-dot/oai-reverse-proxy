@@ -24,27 +24,28 @@ type TokenCountResult = {
   tokenizer: string;
   tokenization_duration_ms: number;
 };
-type TokenCountRequest = {
-  req: Request;
-} & (
-  | { prompt: string; service: "anthropic" }
-  | { prompt: OpenAIPromptMessage[]; service: "openai" }
+type TokenCountRequest = { req: Request } & (
+  | { prompt: OpenAIPromptMessage[]; completion?: never; service: "openai" }
+  | { prompt: string; completion?: never; service: "anthropic" }
+  | { prompt?: never; completion: string; service: "openai" }
+  | { prompt?: never; completion: string; service: "anthropic" }
 );
 export async function countTokens({
   req,
   service,
   prompt,
+  completion,
 }: TokenCountRequest): Promise<TokenCountResult> {
   const time = process.hrtime();
   switch (service) {
     case "anthropic":
       return {
-        ...getClaudeTokenCount(prompt, req.body.model),
+        ...getClaudeTokenCount(prompt ?? completion, req.body.model),
         tokenization_duration_ms: getElapsedMs(time),
       };
     case "openai":
       return {
-        ...getOpenAITokenCount(prompt, req.body.model),
+        ...getOpenAITokenCount(prompt ?? completion, req.body.model),
         tokenization_duration_ms: getElapsedMs(time),
       };
     default:

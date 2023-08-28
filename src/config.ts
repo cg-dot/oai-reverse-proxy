@@ -117,6 +117,30 @@ type Config = {
    * prevent excessive spend.  Applies only to OpenAI.
    */
   turboOnly?: boolean;
+  /**
+   * The number of (LLM) tokens a user can consume before requests are rejected.
+   * Limits include both prompt and response tokens. `special` users are exempt.
+   * Defaults to 0, which means no limit.
+   *
+   * Note: Changes are not automatically applied to existing users. Use the
+   * admin API or UI to update existing users, or use the QUOTA_REFRESH_PERIOD
+   * setting to periodically set all users' quotas to these values.
+   */
+  tokenQuota: {
+    /** Token allowance for GPT-3.5 Turbo models. */
+    turbo: number;
+    /** Token allowance for GPT-4 models. */
+    gpt4: number;
+    /** Token allowance for Claude models. */
+    claude: number;
+  };
+  /**
+   * The period over which to enforce token quotas. Quotas will be fully reset
+   * at the start of each period, server time. Unused quota does not roll over.
+   * You can also provide a cron expression for a custom schedule.
+   * Defaults to no automatic quota refresh.
+   */
+  quotaRefreshPeriod?: "hourly" | "daily" | string;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -138,9 +162,12 @@ export const config: Config = {
     "MAX_CONTEXT_TOKENS_ANTHROPIC",
     0
   ),
-  maxOutputTokensOpenAI: getEnvWithDefault("MAX_OUTPUT_TOKENS_OPENAI", 300),
+  maxOutputTokensOpenAI: getEnvWithDefault(
+    ["MAX_OUTPUT_TOKENS_OPENAI", "MAX_OUTPUT_TOKENS"],
+    300
+  ),
   maxOutputTokensAnthropic: getEnvWithDefault(
-    "MAX_OUTPUT_TOKENS_ANTHROPIC",
+    ["MAX_OUTPUT_TOKENS_ANTHROPIC", "MAX_OUTPUT_TOKENS"],
     400
   ),
   rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
@@ -164,66 +191,39 @@ export const config: Config = {
   ),
   blockRedirect: getEnvWithDefault("BLOCK_REDIRECT", "https://www.9gag.com"),
   turboOnly: getEnvWithDefault("TURBO_ONLY", false),
+  tokenQuota: {
+    turbo: getEnvWithDefault("TOKEN_QUOTA_TURBO", 0),
+    gpt4: getEnvWithDefault("TOKEN_QUOTA_GPT4", 0),
+    claude: getEnvWithDefault("TOKEN_QUOTA_CLAUDE", 0),
+  },
+  quotaRefreshPeriod: getEnvWithDefault("QUOTA_REFRESH_PERIOD", undefined),
 } as const;
 
-function migrateConfigs() {
-  let migrated = false;
-  const deprecatedMax = process.env.MAX_OUTPUT_TOKENS;
-
-  if (!process.env.MAX_OUTPUT_TOKENS_OPENAI && deprecatedMax) {
-    migrated = true;
-    config.maxOutputTokensOpenAI = parseInt(deprecatedMax);
-  }
-  if (!process.env.MAX_OUTPUT_TOKENS_ANTHROPIC && deprecatedMax) {
-    migrated = true;
-    config.maxOutputTokensAnthropic = parseInt(deprecatedMax);
-  }
-
-  if (migrated) {
-    startupLogger.warn(
-      {
-        MAX_OUTPUT_TOKENS: deprecatedMax,
-        MAX_OUTPUT_TOKENS_OPENAI: config.maxOutputTokensOpenAI,
-        MAX_OUTPUT_TOKENS_ANTHROPIC: config.maxOutputTokensAnthropic,
-      },
-      "`MAX_OUTPUT_TOKENS` has been replaced with separate `MAX_OUTPUT_TOKENS_OPENAI` and `MAX_OUTPUT_TOKENS_ANTHROPIC` configs. You should update your .env file to remove `MAX_OUTPUT_TOKENS` and set the new configs."
-    );
-  }
-}
-
-/** Prevents the server from starting if config state is invalid. */
 export async function assertConfigIsValid() {
-  migrateConfigs();
-
-  // Ensure gatekeeper mode is valid.
   if (!["none", "proxy_key", "user_token"].includes(config.gatekeeper)) {
     throw new Error(
       `Invalid gatekeeper mode: ${config.gatekeeper}. Must be one of: none, proxy_key, user_token.`
     );
   }
 
-  // Don't allow `user_token` mode without `ADMIN_KEY`.
   if (config.gatekeeper === "user_token" && !config.adminKey) {
     throw new Error(
       "`user_token` gatekeeper mode requires an `ADMIN_KEY` to be set."
     );
   }
 
-  // Don't allow `proxy_key` mode without `PROXY_KEY`.
   if (config.gatekeeper === "proxy_key" && !config.proxyKey) {
     throw new Error(
       "`proxy_key` gatekeeper mode requires a `PROXY_KEY` to be set."
     );
   }
 
-  // Don't allow `PROXY_KEY` to be set for other modes.
   if (config.gatekeeper !== "proxy_key" && config.proxyKey) {
     throw new Error(
       "`PROXY_KEY` is set, but gatekeeper mode is not `proxy_key`. Make sure to set `GATEKEEPER=proxy_key`."
     );
   }
 
-  // Require appropriate firebase config if using firebase store.
   if (
     config.gatekeeperStore === "firebase_rtdb" &&
     (!config.firebaseKey || !config.firebaseRtdbUrl)
@@ -279,10 +279,10 @@ export const OMITTED_KEYS: (keyof Config)[] = [
 
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;
 
-export function listConfig(): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const key of getKeys(config)) {
-    const value = config[key]?.toString() || "";
+export function listConfig(obj: Config = config): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const key of getKeys(obj)) {
+    const value = obj[key]?.toString() || "";
 
     const shouldOmit =
       OMITTED_KEYS.includes(key) || value === "" || value === "undefined";
@@ -297,17 +297,27 @@ export function listConfig(): Record<string, string> {
     } else {
       result[key] = value;
     }
+
+    if (typeof obj[key] === "object") {
+      result[key] = listConfig(obj[key] as unknown as Config);
+    }
   }
   return result;
 }
 
-function getEnvWithDefault<T>(name: string, defaultValue: T): T {
-  const value = process.env[name];
+/**
+ * Tries to get a config value from one or more environment variables (in
+ * order), falling back to a default value if none are set.
+ */
+function getEnvWithDefault<T>(env: string | string[], defaultValue: T): T {
+  const value = Array.isArray(env)
+    ? env.map((e) => process.env[e]).find((v) => v !== undefined)
+    : process.env[env];
   if (value === undefined) {
     return defaultValue;
   }
   try {
-    if (name === "OPENAI_KEY" || name === "ANTHROPIC_KEY") {
+    if (env === "OPENAI_KEY" || env === "ANTHROPIC_KEY") {
       return value as unknown as T;
     }
     return JSON.parse(value) as T;
