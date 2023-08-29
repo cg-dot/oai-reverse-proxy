@@ -4,6 +4,7 @@ import {
   AnthropicModel,
 } from "./anthropic/provider";
 import { KeyPool } from "./key-pool";
+import type { ModelFamily } from "./models";
 
 export type AIService = "openai" | "anthropic";
 export type Model = OpenAIModel | AnthropicModel;
@@ -15,8 +16,8 @@ export interface Key {
   service: AIService;
   /** Whether this is a free trial key. These are prioritized over paid keys if they can fulfill the request. */
   isTrial: boolean;
-  /** Whether this key has been provisioned for GPT-4. */
-  isGpt4: boolean;
+  /** The model families that this key has access to. */
+  modelFamilies: ModelFamily[];
   /** Whether this key is currently disabled, meaning its quota has been exceeded or it has been revoked. */
   isDisabled: boolean;
   /** The number of prompts that have been sent with this key. */
@@ -65,3 +66,9 @@ export type SupportedModel = (typeof SUPPORTED_MODELS)[number];
 export { OPENAI_SUPPORTED_MODELS, ANTHROPIC_SUPPORTED_MODELS };
 export { AnthropicKey } from "./anthropic/provider";
 export { OpenAIKey } from "./openai/provider";
+export type {
+  OpenAIModelFamily,
+  AnthropicModelFamily,
+  ModelFamily,
+} from "./models";
+export { getOpenAIModelFamily, getClaudeModelFamily } from "./models";

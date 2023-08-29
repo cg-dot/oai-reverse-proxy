@@ -9,8 +9,9 @@ import { KeyProvider, Key, Model } from "../index";
 import { config } from "../../config";
 import { logger } from "../../logger";
 import { OpenAIKeyChecker } from "./checker";
+import { OpenAIModelFamily, getOpenAIModelFamily } from "../models";
 
-export type OpenAIModel = "gpt-3.5-turbo" | "gpt-4";
+export type OpenAIModel = "gpt-3.5-turbo" | "gpt-4" | "gpt-4-32k";
 export const OPENAI_SUPPORTED_MODELS: readonly OpenAIModel[] = [
   "gpt-3.5-turbo",
   "gpt-4",
@@ -18,6 +19,7 @@ export const OPENAI_SUPPORTED_MODELS: readonly OpenAIModel[] = [
 
 export interface OpenAIKey extends Key {
   readonly service: "openai";
+  modelFamilies: OpenAIModelFamily[];
   /**
    * Some keys are assigned to multiple organizations, each with their own quota
    * limits. We clone the key for each organization and track usage/disabled
@@ -85,7 +87,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
       const newKey = {
         key: k,
         service: "openai" as const,
-        isGpt4: true,
+        modelFamilies: ["turbo" as const, "gpt4" as const],
         isTrial: false,
         isDisabled: false,
         isRevoked: false,
@@ -134,35 +136,39 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
   }
 
   public get(model: Model) {
-    const needGpt4 = model.startsWith("gpt-4");
+    const neededFamily = getOpenAIModelFamily(model);
     const availableKeys = this.keys.filter(
-      (key) => !key.isDisabled && (!needGpt4 || key.isGpt4)
+      (key) => !key.isDisabled && key.modelFamilies.includes(neededFamily)
     );
+
     if (availableKeys.length === 0) {
-      let message = needGpt4
-        ? "No GPT-4 keys available.  Try selecting a Turbo model."
-        : "No active OpenAI keys available.";
-      throw new Error(message);
+      throw new Error(`No active keys available for ${neededFamily} models.`);
     }
 
-    if (needGpt4 && config.turboOnly) {
+    if (!config.allowedModelFamilies.includes(neededFamily)) {
       throw new Error(
-        "Proxy operator has disabled GPT-4 to reduce quota usage.  Try selecting a Turbo model."
+        `Proxy operator has disabled access to ${neededFamily} models.`
       );
     }
 
     // Select a key, from highest priority to lowest priority:
     // 1. Keys which are not rate limited
-    //    a. We ignore rate limits from over a minute ago
+    //    a. We ignore rate limits from >30 seconds ago
     //    b. If all keys were rate limited in the last minute, select the
     //       least recently rate limited key
     // 2. Keys which are trials
-    // 3. Keys which have not been used in the longest time
+    // 3. Keys which do *not* have access to GPT-4-32k
+    // 4. Keys which have not been used in the longest time
 
     const now = Date.now();
-    const rateLimitThreshold = 60 * 1000;
+    const rateLimitThreshold = 30 * 1000;
 
     const keysByPriority = availableKeys.sort((a, b) => {
+      // TODO: this isn't quite right; keys are briefly artificially rate-
+      // limited when they are selected, so this will deprioritize keys that
+      // may not actually be limited, simply because they were used recently.
+      // This should be adjusted to use a new `rateLimitedUntil` field instead
+      // of `rateLimitedAt`.
       const aRateLimited = now - a.rateLimitedAt < rateLimitThreshold;
       const bRateLimited = now - b.rateLimitedAt < rateLimitThreshold;
 
@@ -171,12 +177,31 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
       if (aRateLimited && bRateLimited) {
         return a.rateLimitedAt - b.rateLimitedAt;
       }
+      // Neither key is rate limited, continue
 
       if (a.isTrial && !b.isTrial) return -1;
       if (!a.isTrial && b.isTrial) return 1;
+      // Neither or both keys are trials, continue
+
+      const aHas32k = a.modelFamilies.includes("gpt4-32k");
+      const bHas32k = b.modelFamilies.includes("gpt4-32k");
+      if (aHas32k && !bHas32k) return 1;
+      if (!aHas32k && bHas32k) return -1;
+      // Neither or both keys have 32k, continue
 
       return a.lastUsed - b.lastUsed;
     });
+
+    // logger.debug(
+    //   {
+    //     byPriority: keysByPriority.map((k) => ({
+    //       hash: k.hash,
+    //       isRateLimited: now - k.rateLimitedAt < rateLimitThreshold,
+    //       modelFamilies: k.modelFamilies,
+    //     })),
+    //   },
+    //   "Keys sorted by priority"
+    // );
 
     const selectedKey = keysByPriority[0];
     selectedKey.lastUsed = now;
@@ -243,9 +268,9 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
    * the request, or returns 0 if a key is ready immediately.
    */
   public getLockoutPeriod(model: Model = "gpt-4"): number {
-    const needGpt4 = model.startsWith("gpt-4");
+    const neededFamily = getOpenAIModelFamily(model);
     const activeKeys = this.keys.filter(
-      (key) => !key.isDisabled && (!needGpt4 || key.isGpt4)
+      (key) => !key.isDisabled && key.modelFamilies.includes(neededFamily)
     );
 
     if (activeKeys.length === 0) {

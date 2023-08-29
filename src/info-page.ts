@@ -2,13 +2,14 @@ import fs from "fs";
 import { Request, Response } from "express";
 import showdown from "showdown";
 import { config, listConfig } from "./config";
-import { OpenAIKey, keyPool } from "./key-management";
-import { getUniqueIps } from "./proxy/rate-limit";
 import {
-  QueuePartition,
-  getEstimatedWaitTime,
-  getQueueLength,
-} from "./proxy/queue";
+  ModelFamily,
+  OpenAIKey,
+  OpenAIModelFamily,
+  keyPool,
+} from "./key-management";
+import { getUniqueIps } from "./proxy/rate-limit";
+import { getEstimatedWaitTime, getQueueLength } from "./proxy/queue";
 
 const INFO_PAGE_TTL = 5000;
 let infoPageHtml: string | undefined;
@@ -78,34 +79,65 @@ function cacheInfoPageHtml(baseUrl: string) {
 type ServiceInfo = {
   activeKeys: number;
   trialKeys?: number;
-  // activeLimit: string;
   revokedKeys?: number;
   overQuotaKeys?: number;
   proomptersInQueue: number;
   estimatedQueueTime: string;
 };
 
-// this has long since outgrown this awful "dump everything in a <pre> tag" approach
-// but I really don't want to spend time on a proper UI for this right now
-
+/**
+ * This may end up doing a very very large number of wasted iterations over
+ * potentially large key lists, don't call it too often.
+ */
 function getOpenAIInfo() {
   const info: { [model: string]: Partial<ServiceInfo> } = {};
-  const keys = keyPool
-    .list()
-    .filter((k) => k.service === "openai") as OpenAIKey[];
-  const hasGpt4 = keys.some((k) => k.isGpt4) && !config.turboOnly;
+  const allowed = new Set(config.allowedModelFamilies);
+  let available = new Set<OpenAIModelFamily>();
+
+  const keys = keyPool.list().filter((k) => {
+    if (k.service === "openai") {
+      k.modelFamilies.forEach((f) => available.add(f as OpenAIModelFamily));
+      return true;
+    }
+    return false;
+  }) as Omit<OpenAIKey, "key">[];
+
+  available = new Set([...available].filter((f) => allowed.has(f)));
 
   if (keyPool.anyUnchecked()) {
     const uncheckedKeys = keys.filter((k) => !k.lastChecked);
     info.status =
-      `Performing startup key checks (${uncheckedKeys.length} left).` as any;
+      `Performing key checks (${uncheckedKeys.length} left).` as any;
   } else {
     delete info.status;
   }
 
   if (config.checkKeys) {
-    const turboKeys = keys.filter((k) => !k.isGpt4);
-    const gpt4Keys = keys.filter((k) => k.isGpt4);
+    const keysByModel = keys.reduce(
+      (acc, k) => {
+        // only put keys in the most important family they belong to.
+        // if a model family is disabled, key will be in the next most
+        // important family.
+        if (k.modelFamilies.includes("gpt4-32k") && allowed.has("gpt4-32k")) {
+          acc["gpt4-32k"].push(k);
+        } else if (k.modelFamilies.includes("gpt4") && allowed.has("gpt4")) {
+          acc["gpt4"].push(k);
+        } else {
+          acc["turbo"].push(k);
+        }
+        return acc;
+      },
+      { turbo: [], gpt4: [], "gpt4-32k": [] } as Record<
+        OpenAIModelFamily,
+        Omit<OpenAIKey, "key">[]
+      >
+    );
+
+    const turboKeys = keysByModel["turbo"];
+    const gpt4Keys = keysByModel["gpt4"];
+    const gpt432kKeys = keysByModel["gpt4-32k"];
+
+    // this is fucked
 
     info.turbo = {
       activeKeys: turboKeys.filter((k) => !k.isDisabled).length,
@@ -114,7 +146,7 @@ function getOpenAIInfo() {
       overQuotaKeys: turboKeys.filter((k) => k.isOverQuota).length,
     };
 
-    if (hasGpt4) {
+    if (available.has("gpt4")) {
       info.gpt4 = {
         activeKeys: gpt4Keys.filter((k) => !k.isDisabled).length,
         trialKeys: gpt4Keys.filter((k) => k.isTrial).length,
@@ -122,11 +154,22 @@ function getOpenAIInfo() {
         overQuotaKeys: gpt4Keys.filter((k) => k.isOverQuota).length,
       };
     }
+
+    if (available.has("gpt4-32k")) {
+      info["gpt4-32k"] = {
+        activeKeys: gpt432kKeys.filter((k) => !k.isDisabled).length,
+        trialKeys: gpt432kKeys.filter((k) => k.isTrial).length,
+        revokedKeys: gpt432kKeys.filter((k) => k.isRevoked).length,
+        overQuotaKeys: gpt432kKeys.filter((k) => k.isOverQuota).length,
+      };
+    }
   } else {
     info.status = "Key checking is disabled." as any;
     info.turbo = { activeKeys: keys.filter((k) => !k.isDisabled).length };
     info.gpt4 = {
-      activeKeys: keys.filter((k) => !k.isDisabled && k.isGpt4).length,
+      activeKeys: keys.filter(
+        (k) => !k.isDisabled && k.modelFamilies.includes("gpt4")
+      ).length,
     };
   }
 
@@ -135,10 +178,16 @@ function getOpenAIInfo() {
   info.turbo.proomptersInQueue = turboQueue.proomptersInQueue;
   info.turbo.estimatedQueueTime = turboQueue.estimatedQueueTime;
 
-  if (hasGpt4) {
-    const gpt4Queue = getQueueInformation("gpt-4");
+  if (available.has("gpt4")) {
+    const gpt4Queue = getQueueInformation("gpt4");
     info.gpt4.proomptersInQueue = gpt4Queue.proomptersInQueue;
     info.gpt4.estimatedQueueTime = gpt4Queue.estimatedQueueTime;
+  }
+
+  if (available.has("gpt4-32k")) {
+    const gpt432kQueue = getQueueInformation("gpt4-32k");
+    info["gpt4-32k"].proomptersInQueue = gpt432kQueue.proomptersInQueue;
+    info["gpt4-32k"].estimatedQueueTime = gpt432kQueue.estimatedQueueTime;
   }
 
   return info;
@@ -180,11 +229,24 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
   infoBody += `\n## Estimated Wait Times\nIf the AI is busy, your prompt will processed when a slot frees up.`;
 
   if (config.openaiKey) {
+    // this is also fucked
+    const keys = keyPool.list().filter((k) => k.service === "openai");
+
     const turboWait = getQueueInformation("turbo").estimatedQueueTime;
-    const gpt4Wait = getQueueInformation("gpt-4").estimatedQueueTime;
     waits.push(`**Turbo:** ${turboWait}`);
-    if (keyPool.list().some((k) => k.isGpt4) && !config.turboOnly) {
+
+    const gpt4Wait = getQueueInformation("gpt4").estimatedQueueTime;
+    const hasGpt4 = keys.some((k) => k.modelFamilies.includes("gpt4"));
+    const allowedGpt4 = config.allowedModelFamilies.includes("gpt4");
+    if (hasGpt4 && allowedGpt4) {
       waits.push(`**GPT-4:** ${gpt4Wait}`);
+    }
+
+    const gpt432kWait = getQueueInformation("gpt4-32k").estimatedQueueTime;
+    const hasGpt432k = keys.some((k) => k.modelFamilies.includes("gpt4-32k"));
+    const allowedGpt432k = config.allowedModelFamilies.includes("gpt4-32k");
+    if (hasGpt432k && allowedGpt432k) {
+      waits.push(`**GPT-4-32k:** ${gpt432kWait}`);
     }
   }
 
@@ -202,7 +264,7 @@ ${customGreeting}`;
 }
 
 /** Returns queue time in seconds, or minutes + seconds if over 60 seconds. */
-function getQueueInformation(partition: QueuePartition) {
+function getQueueInformation(partition: ModelFamily) {
   const waitMs = getEstimatedWaitTime(partition);
   const waitTime =
     waitMs < 60000

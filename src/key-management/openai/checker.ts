@@ -1,6 +1,7 @@
 import axios, { AxiosError } from "axios";
 import { logger } from "../../logger";
 import type { OpenAIKey, OpenAIKeyProvider } from "./provider";
+import type { OpenAIModelFamily } from "../models";
 
 /** Minimum time in between any two key checks. */
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
@@ -136,7 +137,7 @@ export class OpenAIKeyChecker {
           this.maybeCreateOrganizationClones(key),
         ]);
         const updates = {
-          isGpt4: provisionedModels.gpt4,
+          modelFamilies: provisionedModels,
           isTrial: livenessTest.rateLimit <= 250,
           softLimit: 0,
           hardLimit: 0,
@@ -149,7 +150,10 @@ export class OpenAIKeyChecker {
         const updates = { softLimit: 0, hardLimit: 0, systemHardLimit: 0 };
         this.updateKey(key.hash, updates);
       }
-      this.log.info({ key: key.hash }, "Key check complete.");
+      this.log.info(
+        { key: key.hash, models: key.modelFamilies },
+        "Key check complete."
+      );
     } catch (error) {
       // touch the key so we don't check it again for a while
       this.updateKey(key.hash, {});
@@ -166,23 +170,35 @@ export class OpenAIKeyChecker {
 
   private async getProvisionedModels(
     key: OpenAIKey
-  ): Promise<{ turbo: boolean; gpt4: boolean }> {
+  ): Promise<OpenAIModelFamily[]> {
     const opts = { headers: OpenAIKeyChecker.getHeaders(key) };
     const { data } = await axios.get<GetModelsResponse>(GET_MODELS_URL, opts);
     const models = data.data;
-    const turbo = models.some(({ id }) => id.startsWith("gpt-3.5"));
-    const gpt4 = models.some(({ id }) => id.startsWith("gpt-4"));
-    // We want to update the key's `isGpt4` flag here, but we don't want to
+
+    const families: OpenAIModelFamily[] = [];
+    if (models.some(({ id }) => id.startsWith("gpt-3.5-turbo"))) {
+      families.push("turbo");
+    }
+
+    if (models.some(({ id }) => id.startsWith("gpt-4"))) {
+      families.push("gpt4");
+    }
+
+    if (models.some(({ id }) => id.startsWith("gpt-4-32k"))) {
+      families.push("gpt4-32k");
+    }
+
+    // We want to update the key's model families here, but we don't want to
     // update its `lastChecked` timestamp because we need to let the liveness
     // check run before we can consider the key checked.
 
     // Need to use `find` here because keys are cloned from the pool.
     const keyFromPool = this.keys.find((k) => k.hash === key.hash)!;
     this.updateKey(key.hash, {
-      isGpt4: gpt4,
+      modelFamilies: families,
       lastChecked: keyFromPool.lastChecked,
     });
-    return { turbo, gpt4 };
+    return families;
   }
 
   private async maybeCreateOrganizationClones(key: OpenAIKey) {
@@ -219,7 +235,7 @@ export class OpenAIKeyChecker {
         this.updateKey(key.hash, {
           isDisabled: true,
           isRevoked: true,
-          isGpt4: false,
+          modelFamilies: ["turbo"],
         });
       } else if (status === 429) {
         switch (data.error.type) {
@@ -228,7 +244,9 @@ export class OpenAIKeyChecker {
           case "billing_not_active":
             const isOverQuota = data.error.type === "insufficient_quota";
             const isRevoked = !isOverQuota;
-            const isGpt4 = isRevoked ? false : key.isGpt4;
+            const modelFamilies: OpenAIModelFamily[] = isRevoked
+              ? ["turbo"]
+              : key.modelFamilies;
             this.log.warn(
               { key: key.hash, rateLimitType: data.error.type, error: data },
               "Key returned a non-transient 429 error. Disabling key."
@@ -237,7 +255,7 @@ export class OpenAIKeyChecker {
               isDisabled: true,
               isRevoked,
               isOverQuota,
-              isGpt4,
+              modelFamilies,
             });
             break;
           case "requests":

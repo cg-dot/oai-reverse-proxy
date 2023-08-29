@@ -4,7 +4,7 @@ import * as http from "http";
 import util from "util";
 import zlib from "zlib";
 import { logger } from "../../../logger";
-import { keyPool } from "../../../key-management";
+import { getOpenAIModelFamily, keyPool } from "../../../key-management";
 import { enqueue, trackWaitTime } from "../../queue";
 import {
   incrementPromptCount,
@@ -297,11 +297,13 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
       // TODO: this probably doesn't handle GPT-4-32k variants properly if the
       // proxy has keys for both the 8k and 32k context models at the same time.
       if (errorPayload.error?.code === "model_not_found") {
-        if (req.key!.isGpt4) {
-          errorPayload.proxy_note = `Assigned key isn't provisioned for the GPT-4 snapshot you requested. Try again to get a different key, or use Turbo.`;
-        } else {
-          errorPayload.proxy_note = `No model was found for this key.`;
-        }
+        const requestedModel = req.body.model;
+        const modelFamily = getOpenAIModelFamily(requestedModel);
+        errorPayload.proxy_note = `The key assigned to your prompt does not support the requested model (${requestedModel}, family: ${modelFamily}).`;
+        req.log.error(
+          { key: req.key?.hash, model: requestedModel, modelFamily },
+          "Prompt was routed to a key that does not support the requested model."
+        );
       }
     } else if (req.outboundApi === "anthropic") {
       errorPayload.proxy_note = `The requested Claude model might not exist, or the key might not be provisioned for it.`;

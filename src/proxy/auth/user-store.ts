@@ -160,7 +160,7 @@ export function incrementTokenCount(
 ) {
   const user = users.get(token);
   if (!user) return;
-  const modelFamily = getModelFamily(model);
+  const modelFamily = getModelFamilyForQuotaUsage(model);
   user.tokenCounts[modelFamily] += consumption;
   usersToFlush.add(token);
 }
@@ -197,7 +197,7 @@ export function hasAvailableQuota(
   if (!user) return false;
   if (user.type === "special") return true;
 
-  const modelFamily = getModelFamily(model);
+  const modelFamily = getModelFamilyForQuotaUsage(model);
   const { tokenCounts, tokenLimits } = user;
   const tokenLimit = tokenLimits[modelFamily];
 
@@ -281,9 +281,9 @@ async function flushUsers() {
   log.info({ users: Object.keys(updates).length }, "Flushed users to Firebase");
 }
 
-function getModelFamily(model: string): QuotaModel {
+// TODO: add gpt-4-32k models; use key-management/models.ts for family mapping
+function getModelFamilyForQuotaUsage(model: string): QuotaModel {
   if (model.startsWith("gpt-4")) {
-    // TODO: add 32k models
     return "gpt4";
   }
   if (model.startsWith("gpt-3.5")) {

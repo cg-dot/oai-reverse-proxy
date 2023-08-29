@@ -3,6 +3,7 @@ import schedule from "node-schedule";
 import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
 import { Key, Model, KeyProvider, AIService } from "./index";
 import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
+import { config } from "../config";
 import { logger } from "../logger";
 
 type AllowedPartial = OpenAIKeyUpdate | AnthropicKeyUpdate;
@@ -89,6 +90,11 @@ export class KeyPool {
   }
 
   public recheck(service: AIService): void {
+    if (!config.checkKeys) {
+      logger.info("Skipping key recheck because key checking is disabled");
+      return;
+    }
+
     const provider = this.getKeyProvider(service);
     if (provider instanceof OpenAIKeyProvider) {
       provider.recheck();

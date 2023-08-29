@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { Key, KeyProvider } from "..";
 import { config } from "../../config";
 import { logger } from "../../logger";
+import type { AnthropicModelFamily } from "../models";
 
 // https://docs.anthropic.com/claude/reference/selecting-a-model
 export const ANTHROPIC_SUPPORTED_MODELS = [
@@ -25,6 +26,7 @@ export type AnthropicKeyUpdate = Omit<
 
 export interface AnthropicKey extends Key {
   readonly service: "anthropic";
+  readonly modelFamilies: AnthropicModelFamily[];
   /** The time at which this key was last rate limited. */
   rateLimitedAt: number;
   /** The time until which this key is rate limited. */
@@ -71,7 +73,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
       const newKey: AnthropicKey = {
         key,
         service: this.service,
-        isGpt4: false,
+        modelFamilies: ["claude"],
         isTrial: false,
         isDisabled: false,
         promptCount: 0,

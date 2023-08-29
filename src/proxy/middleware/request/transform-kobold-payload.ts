@@ -99,7 +99,7 @@ export const transformKoboldPayload: ProxyRequestMiddleware = (
   // Kobold doesn't select a model. If the addKey rewriter assigned us a GPT-4
   // key, use that. Otherwise, use GPT-3.5-turbo.
 
-  const model = req.key!.isGpt4 ? "gpt-4" : "gpt-3.5-turbo";
+  const model = "gpt-4";
   const newBody = {
     model,
     temperature,
