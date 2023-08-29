@@ -1,31 +1,43 @@
 <%- include("../_partials/admin-header", { title: "View User - OAI Reverse Proxy Admin" }) %>
 <h1>View User</h1>
 
-<table class="table table-striped">
+<table class="striped">
   <thead>
     <tr>
       <th scope="col">Key</th>
-      <th scope="col">Value</th>
+      <th scope="col" colspan="2">Value</th>
     </tr>
   </thead>
-
   <tbody>
     <tr>
       <th scope="row">Token</th>
-      <td><%- user.token %></td>
+      <td colspan="2"><%- user.token %></td>
     </tr>
-
+    <tr>
+      <th scope="row">Nickname</th>
+      <td><%- user.nickname ?? "none" %></td>
+      <td class="actions">
+        <a
+          title="Edit"
+          id="edit-nickname"
+          href="#"
+          data-field="nickname"
+          data-token="<%= user.token %>"
+          >✏️</a
+        >
+      </td>
+    </tr>
     <tr>
       <th scope="row">Type</th>
-      <td><%- user.type %></td>
+      <td colspan="2"><%- user.type %></td>
     </tr>
     <tr>
       <th scope="row">Prompt Count</th>
-      <td><%- user.promptCount %></td>
+      <td colspan="2"><%- user.promptCount %></td>
     </tr>
     <tr>
       <th scope="row">Token Counts</th>
-      <td>
+      <td colspan="2">
         <ul style="padding-left: 1em; margin: 0">
           <% Object.entries(user.tokenCounts).forEach(([key, count]) => { %>
           <li><strong><%- key %></strong>: <%- count %></li>
@@ -35,7 +47,7 @@
     </tr>
     <tr>
       <th scope="row">Token Limits</th>
-      <td>
+      <td colspan="2">
         <ul style="padding-left: 1em; margin: 0">
           <% Object.entries(user.tokenLimits).forEach(([key, count]) => { %>
           <li><strong><%- key %></strong>: <%- count %></li>
@@ -45,23 +57,23 @@
     </tr>
     <tr>
       <th scope="row">Created At</th>
-      <td><%- user.createdAt %></td>
+      <td colspan="2"><%- user.createdAt %></td>
     </tr>
     <tr>
       <th scope="row">Last Used At</th>
-      <td><%- user.lastUsedAt || "never" %></td>
+      <td colspan="2"><%- user.lastUsedAt || "never" %></td>
     </tr>
     <tr>
       <th scope="row">Disabled At</th>
-      <td><%- user.disabledAt %></td>
+      <td colspan="2"><%- user.disabledAt %></td>
     </tr>
     <tr>
       <th scope="row">Disabled Reason</th>
-      <td><%- user.disabledReason %></td>
+      <td colspan="2"><%- user.disabledReason %></td>
     </tr>
     <tr>
       <th scope="row">IPs</th>
-      <td>
+      <td colspan="2">
         <a href="#" id="ip-list-toggle">Show all (<%- user.ip.length %>)</a>
         <ol id="ip-list" style="display: none; padding-left: 1em; margin: 0">
           <% user.ip.forEach((ip) => { %>
@@ -81,11 +93,47 @@
 </form>
 <% } %>
 
+<p><a href="/admin/manage/list-users">Back to User List</a></p>
+
 <script>
   document.getElementById("ip-list-toggle").addEventListener("click", (e) => {
     e.preventDefault();
     document.getElementById("ip-list").style.display = "block";
     document.getElementById("ip-list-toggle").style.display = "none";
+  });
+
+  document.querySelectorAll("td.actions a[data-field]").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      const token = a.dataset.token;
+      const field = a.dataset.field;
+      const value = prompt(`Enter new value for '${field}'':`);
+      if (value !== null) {
+        fetch(`/admin/manage/edit-user/${token}`, {
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({
+            [field]: value,
+            _csrf: document
+              .querySelector("meta[name=csrf-token]")
+              .getAttribute("content"),
+          }),
+          headers: { "Content-Type": "application/json" },
+        })
+          .then((res) => Promise.all([res.ok, res.text()]))
+          .then(([ok, text]) => {
+            if (!ok) {
+              document.body.innerHTML = text;
+              return;
+            }
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams();
+            params.set("flash", `success: User's ${field} updated.`);
+            url.search = params.toString();
+            window.location.assign(url);
+          });
+      }
+    });
   });
 </script>
 

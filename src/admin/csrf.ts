@@ -8,7 +8,11 @@ const { generateToken, doubleCsrfProtection } = doubleCsrf({
   getSecret: () => CSRF_SECRET,
   cookieName: "csrf",
   cookieOptions: { sameSite: "strict", path: "/" },
-  getTokenFromRequest: (req) => req.body["_csrf"] || req.query["_csrf"],
+  getTokenFromRequest: (req) => {
+    const val = req.body["_csrf"] || req.query["_csrf"];
+    delete req.body["_csrf"];
+    return val;
+  },
 });
 
 const injectCsrfToken: express.RequestHandler = (req, res, next) => {

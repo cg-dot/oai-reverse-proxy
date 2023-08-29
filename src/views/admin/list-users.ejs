@@ -1,14 +1,15 @@
 <%- include("../_partials/admin-header", { title: "Users - OAI Reverse Proxy Admin" }) %>
     <h1>User Token List</h1>
     
-    <!-- <input type="hidden" name="_csrf" value="<%= csrfToken %>" /> -->    
     <% if (users.length === 0) { %>
     <p>No users found.</p>
     <% } else { %>
+    <input type="checkbox" id="toggle-nicknames" onchange="toggleNicknames()" />
+    <label for="toggle-nicknames">Show Nicknames</label>
     <table>
       <thead>
         <tr>
-          <th>User Token</th>
+          <th>User</th>
           <th <% if (sort.includes("ip")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=ip">IPs</a></th>
           <th <% if (sort.includes("promptCount")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=promptCount">Prompts</a></th>
           <th <% if (sort.includes("sumTokenCounts")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=sumTokenCounts">Tokens</a></th>
@@ -22,7 +23,14 @@
         <% users.forEach(function(user){ %>
         <tr>
           <td>
-            <code><a href="/admin/manage/view-user/<%= user.token %>"><%= user.token %></a></code>
+            <a href="/admin/manage/view-user/<%= user.token %>">
+            <code class="usertoken"><%= user.token %></code>
+            <% if (user.nickname) { %>
+            <span class="nickname" style="display: none"><%= user.nickname %></span>
+            <% } else { %>
+            <code class="nickname" style="display: none"><%= "..." + user.token.slice(-5) %></code>
+            <% } %>
+          </a>
           </td>
           <td><%= user.ip.length %></td>
           <td><%= user.promptCount %></td>
@@ -41,7 +49,6 @@
         </tr>
         <% }); %>
     </table>
-
     <ul class="pagination">
       <% if (page > 1) { %>
       <li><a href="/admin/manage/list-users?sort=<%= sort %>&page=<%= page - 1 %>">&laquo;</a></li>
@@ -57,6 +64,23 @@
     <% } %>
     
 <script>
+  function toggleNicknames() {
+    const checked = document.getElementById("toggle-nicknames").checked;
+    const visibleSelector = checked ? ".nickname" : ".usertoken";
+    const hiddenSelector = checked ? ".usertoken" : ".nickname";
+    document.querySelectorAll(visibleSelector).forEach(function (el) {
+      el.style.display = "inline";
+    });
+    document.querySelectorAll(hiddenSelector).forEach(function (el) {
+      el.style.display = "none";
+    });
+    localStorage.setItem("showNicknames", checked);
+  }
+  
+  const state = localStorage.getItem("showNicknames") === "true";
+  document.getElementById("toggle-nicknames").checked = state;
+  toggleNicknames();
+  
   document.querySelectorAll("td.actions a.ban").forEach(function (a) {
     a.addEventListener("click", function (e) {
       e.preventDefault();

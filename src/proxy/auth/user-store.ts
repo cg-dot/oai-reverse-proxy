@@ -21,6 +21,8 @@ type QuotaModel = "claude" | "turbo" | "gpt4";
 export interface User {
   /** The user's personal access token. */
   token: string;
+  /** The user's nickname. */
+  nickname?: string;
   /** The IP addresses the user has connected from. */
   ip: string[];
   /** The user's privilege level. */

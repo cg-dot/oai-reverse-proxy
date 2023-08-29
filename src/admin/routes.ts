@@ -37,7 +37,8 @@ adminRouter.use(
     } else if (err.name === "ForbiddenError") {
       data.status = 403;
       if (err.message === "invalid csrf token") {
-        data.message = "Invalid CSRF token; try refreshing the previous page before submitting again.";
+        data.message =
+          "Invalid CSRF token; try refreshing the previous page before submitting again.";
       }
       return res.status(403).render("admin/error", { ...data, flash: null });
     }
