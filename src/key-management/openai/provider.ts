@@ -333,16 +333,9 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     }
   }
 
-  /**
-   * Returns the total quota limit of all keys in USD. Keys which are disabled
-   * are not included in the total.
-   */
-  public activeLimitInUsd(
-    { gpt4 }: { gpt4: boolean } = { gpt4: false }
-  ): string {
-    const keys = this.keys.filter((k) => !k.isDisabled && k.isGpt4 === gpt4);
-    const totalLimit = keys.reduce((acc, { hardLimit }) => acc + hardLimit, 0);
-    return `$${totalLimit.toFixed(2)}`;
+  public recheck() {
+    this.keys.forEach((key) => (key.lastChecked = 0));
+    this.checker?.scheduleNextCheck();
   }
 
   /** Writes key status to disk. */

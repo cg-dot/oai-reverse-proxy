@@ -52,8 +52,8 @@ export interface KeyProvider<T extends Key = Key> {
   anyUnchecked(): boolean;
   incrementPrompt(hash: string): void;
   getLockoutPeriod(model: Model): number;
-  activeLimitInUsd(options?: Record<string, unknown>): string;
   markRateLimited(hash: string): void;
+  recheck(service: AIService): void;
 }
 
 export const keyPool = new KeyPool();

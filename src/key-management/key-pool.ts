@@ -81,11 +81,13 @@ export class KeyPool {
     }
   }
 
-  public activeLimitInUsd(
-    service: AIService,
-    options?: Record<string, unknown>
-  ): string {
-    return this.getKeyProvider(service).activeLimitInUsd(options);
+  public recheck(service: AIService): void {
+    const provider = this.getKeyProvider(service);
+    if (provider instanceof OpenAIKeyProvider) {
+      provider.recheck();
+    } else {
+      throw new Error(`Recheck not implemented for service '${service}'`);
+    }
   }
 
   private getService(model: Model): AIService {

@@ -61,8 +61,9 @@ export class OpenAIKeyChecker {
    * it will schedule a check for the least recently checked key, respecting
    * the minimum check interval.
    **/
-  private scheduleNextCheck() {
+  public scheduleNextCheck() {
     const enabledKeys = this.keys.filter((key) => !key.isDisabled);
+    clearTimeout(this.timeout);
 
     if (enabledKeys.length === 0) {
       this.log.warn("All keys are disabled. Key checker stopping.");

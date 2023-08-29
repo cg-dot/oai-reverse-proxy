@@ -59,3 +59,15 @@
     </style>
   </head>
   <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;">
+      <% if (flash && flash.type === "error") { %>
+        <p style="color: red; background-color: #eedddd; padding: 1em">
+          <strong>⚠️ Error:</strong> <%= flash.message %>
+        </p>
+      <% } %>
+      <% if (flash && flash.type === "success") { %>
+        <p style="color: green; background-color: #ddffee; padding: 1em">
+          <strong>✅ Success:</strong> <%= flash.message %>
+        </p>
+      <% } %>
+      
+    

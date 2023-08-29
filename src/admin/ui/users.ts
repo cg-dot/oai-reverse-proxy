@@ -9,7 +9,9 @@ import {
   sortBy,
   paginate,
   UserSchema,
+  HttpError,
 } from "../common";
+import { keyPool } from "../../key-management";
 
 const router = Router();
 
@@ -42,8 +44,13 @@ router.post("/create-user", (_req, res) => {
 
 router.get("/view-user/:token", (req, res) => {
   const user = userStore.getUser(req.params.token);
-  if (!user) {
-    return res.status(404).send("User not found");
+  if (!user) throw new HttpError(404, "User not found");
+
+  if (req.query.refreshed) {
+    res.locals.flash = {
+      type: "success",
+      message: "User's quota was refreshed",
+    };
   }
   res.render("admin/view-user", { user });
 });
@@ -71,22 +78,21 @@ router.get("/list-users", (req, res) => {
   });
 });
 
-router.get("/import-users", (req, res) => {
-  const imported = Number(req.query.imported) || 0;
-  res.render("admin/import-users", { imported });
+router.get("/import-users", (_req, res) => {
+  res.render("admin/import-users");
 });
 
 router.post("/import-users", upload.single("users"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
-  }
+  if (!req.file) throw new HttpError(400, "No file uploaded");
+
   const data = JSON.parse(req.file.buffer.toString());
   const result = z.array(UserSchemaWithToken).safeParse(data.users);
-  if (!result.success) {
-    return res.status(400).json({ error: result.error });
-  }
+  if (!result.success) throw new HttpError(400, result.error.toString());
+
   const upserts = result.data.map((user) => userStore.upsertUser(user));
-  res.redirect(`/admin/manage/import-users?imported=${upserts.length}`);
+  res.render("admin/import-users", {
+    flash: { type: "success", message: `${upserts.length} users imported` },
+  });
 });
 
 router.get("/export-users", (_req, res) => {
@@ -106,18 +112,16 @@ router.get("/", (_req, res) => {
 
 router.post("/edit-user/:token", (req, res) => {
   const result = UserSchema.safeParse(req.body);
-  if (!result.success) {
-    return res.status(400).send(result.error);
-  }
+  if (!result.success) throw new HttpError(400, result.error.toString());
+
   userStore.upsertUser({ ...result.data, token: req.params.token });
   return res.sendStatus(204);
 });
 
 router.post("/reactivate-user/:token", (req, res) => {
   const user = userStore.getUser(req.params.token);
-  if (!user) {
-    return res.status(404).send("User not found");
-  }
+  if (!user) throw new HttpError(404, "User not found");
+
   userStore.upsertUser({
     token: user.token,
     disabledAt: 0,
@@ -128,28 +132,44 @@ router.post("/reactivate-user/:token", (req, res) => {
 
 router.post("/disable-user/:token", (req, res) => {
   const user = userStore.getUser(req.params.token);
-  if (!user) {
-    return res.status(404).send("User not found");
-  }
+  if (!user) throw new HttpError(404, "User not found");
+
   userStore.disableUser(req.params.token, req.body.reason);
   return res.sendStatus(204);
 });
 
 router.post("/refresh-user-quota", (req, res) => {
   const user = userStore.getUser(req.body.token);
-  if (!user) {
-    return res.status(404).send("User not found");
-  }
+  if (!user) throw new HttpError(404, "User not found");
+
   userStore.refreshQuota(req.body.token);
-  return res.redirect(`/admin/manage/view-user/${req.body.token}`);
+  return res.redirect(`/admin/manage/view-user/${req.body.token}?refreshed=1`);
 });
 
-router.post("/refresh-all-quotas", (_req, res) => {
-  const users = userStore.getUsers();
-
-  users.forEach((user) => userStore.refreshQuota(user.token));
-
-  return res.send(`Refreshed ${users.length} quotas`);
+router.post("/maintenance", (req, res) => {
+  const action = req.body.action;
+  let message = "";
+  switch (action) {
+    case "recheck": {
+      keyPool.recheck("openai");
+      const size = keyPool
+        .list()
+        .filter((key) => key.service === "openai").length;
+      message = `success: Scheduled recheck of ${size} OpenAI keys.`;
+      break;
+    }
+    case "resetQuotas": {
+      const users = userStore.getUsers();
+      users.forEach((user) => userStore.refreshQuota(user.token));
+      const { claude, gpt4, turbo } = config.tokenQuota;
+      message = `success: All users' token quotas reset to ${turbo} (Turbo), ${gpt4} (GPT-4), ${claude} (Claude).`;
+      break;
+    }
+    default: {
+      throw new HttpError(400, "Invalid action");
+    }
+  }
+  return res.redirect(`/admin/manage?flash=${message}`);
 });
 
 export { router as usersUiRouter };

@@ -16,8 +16,14 @@
     prompt
   </li>
   <li>
-    <code>tokenCount</code> (optional): the number of tokens the user has
-    consumed (not yet implemented)
+    <code>tokenCounts</code> (optional): the number of tokens the user has
+    consumed. This should be an object with keys <code>turbo</code>,
+    <code>gpt4</code>, and <code>claude</code>.
+  </li>
+  <li>
+    <code>tokenLimits</code> (optional): the number of tokens the user can
+    consume. This should be an object with keys <code>turbo</code>,
+    <code>gpt4</code>, and <code>claude</code>.
   </li>
   <li>
     <code>createdAt</code> (optional): the timestamp when the user was created
@@ -38,7 +44,4 @@
   <input type="submit" value="Import" />
 </form>
 </form>
-<% if (imported > 0) { %>
-<p>Imported <code><%= imported %></code> users.</p>
-<% } %>
 <%- include("../_partials/admin-footer") %>

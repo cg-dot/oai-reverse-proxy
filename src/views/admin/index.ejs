@@ -1,20 +1,51 @@
-<%- include("../_partials/admin-header", { title: "OAI Reverse Proxy Admin" }) %>
+<%- include("../_partials/admin-header", { title: "OAI Reverse Proxy Admin" })
+%>
 <h1>OAI Reverse Proxy Admin</h1>
 <% if (!persistenceEnabled) { %>
 <p style="color: red; background-color: #eedddd; padding: 1em">
-  <strong>⚠️ Users will be lost when the server restarts because persistence is
-  not configured.</strong><br />
+  <strong
+    >⚠️ Users will be lost when the server restarts because persistence is not
+    configured.</strong
+  ><br />
   <br />Be sure to export your users and import them again after restarting the
   server if you want to keep them.<br />
-  <br /> See the <a target="_blank"
-  href="https://gitgud.io/khanon/oai-reverse-proxy/-/blob/main/docs/user-management.md#firebase-realtime-database">
-  user management documentation</a> to learn how to set up persistence.
+  <br />
+  See the
+  <a
+    target="_blank"
+    href="https://gitgud.io/khanon/oai-reverse-proxy/-/blob/main/docs/user-management.md#firebase-realtime-database"
+  >
+    user management documentation</a
+  >
+  to learn how to set up persistence.
 </p>
 <% } %>
+<h3>Users</h3>
 <ul>
   <li><a href="/admin/manage/list-users">List Users</a></li>
   <li><a href="/admin/manage/create-user">Create User</a></li>
   <li><a href="/admin/manage/import-users">Import Users</a></li>
   <li><a href="/admin/manage/export-users">Export Users</a></li>
 </ul>
+<h3>Maintenance</h3>
+<form id="maintenanceForm" action="/admin/manage/maintenance" method="post">
+  <input id="_csrf" type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <input id="hiddenAction" type="hidden" name="action" value="" />
+  <button type="button" onclick="submitForm('recheck')">
+    Force OpenAI Key Recheck
+  </button>
+  <% if (quotasEnabled) { %>
+  <button type="button" onclick="submitForm('resetQuotas')">
+    Reset All Users' Quotas
+  </button>
+  <% } %>
+</form>
+
+<script>
+  function submitForm(action) {
+    document.getElementById("hiddenAction").value = action;
+    document.getElementById("maintenanceForm").submit();
+  }
+</script>
+
 <%- include("../_partials/admin-footer") %>

@@ -201,7 +201,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     key.rateLimitedUntil = now + RATE_LIMIT_LOCKOUT;
   }
 
-  public activeLimitInUsd() {
-    return "∞";
+  public recheck() {
+    throw new Error("Method not implemented.");
   }
 }
