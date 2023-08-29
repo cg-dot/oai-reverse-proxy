@@ -224,7 +224,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
 
   /** Disables a key, or does nothing if the key isn't in this pool. */
   public disable(key: Key) {
-    const keyFromPool = this.keys.find((k) => k.key === key.key);
+    const keyFromPool = this.keys.find((k) => k.hash === key.hash);
     if (!keyFromPool || keyFromPool.isDisabled) return;
     keyFromPool.isDisabled = true;
     this.log.warn({ key: key.hash }, "Key disabled");

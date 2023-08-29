@@ -140,7 +140,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
   }
 
   public disable(key: AnthropicKey) {
-    const keyFromPool = this.keys.find((k) => k.key === key.key);
+    const keyFromPool = this.keys.find((k) => k.hash === key.hash);
     if (!keyFromPool || keyFromPool.isDisabled) return;
     keyFromPool.isDisabled = true;
     this.log.warn({ key: key.hash }, "Key disabled");
