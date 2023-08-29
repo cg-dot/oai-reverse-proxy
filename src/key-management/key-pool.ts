@@ -1,12 +1,18 @@
 import type * as http from "http";
+import schedule from "node-schedule";
 import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
 import { Key, Model, KeyProvider, AIService } from "./index";
 import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
+import { logger } from "../logger";
 
 type AllowedPartial = OpenAIKeyUpdate | AnthropicKeyUpdate;
 
 export class KeyPool {
   private keyProviders: KeyProvider[] = [];
+  private recheckJobs: Record<AIService, schedule.Job | null> = {
+    openai: null,
+    anthropic: null,
+  };
 
   constructor() {
     this.keyProviders.push(new OpenAIKeyProvider());
@@ -21,6 +27,7 @@ export class KeyPool {
         "No keys loaded. Ensure either OPENAI_KEY or ANTHROPIC_KEY is set."
       );
     }
+    this.scheduleMonthlyRecheck();
   }
 
   public get(model: Model): Key {
@@ -103,5 +110,21 @@ export class KeyPool {
 
   private getKeyProvider(service: AIService): KeyProvider {
     return this.keyProviders.find((provider) => provider.service === service)!;
+  }
+
+  private scheduleMonthlyRecheck(): void {
+    // On the first of the month, OpenAI resets the token quota for all keys.
+    // This process takes a few hours, so we'll schedule multiple rechecks
+    // throughout that day.
+    const rule = "45 */6 1 * *";
+    const job = schedule.scheduleJob(rule, () => {
+      logger.info("Performing monthly recheck of OpenAI keys");
+      this.recheck("openai");
+    });
+    logger.info(
+      { rule, next: job.nextInvocation() },
+      "Scheduled monthly recheck of OpenAI keys"
+    );
+    this.recheckJobs.openai = job;
   }
 }
