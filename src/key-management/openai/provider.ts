@@ -225,6 +225,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
       const clone: OpenAIKey = {
         ...keyFromPool,
         organizationId: orgId,
+        isDisabled: false,
         hash: `oai-${crypto
           .createHash("sha256")
           .update(keyFromPool.key + orgId)
@@ -245,7 +246,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
   public disable(key: Key) {
     const keyFromPool = this.keys.find((k) => k.hash === key.hash);
     if (!keyFromPool || keyFromPool.isDisabled) return;
-    keyFromPool.isDisabled = true;
+    this.update(key.hash, { isDisabled: true });
     this.log.warn({ key: key.hash }, "Key disabled");
   }
 
