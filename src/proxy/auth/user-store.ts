@@ -11,12 +11,13 @@ import admin from "firebase-admin";
 import schedule from "node-schedule";
 import { v4 as uuid } from "uuid";
 import { config, getFirebaseApp } from "../../config";
+import { ModelFamily } from "../../key-management";
 import { logger } from "../../logger";
 
 const log = logger.child({ module: "users" });
 
 // TODO: Consolidate model families with QueuePartition and KeyProvider.
-type QuotaModel = "claude" | "turbo" | "gpt4";
+type QuotaModel = ModelFamily;
 
 export interface User {
   /** The user's personal access token. */
@@ -96,7 +97,7 @@ export function createUser() {
     ip: [],
     type: "normal",
     promptCount: 0,
-    tokenCounts: { turbo: 0, gpt4: 0, claude: 0 },
+    tokenCounts: { turbo: 0, gpt4: 0, "gpt4-32k": 0, claude: 0 },
     tokenLimits: { ...config.tokenQuota },
     createdAt: Date.now(),
   });
@@ -125,7 +126,7 @@ export function upsertUser(user: UserUpdate) {
     ip: [],
     type: "normal",
     promptCount: 0,
-    tokenCounts: { turbo: 0, gpt4: 0, claude: 0 },
+    tokenCounts: { turbo: 0, gpt4: 0, "gpt4-32k": 0, claude: 0 },
     tokenLimits: { ...config.tokenQuota },
     createdAt: Date.now(),
   };
@@ -281,8 +282,11 @@ async function flushUsers() {
   log.info({ users: Object.keys(updates).length }, "Flushed users to Firebase");
 }
 
-// TODO: add gpt-4-32k models; use key-management/models.ts for family mapping
+// TODO: use key-management/models.ts for family mapping
 function getModelFamilyForQuotaUsage(model: string): QuotaModel {
+  if (model.includes("32k")) {
+    return "gpt4-32k";
+  }
   if (model.startsWith("gpt-4")) {
     return "gpt4";
   }

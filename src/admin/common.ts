@@ -50,12 +50,26 @@ export const UserSchema = z
     promptCount: z.number().optional(),
     tokenCount: z.any().optional(), // never used, but remains for compatibility
     tokenCounts: z
-      .object({ turbo: z.number(), gpt4: z.number(), claude: z.number() })
-      .strict()
+      .object({
+        turbo: z.number().optional(),
+        gpt4: z.number().optional(),
+        "gpt4-32k": z.number().optional().default(0),
+        claude: z.number().optional(),
+      })
+      .refine(zodModelFamilyRefinement, {
+        message: "If provided, tokenCounts must include all model families",
+      })
       .optional(),
     tokenLimits: z
-      .object({ turbo: z.number(), gpt4: z.number(), claude: z.number() })
-      .strict()
+      .object({
+        turbo: z.number().optional(),
+        gpt4: z.number().optional(),
+        "gpt4-32k": z.number().optional().default(0),
+        claude: z.number().optional(),
+      })
+      .refine(zodModelFamilyRefinement, {
+        message: "If provided, tokenLimits must include all model families",
+      })
       .optional(),
     createdAt: z.number().optional(),
     lastUsedAt: z.number().optional(),
@@ -63,6 +77,19 @@ export const UserSchema = z
     disabledReason: z.string().optional(),
   })
   .strict();
+
+// gpt4-32k was added after the initial release, so this tries to allow for
+// data imported from older versions of the app which may be missing the
+// new model family.
+// Otherwise, all model families must be present.
+function zodModelFamilyRefinement(data: Record<string, number>) {
+  const keys = Object.keys(data).sort();
+  const validSets = [
+    ["claude", "gpt4", "turbo"],
+    ["claude", "gpt4", "gpt4-32k", "turbo"],
+  ];
+  return validSets.some((set) => keys.join(",") === set.join(","));
+}
 
 export const UserSchemaWithToken = UserSchema.extend({
   token: z.string(),

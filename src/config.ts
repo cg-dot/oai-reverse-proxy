@@ -129,6 +129,8 @@ type Config = {
     turbo: number;
     /** Token allowance for GPT-4 models. */
     gpt4: number;
+    /** Token allowance for GPT-4 32k models. */
+    "gpt4-32k": number;
     /** Token allowance for Claude models. */
     claude: number;
   };
@@ -197,6 +199,7 @@ export const config: Config = {
   tokenQuota: {
     turbo: getEnvWithDefault("TOKEN_QUOTA_TURBO", 0),
     gpt4: getEnvWithDefault("TOKEN_QUOTA_GPT4", 0),
+    "gpt4-32k": getEnvWithDefault("TOKEN_QUOTA_GPT4_32K", 0),
     claude: getEnvWithDefault("TOKEN_QUOTA_CLAUDE", 0),
   },
   quotaRefreshPeriod: getEnvWithDefault("QUOTA_REFRESH_PERIOD", undefined),
