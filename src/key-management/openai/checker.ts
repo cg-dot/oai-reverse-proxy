@@ -47,11 +47,12 @@ export class OpenAIKeyChecker {
 
   public start() {
     this.log.info("Starting key checker...");
-    this.scheduleNextCheck();
+    this.timeout = setTimeout(() => this.scheduleNextCheck(), 0);
   }
 
   public stop() {
     if (this.timeout) {
+      this.log.debug("Stopping key checker...");
       clearTimeout(this.timeout);
     }
   }
@@ -63,36 +64,45 @@ export class OpenAIKeyChecker {
    * the minimum check interval.
    **/
   public scheduleNextCheck() {
+    const callId = Math.random().toString(36).slice(2, 8);
+    const timeoutId = this.timeout?.[Symbol.toPrimitive]?.();
+    const checkLog = this.log.child({ callId, timeoutId });
+
     const enabledKeys = this.keys.filter((key) => !key.isDisabled);
+    checkLog.debug({ enabled: enabledKeys.length }, "Scheduling next check...");
+
+    //
     clearTimeout(this.timeout);
 
     if (enabledKeys.length === 0) {
-      this.log.warn("All keys are disabled. Key checker stopping.");
+      checkLog.warn("All keys are disabled. Key checker stopping.");
       return;
     }
 
     // Perform startup checks for any keys that haven't been checked yet.
     const uncheckedKeys = enabledKeys.filter((key) => !key.lastChecked);
+    checkLog.debug({ unchecked: uncheckedKeys.length }, "# of unchecked keys");
     if (uncheckedKeys.length > 0) {
-      // Check up to 12 keys at once to speed up startup.
       const keysToCheck = uncheckedKeys.slice(0, 12);
 
-      this.log.info(
-        {
-          key: keysToCheck.map((key) => key.hash),
-          remaining: uncheckedKeys.length - keysToCheck.length,
-        },
-        "Scheduling initial checks for key batch."
-      );
       this.timeout = setTimeout(async () => {
-        const promises = keysToCheck.map((key) => this.checkKey(key));
         try {
-          await Promise.all(promises);
+          await Promise.all(keysToCheck.map((key) => this.checkKey(key)));
         } catch (error) {
           this.log.error({ error }, "Error checking one or more keys.");
         }
+        checkLog.info("Batch complete.");
         this.scheduleNextCheck();
       }, 250);
+
+      checkLog.info(
+        {
+          batch: keysToCheck.map((k) => k.hash),
+          remaining: uncheckedKeys.length - keysToCheck.length,
+          newTimeoutId: this.timeout?.[Symbol.toPrimitive]?.(),
+        },
+        "Scheduled batch check."
+      );
       return;
     }
 
@@ -108,13 +118,12 @@ export class OpenAIKeyChecker {
       this.lastCheck + MIN_CHECK_INTERVAL
     );
 
-    this.log.debug(
-      { key: oldestKey.hash, nextCheck: new Date(nextCheck) },
-      "Scheduling next check."
-    );
-
     const delay = nextCheck - Date.now();
     this.timeout = setTimeout(() => this.checkKey(oldestKey), delay);
+    checkLog.debug(
+      { key: oldestKey.hash, nextCheck: new Date(nextCheck), delay },
+      "Scheduled single key check."
+    );
   }
 
   private async checkKey(key: OpenAIKey) {
