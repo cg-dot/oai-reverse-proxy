@@ -46,6 +46,7 @@ function cacheInfoPageHtml(baseUrl: string) {
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
     openaiKeys,
     anthropicKeys,
+    ...(openaiKeys ? { openaiOrgs: getUniqueOpenAIOrgs(keys) } : {}),
     ...(openaiKeys ? getOpenAIInfo() : {}),
     ...(anthropicKeys ? getAnthropicInfo() : {}),
     config: listConfig(),
@@ -74,6 +75,13 @@ function cacheInfoPageHtml(baseUrl: string) {
   infoPageLastUpdated = Date.now();
 
   return pageBody;
+}
+
+function getUniqueOpenAIOrgs(keys: ReturnType<typeof keyPool.list>) {
+  const orgIds = new Set(
+    keys.filter((k) => k.service === "openai").map((k: any) => k.organizationId)
+  );
+  return orgIds.size;
 }
 
 type ServiceInfo = {

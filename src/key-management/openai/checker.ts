@@ -217,6 +217,8 @@ export class OpenAIKeyChecker {
       opts
     );
     const organizations = data.data;
+    const defaultOrg = organizations.find(({ is_default }) => is_default);
+    this.updateKey(key.hash, { organizationId: defaultOrg?.id });
     if (organizations.length <= 1) return undefined;
 
     this.log.info(
@@ -224,11 +226,9 @@ export class OpenAIKeyChecker {
       "Key is associated with multiple organizations; cloning key for each organization."
     );
 
-    const defaultOrg = organizations.find(({ is_default }) => is_default);
     const ids = organizations
       .filter(({ is_default }) => !is_default)
       .map(({ id }) => id);
-    this.updateKey(key.hash, { organizationId: defaultOrg?.id });
     this.cloneKey(key.hash, ids);
   }
 
