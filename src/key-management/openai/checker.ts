@@ -139,19 +139,15 @@ export class OpenAIKeyChecker {
         const updates = {
           modelFamilies: provisionedModels,
           isTrial: livenessTest.rateLimit <= 250,
-          softLimit: 0,
-          hardLimit: 0,
-          systemHardLimit: 0,
         };
         this.updateKey(key.hash, updates);
       } else {
-        // Provisioned models don't change, so we don't need to check them again
+        // No updates needed as models and trial status generally don't change.
         const [_livenessTest] = await Promise.all([this.testLiveness(key)]);
-        const updates = { softLimit: 0, hardLimit: 0, systemHardLimit: 0 };
-        this.updateKey(key.hash, updates);
+        this.updateKey(key.hash, {});
       }
       this.log.info(
-        { key: key.hash, models: key.modelFamilies },
+        { key: key.hash, models: key.modelFamilies, trial: key.isTrial },
         "Key check complete."
       );
     } catch (error) {
@@ -164,6 +160,10 @@ export class OpenAIKeyChecker {
     // Only enqueue the next check if this wasn't a startup check, since those
     // are batched together elsewhere.
     if (!isInitialCheck) {
+      this.log.info(
+        { key: key.hash },
+        "Recurring keychecks are disabled, no-op."
+      );
       // this.scheduleNextCheck();
     }
   }
@@ -192,7 +192,6 @@ export class OpenAIKeyChecker {
     // update its `lastChecked` timestamp because we need to let the liveness
     // check run before we can consider the key checked.
 
-    // Need to use `find` here because keys are cloned from the pool.
     const keyFromPool = this.keys.find((k) => k.hash === key.hash)!;
     this.updateKey(key.hash, {
       modelFamilies: families,
@@ -259,21 +258,32 @@ export class OpenAIKeyChecker {
             });
             break;
           case "requests":
-            // Trial keys have extremely low requests-per-minute limits and we
-            // can often hit them just while checking the key, so we need to
-            // retry the check later to know if the key has quota remaining.
-            this.log.warn(
-              { key: key.hash, error: data },
-              "Key is currently rate limited, so its liveness cannot be checked. Retrying in fifteen seconds."
-            );
-            // To trigger a shorter than usual delay before the next check, we
-            // will set its `lastChecked` to (NOW - (KEY_CHECK_PERIOD - 15s)).
-            // This will cause the usual key check scheduling logic to schedule
-            // the next check in 15 seconds. This also prevents the key from
-            // holding up startup checks for other keys.
-            const fifteenSeconds = 15 * 1000;
-            const next = Date.now() - (KEY_CHECK_PERIOD - fifteenSeconds);
-            this.updateKey(key.hash, { lastChecked: next });
+            // If we hit the text completion rate limit on a trial key, it is
+            // likely being used by many proxies. We will disable the key since
+            // it's just going to be constantly rate limited.
+            const isTrial =
+              Number(error.response.headers["x-ratelimit-limit-requests"]) <=
+              250;
+
+            if (isTrial) {
+              this.log.warn(
+                { key: key.hash, error: data },
+                "Trial key is rate limited on text completion endpoint. This indicates the key is being used by several proxies at once and is not likely to be usable. Disabling key."
+              );
+              this.updateKey(key.hash, {
+                isTrial,
+                isDisabled: true,
+                isOverQuota: true,
+                modelFamilies: ["turbo"],
+                lastChecked: Date.now(),
+              });
+            } else {
+              this.log.warn(
+                { key: key.hash, error: data },
+                "Non-trial key is rate limited on text completion endpoint. This is unusual and may indicate a bug. Assuming key is operational."
+              );
+              this.updateKey(key.hash, { lastChecked: Date.now() });
+            }
             break;
           case "tokens":
             // Hitting a token rate limit, even on a trial key, actually implies
@@ -321,8 +331,26 @@ export class OpenAIKeyChecker {
    * We use the rate limit header to determine whether it's a trial key.
    */
   private async testLiveness(key: OpenAIKey): Promise<{ rateLimit: number }> {
+    // What the hell this is doing:
+
+    // OpenAI enforces separate rate limits for chat and text completions. Trial
+    // keys have extremely low rate limits of 200 per day per API type. In order
+    // to avoid wasting more valuable chat quota, we send an (invalid) chat
+    // request to Babbage (a text completion model). Even though our request is
+    // to the chat endpoint, we get text rate limit headers back because the
+    // requested model determines the rate limit used, not the endpoint.
+
+    // Once we have headers, we can determine:
+    // 1. Is the key revoked? (401, OAI doesn't even validate the request)
+    // 2. Is the key out of quota? (400, OAI will still validate the request)
+    // 3. Is the key a trial key? (400, x-ratelimit-limit-requests: 200)
+
+    // This might still cause issues if too many proxies are running a train on
+    // the same trial key and even the text completion quota is exhausted, but
+    // it should work better than the alternative.
+
     const payload = {
-      model: "gpt-3.5-turbo",
+      model: "babbage-002",
       max_tokens: -1,
       messages: [{ role: "user", content: "" }],
     };

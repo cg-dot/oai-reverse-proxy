@@ -30,12 +30,6 @@ export interface OpenAIKey extends Key {
   isRevoked: boolean;
   /** Set when key check returns a non-transient 429. */
   isOverQuota: boolean;
-  /** Threshold at which a warning email will be sent by OpenAI. */
-  softLimit: number;
-  /** Threshold at which the key will be disabled because it has reached the user-defined limit. */
-  hardLimit: number;
-  /** The maximum quota allocated to this key by OpenAI. */
-  systemHardLimit: number;
   /** The time at which this key was last rate limited. */
   rateLimitedAt: number;
   /**
@@ -359,7 +353,14 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
   }
 
   public recheck() {
-    this.keys.forEach((key) => (key.lastChecked = 0));
+    this.keys.forEach((key) => {
+      this.update(key.hash, {
+        isRevoked: false,
+        isOverQuota: false,
+        isDisabled: false,
+        lastChecked: 0,
+      });
+    });
     this.checker?.scheduleNextCheck();
   }
 
