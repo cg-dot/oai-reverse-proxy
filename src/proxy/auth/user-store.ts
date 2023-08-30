@@ -16,8 +16,12 @@ import { logger } from "../../logger";
 
 const log = logger.child({ module: "users" });
 
-// TODO: Consolidate model families with QueuePartition and KeyProvider.
-type QuotaModel = ModelFamily;
+export type UserTokenCounts = {
+  turbo: number;
+  gpt4: number;
+  claude: number;
+  "gpt4-32k"?: number;
+};
 
 export interface User {
   /** The user's personal access token. */
@@ -33,9 +37,9 @@ export interface User {
   /** @deprecated Use `tokenCounts` instead. */
   tokenCount?: never;
   /** The number of tokens the user has consumed, by model family. */
-  tokenCounts: Record<QuotaModel, number>;
+  tokenCounts: UserTokenCounts;
   /** The maximum number of tokens the user can consume, by model family. */
-  tokenLimits: Record<QuotaModel, number>;
+  tokenLimits: UserTokenCounts;
   /** The time at which the user was created. */
   createdAt: number;
   /** The time at which the user last connected. */
@@ -204,7 +208,7 @@ export function hasAvailableQuota(
 
   if (!tokenLimit) return true;
 
-  const tokensConsumed = tokenCounts[modelFamily] + requested;
+  const tokensConsumed = (tokenCounts[modelFamily] ?? 0) + requested;
   return tokensConsumed < tokenLimit;
 }
 
@@ -212,13 +216,14 @@ export function refreshQuota(token: string) {
   const user = users.get(token);
   if (!user) return;
   const { tokenCounts, tokenLimits } = user;
-  const quotas = Object.entries(config.tokenQuota) as [QuotaModel, number][];
+  const quotas = Object.entries(config.tokenQuota) as [ModelFamily, number][];
   quotas
     // If a quota is not configured, don't touch any existing limits a user may
     // already have been assigned manually.
     .filter(([, quota]) => quota > 0)
     .forEach(
-      ([model, quota]) => (tokenLimits[model] = tokenCounts[model] + quota)
+      ([model, quota]) =>
+        (tokenLimits[model] = (tokenCounts[model] ?? 0) + quota)
     );
   usersToFlush.add(token);
 }
@@ -283,7 +288,7 @@ async function flushUsers() {
 }
 
 // TODO: use key-management/models.ts for family mapping
-function getModelFamilyForQuotaUsage(model: string): QuotaModel {
+function getModelFamilyForQuotaUsage(model: string): ModelFamily {
   if (model.includes("32k")) {
     return "gpt4-32k";
   }

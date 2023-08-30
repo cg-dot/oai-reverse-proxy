@@ -1,7 +1,8 @@
-import { z } from "zod";
+import { ZodType, z } from "zod";
 import { RequestHandler } from "express";
 import { Query } from "express-serve-static-core";
 import { config } from "../config";
+import { UserTokenCounts } from "../proxy/auth/user-store";
 
 export function parseSort(sort: Query["sort"]) {
   if (!sort) return null;
@@ -42,6 +43,18 @@ export function paginate(set: unknown[], page: number, pageSize: number = 20) {
   };
 }
 
+const tokenCountsSchema: ZodType<UserTokenCounts> = z
+  .object({
+    turbo: z.number().optional(),
+    gpt4: z.number().optional(),
+    "gpt4-32k": z.number().optional(),
+    claude: z.number().optional(),
+  })
+  .refine(zodModelFamilyRefinement, {
+    message:
+      "If provided, a tokenCounts object must include all model families",
+  }) as ZodType<UserTokenCounts>; // refinement ensures the type correctness but zod doesn't know that
+
 export const UserSchema = z
   .object({
     ip: z.array(z.string()).optional(),
@@ -49,28 +62,8 @@ export const UserSchema = z
     type: z.enum(["normal", "special"]).optional(),
     promptCount: z.number().optional(),
     tokenCount: z.any().optional(), // never used, but remains for compatibility
-    tokenCounts: z
-      .object({
-        turbo: z.number().optional(),
-        gpt4: z.number().optional(),
-        "gpt4-32k": z.number().optional().default(0),
-        claude: z.number().optional(),
-      })
-      .refine(zodModelFamilyRefinement, {
-        message: "If provided, tokenCounts must include all model families",
-      })
-      .optional(),
-    tokenLimits: z
-      .object({
-        turbo: z.number().optional(),
-        gpt4: z.number().optional(),
-        "gpt4-32k": z.number().optional().default(0),
-        claude: z.number().optional(),
-      })
-      .refine(zodModelFamilyRefinement, {
-        message: "If provided, tokenLimits must include all model families",
-      })
-      .optional(),
+    tokenCounts: tokenCountsSchema.optional(),
+    tokenLimits: tokenCountsSchema.optional(),
     createdAt: z.number().optional(),
     lastUsedAt: z.number().optional(),
     disabledAt: z.number().optional(),
