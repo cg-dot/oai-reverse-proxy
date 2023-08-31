@@ -16,7 +16,7 @@ import { logger } from "../../logger";
 
 const log = logger.child({ module: "users" });
 
-type UserTokenCounts = {
+export type UserTokenCounts = {
   [K in Exclude<ModelFamily, "gpt4-32k">]: number;
 } & {
   [K in "gpt4-32k"]?: number; // Optional because it was added later
