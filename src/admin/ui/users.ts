@@ -11,7 +11,8 @@ import {
   UserSchema,
   HttpError,
 } from "../common";
-import { keyPool } from "../../key-management";
+import { ModelFamily, keyPool } from "../../key-management";
+import { getTokenCostUsd, prettyTokens } from "../../stats";
 
 const router = Router();
 
@@ -56,15 +57,22 @@ router.get("/view-user/:token", (req, res) => {
 });
 
 router.get("/list-users", (req, res) => {
-  const sort = parseSort(req.query.sort) || ["promptCount", "lastUsedAt"];
+  const sort = parseSort(req.query.sort) || ["sumCost", "createdAt"];
   const requestedPageSize =
     Number(req.query.perPage) || Number(req.cookies.perPage) || 20;
   const perPage = Math.max(1, Math.min(1000, requestedPageSize));
   const users = userStore
     .getUsers()
     .map((user) => {
-      const sum = Object.values(user.tokenCounts).reduce((a, b) => a + b, 0); // TODO: cache
-      return { ...user, sumTokenCounts: sum };
+      const sums = { sumTokens: 0, sumCost: 0, prettyUsage: "" };
+      Object.entries(user.tokenCounts).forEach(([model, tokens]) => {
+        sums.sumTokens += tokens;
+        sums.sumCost += getTokenCostUsd(model as ModelFamily, tokens);
+      });
+      sums.prettyUsage = `${prettyTokens(
+        sums.sumTokens
+      )} ($${sums.sumCost.toFixed(2)}) `;
+      return { ...user, ...sums };
     })
     .sort(sortBy(sort, false));
 

@@ -16,11 +16,10 @@ import { logger } from "../../logger";
 
 const log = logger.child({ module: "users" });
 
-export type UserTokenCounts = {
-  turbo: number;
-  gpt4: number;
-  claude: number;
-  "gpt4-32k"?: number;
+type UserTokenCounts = {
+  [K in Exclude<ModelFamily, "gpt4-32k">]: number;
+} & {
+  [K in "gpt4-32k"]?: number; // Optional because it was added later
 };
 
 export interface User {

@@ -12,6 +12,7 @@ import {
 import { getUniqueIps } from "./proxy/rate-limit";
 import { getEstimatedWaitTime, getQueueLength } from "./proxy/queue";
 import { logger } from "./logger";
+import { getTokenCostUsd, prettyTokens } from "./stats";
 
 const INFO_PAGE_TTL = 2000;
 let infoPageHtml: string | undefined;
@@ -49,27 +50,6 @@ type ServiceAggregates = {
 const modelStats = new Map<ModelAggregateKey, number>();
 const serviceStats = new Map<keyof ServiceAggregates, number>();
 
-// technically slightly underestimates, because completion tokens cost more
-// than prompt tokens but we don't track those separately right now
-function getTokenCostUsd(model: ModelFamily, tokens: number) {
-  let cost = 0;
-  switch (model) {
-    case "gpt4-32k":
-      cost = 0.00006;
-      break;
-    case "gpt4":
-      cost = 0.00003;
-      break;
-    case "turbo":
-      cost = 0.0000015;
-      break;
-    case "claude":
-      cost = 0.00001102;
-      break;
-  }
-  return cost * tokens;
-}
-
 export const handleInfoPage = (req: Request, res: Response) => {
   if (infoPageLastUpdated + INFO_PAGE_TTL > Date.now()) {
     res.send(infoPageHtml);
@@ -96,6 +76,7 @@ function cacheInfoPageHtml(baseUrl: string) {
   const anthropicKeys = serviceStats.get("anthropicKeys") || 0;
   const proompts = serviceStats.get("proompts") || 0;
   const tokens = serviceStats.get("tokens") || 0;
+  const tokenCost = serviceStats.get("tokenCost") || 0;
 
   const info = {
     uptime: Math.floor(process.uptime()),
@@ -104,7 +85,7 @@ function cacheInfoPageHtml(baseUrl: string) {
       ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
     },
     proompts,
-    tookens: `${tokens} ($${(serviceStats.get("tokenCost") || 0).toFixed(2)})`,
+    tookens: `${prettyTokens(tokens)} ($${tokenCost.toFixed(2)})`,
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
     openaiKeys,
     anthropicKeys,
@@ -243,7 +224,7 @@ function getOpenAIInfo() {
       const cost = getTokenCostUsd(f, tokens);
 
       info[f] = {
-        usage: `${tokens} tokens ($${cost.toFixed(2)})`,
+        usage: `${prettyTokens(tokens)} tokens ($${cost.toFixed(2)})`,
         activeKeys: modelStats.get(`${f}__active`) || 0,
         trialKeys: modelStats.get(`${f}__trial`) || 0,
         revokedKeys: modelStats.get(`${f}__revoked`) || 0,
@@ -282,7 +263,7 @@ function getAnthropicInfo() {
   const cost = getTokenCostUsd("claude", tokens);
   return {
     claude: {
-      usage: `${tokens} tokens ($${cost.toFixed(2)})`,
+      usage: `${prettyTokens(tokens)} tokens ($${cost.toFixed(2)})`,
       activeKeys: claudeInfo.active,
       proomptersInQueue: claudeInfo.queued,
       estimatedQueueTime: claudeInfo.queueTime,

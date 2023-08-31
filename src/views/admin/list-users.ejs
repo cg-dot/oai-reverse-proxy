@@ -12,7 +12,7 @@
           <th>User</th>
           <th <% if (sort.includes("ip")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=ip">IPs</a></th>
           <th <% if (sort.includes("promptCount")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=promptCount">Prompts</a></th>
-          <th <% if (sort.includes("sumTokenCounts")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=sumTokenCounts">Tokens</a></th>
+          <th <% if (sort.includes("sumCost")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=sumCost">Usage</a></th>
           <th>Type</th>
           <th <% if (sort.includes("createdAt")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=createdAt">Created (UTC)</a></th>
           <th <% if (sort.includes("lastUsedAt")) { %>class="active"<% } %> ><a href="/admin/manage/list-users?sort=lastUsedAt">Last Used (UTC)</a></th>
@@ -34,7 +34,7 @@
           </td>
           <td><%= user.ip.length %></td>
           <td><%= user.promptCount %></td>
-          <td><%= user.sumTokenCounts %></td>
+          <td><%= user.prettyUsage %></td>
           <td><%= user.type %></td>
           <td><%= user.createdAt %></td>
           <td><%= user.lastUsedAt ?? "never" %></td>
@@ -115,16 +115,6 @@
         ).then(() => window.location.reload());
       }
     });
-  });
-</script>
-    
-<script>
-  document.querySelectorAll("td").forEach(function(td) {
-    if (td.innerText.match(/^\d{13}$/)) {
-      if (td.innerText == 0) return 'never';
-      var date = new Date(parseInt(td.innerText));
-      td.innerText = date.toISOString().replace("T", " ").replace(/\.\d+Z$/, "");
-    }
   });
 </script>
 <%- include("../_partials/admin-footer") %>
