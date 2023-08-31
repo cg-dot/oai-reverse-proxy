@@ -228,6 +228,15 @@ export function refreshQuota(token: string) {
   usersToFlush.add(token);
 }
 
+export function resetUsage(token: string) {
+  const user = users.get(token);
+  if (!user) return;
+  const { tokenCounts } = user;
+  const counts = Object.entries(tokenCounts) as [ModelFamily, number][];
+  counts.forEach(([model]) => (tokenCounts[model] = 0));
+  usersToFlush.add(token);
+}
+
 /** Disables the given user, optionally providing a reason. */
 export function disableUser(token: string, reason?: string) {
   const user = users.get(token);

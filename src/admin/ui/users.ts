@@ -165,6 +165,12 @@ router.post("/maintenance", (req, res) => {
       message = `success: All users' token quotas reset to ${turbo} (Turbo), ${gpt4} (GPT-4), ${claude} (Claude).`;
       break;
     }
+    case "resetCounts": {
+      const users = userStore.getUsers();
+      users.forEach((user) => userStore.resetUsage(user.token));
+      message = `success: All users' token usage records reset.`;
+      break;
+    }
     default: {
       throw new HttpError(400, "Invalid action");
     }

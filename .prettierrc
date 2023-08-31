@@ -1,0 +1,13 @@
+{
+  "overrides": [
+    {
+      "files": [
+        "*.ejs"
+      ],
+      "options": {
+        "printWidth": 160,
+        "bracketSameLine": true
+      }
+    }
+  ]
+}
