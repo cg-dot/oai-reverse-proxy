@@ -67,9 +67,9 @@ export class KeyPool {
     return this.keyProviders.some((provider) => provider.anyUnchecked());
   }
 
-  public incrementPrompt(key: Key): void {
+  public incrementUsage(key: Key, model: string, tokens: number): void {
     const provider = this.getKeyProvider(key.service);
-    provider.incrementPrompt(key.hash);
+    provider.incrementUsage(key.hash, model, tokens);
   }
 
   public getLockoutPeriod(model: Model): number {

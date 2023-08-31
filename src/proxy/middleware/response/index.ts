@@ -411,11 +411,11 @@ function handleOpenAIRateLimitError(
 
 const incrementUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
   if (isCompletionRequest(req)) {
-    keyPool.incrementPrompt(req.key!);
+    const model = req.body.model;
+    const tokensUsed = req.promptTokens! + req.outputTokens!;
+    keyPool.incrementUsage(req.key!, model, tokensUsed);
     if (req.user) {
       incrementPromptCount(req.user.token);
-      const model = req.body.model;
-      const tokensUsed = req.promptTokens! + req.outputTokens!;
       incrementTokenCount(req.user.token, model, tokensUsed);
     }
   }

@@ -17,7 +17,13 @@ export const OPENAI_SUPPORTED_MODELS: readonly OpenAIModel[] = [
   "gpt-4",
 ] as const;
 
-export interface OpenAIKey extends Key {
+// Flattening model families instead of using a nested object for easier
+// cloning.
+type OpenAIKeyUsage = {
+  [K in OpenAIModelFamily as `${K}Tokens`]: number;
+};
+
+export interface OpenAIKey extends Key, OpenAIKeyUsage {
   readonly service: "openai";
   modelFamilies: OpenAIModelFamily[];
   /**
@@ -78,7 +84,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     bareKeys = keyString.split(",").map((k) => k.trim());
     bareKeys = [...new Set(bareKeys)];
     for (const k of bareKeys) {
-      const newKey = {
+      const newKey: OpenAIKey = {
         key: k,
         service: "openai" as const,
         modelFamilies: ["turbo" as const, "gpt4" as const],
@@ -86,10 +92,6 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         isDisabled: false,
         isRevoked: false,
         isOverQuota: false,
-        softLimit: 0,
-        hardLimit: 0,
-        systemHardLimit: 0,
-        usage: 0,
         lastUsed: 0,
         lastChecked: 0,
         promptCount: 0,
@@ -101,6 +103,9 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         rateLimitedAt: 0,
         rateLimitRequestsReset: 0,
         rateLimitTokensReset: 0,
+        turboTokens: 0,
+        gpt4Tokens: 0,
+        "gpt4-32kTokens": 0,
       };
       this.keys.push(newKey);
     }
@@ -314,10 +319,11 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     key.rateLimitedAt = Date.now();
   }
 
-  public incrementPrompt(keyHash?: string) {
+  public incrementUsage(keyHash: string, model: string, tokens: number) {
     const key = this.keys.find((k) => k.hash === keyHash);
     if (!key) return;
     key.promptCount++;
+    key[`${getOpenAIModelFamily(model)}Tokens`] += tokens;
   }
 
   public updateRateLimits(keyHash: string, headers: http.IncomingHttpHeaders) {

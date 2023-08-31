@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import showdown from "showdown";
 import { config, listConfig } from "./config";
 import {
+  AnthropicKey,
   ModelFamily,
   OpenAIKey,
   OpenAIModelFamily,
@@ -10,6 +11,7 @@ import {
 } from "./key-management";
 import { getUniqueIps } from "./proxy/rate-limit";
 import { getEstimatedWaitTime, getQueueLength } from "./proxy/queue";
+import { logger } from "./logger";
 
 const INFO_PAGE_TTL = 2000;
 let infoPageHtml: string | undefined;
@@ -18,6 +20,8 @@ let infoPageLastUpdated = 0;
 type KeyPoolKey = ReturnType<typeof keyPool.list>[0];
 const keyIsOpenAIKey = (k: KeyPoolKey): k is OpenAIKey =>
   k.service === "openai";
+const keyIsAnthropciKey = (k: KeyPoolKey): k is AnthropicKey =>
+  k.service === "anthropic";
 
 type ModelAggregates = {
   active: number;
@@ -26,6 +30,7 @@ type ModelAggregates = {
   overQuota?: number;
   queued: number;
   queueTime: string;
+  tokens: number;
 };
 type ModelAggregateKey = `${ModelFamily}__${keyof ModelAggregates}`;
 type ServiceAggregates = {
@@ -34,6 +39,8 @@ type ServiceAggregates = {
   openaiOrgs?: number;
   anthropicKeys?: number;
   proompts: number;
+  tokens: number;
+  tokenCost: number;
   uncheckedKeys?: number;
 } & {
   [modelFamily in ModelFamily]?: ModelAggregates;
@@ -41,6 +48,27 @@ type ServiceAggregates = {
 
 const modelStats = new Map<ModelAggregateKey, number>();
 const serviceStats = new Map<keyof ServiceAggregates, number>();
+
+// technically slightly underestimates, because completion tokens cost more
+// than prompt tokens but we don't track those separately right now
+function getTokenCostUsd(model: ModelFamily, tokens: number) {
+  let cost = 0;
+  switch (model) {
+    case "gpt4-32k":
+      cost = 0.00006;
+      break;
+    case "gpt4":
+      cost = 0.00003;
+      break;
+    case "turbo":
+      cost = 0.0000015;
+      break;
+    case "claude":
+      cost = 0.00001102;
+      break;
+  }
+  return cost * tokens;
+}
 
 export const handleInfoPage = (req: Request, res: Response) => {
   if (infoPageLastUpdated + INFO_PAGE_TTL > Date.now()) {
@@ -66,6 +94,8 @@ function cacheInfoPageHtml(baseUrl: string) {
 
   const openaiKeys = serviceStats.get("openaiKeys") || 0;
   const anthropicKeys = serviceStats.get("anthropicKeys") || 0;
+  const proompts = serviceStats.get("proompts") || 0;
+  const tokens = serviceStats.get("tokens") || 0;
 
   const info = {
     uptime: Math.floor(process.uptime()),
@@ -73,7 +103,8 @@ function cacheInfoPageHtml(baseUrl: string) {
       ...(openaiKeys ? { openai: baseUrl + "/proxy/openai" } : {}),
       ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
     },
-    proompts: keys.reduce((acc, k) => acc + k.promptCount, 0),
+    proompts,
+    tookens: `${tokens} ($${(serviceStats.get("tokenCost") || 0).toFixed(2)})`,
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
     openaiKeys,
     anthropicKeys,
@@ -127,13 +158,26 @@ function addKeyToAggregates(k: KeyPoolKey) {
   increment(serviceStats, "openaiKeys", k.service === "openai" ? 1 : 0);
   increment(serviceStats, "anthropicKeys", k.service === "anthropic" ? 1 : 0);
 
+  let sumTokens = 0;
+  let sumCost = 0;
   let family: ModelFamily;
   const families = k.modelFamilies.filter((f) =>
     config.allowedModelFamilies.includes(f)
   );
+
   if (keyIsOpenAIKey(k)) {
     // Currently only OpenAI keys are checked
     increment(serviceStats, "uncheckedKeys", Boolean(k.lastChecked) ? 0 : 1);
+
+    // Technically this would not account for keys that have tokens recorded
+    // on models they aren't provisioned for, but that would be strange
+    k.modelFamilies.forEach((f) => {
+      const tokens = k[`${f}Tokens`];
+      sumTokens += tokens;
+      sumCost += getTokenCostUsd(f, tokens);
+      increment(modelStats, `${f}__tokens`, tokens);
+    });
+
     if (families.includes("gpt4-32k")) {
       family = "gpt4-32k";
     } else if (families.includes("gpt4")) {
@@ -141,10 +185,18 @@ function addKeyToAggregates(k: KeyPoolKey) {
     } else {
       family = "turbo";
     }
-  } else {
+  } else if (keyIsAnthropciKey(k)) {
+    const tokens = k.claudeTokens;
     family = "claude";
+    sumTokens += tokens;
+    increment(modelStats, `${family}__tokens`, tokens);
+  } else {
+    logger.error({ key: k.hash }, "Unknown key type when adding to aggregates");
+    return;
   }
 
+  increment(serviceStats, "tokens", sumTokens);
+  increment(serviceStats, "tokenCost", sumCost);
   increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
   increment(modelStats, `${family}__trial`, k.isTrial ? 1 : 0);
   if ("isRevoked" in k) {
@@ -158,6 +210,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
 function getOpenAIInfo() {
   const info: { status?: string; openaiKeys?: number; openaiOrgs?: number } & {
     [modelFamily in OpenAIModelFamily]?: {
+      usage?: string;
       activeKeys: number;
       trialKeys?: number;
       revokedKeys?: number;
@@ -185,7 +238,11 @@ function getOpenAIInfo() {
     info.openaiOrgs = getUniqueOpenAIOrgs(keys);
 
     families.forEach((f) => {
+      const tokens = modelStats.get(`${f}__tokens`) || 0;
+      const cost = getTokenCostUsd(f, tokens);
+
       info[f] = {
+        usage: `${tokens} tokens ($${cost.toFixed(2)})`,
         activeKeys: modelStats.get(`${f}__active`) || 0,
         trialKeys: modelStats.get(`${f}__trial`) || 0,
         revokedKeys: modelStats.get(`${f}__revoked`) || 0,
@@ -203,8 +260,8 @@ function getOpenAIInfo() {
   }
 
   families.forEach((f) => {
-    const { estimatedQueueTime, proomptersInQueue } = getQueueInformation(f);
     if (info[f]) {
+      const { estimatedQueueTime, proomptersInQueue } = getQueueInformation(f);
       info[f]!.proomptersInQueue = proomptersInQueue;
       info[f]!.estimatedQueueTime = estimatedQueueTime;
     }
@@ -220,8 +277,11 @@ function getAnthropicInfo() {
   const queue = getQueueInformation("claude");
   claudeInfo.queued = queue.proomptersInQueue;
   claudeInfo.queueTime = queue.estimatedQueueTime;
+  const tokens = modelStats.get("claude__tokens") || 0;
+  const cost = getTokenCostUsd("claude", tokens);
   return {
     claude: {
+      usage: `${tokens} tokens ($${cost.toFixed(2)})`,
       activeKeys: claudeInfo.active,
       proomptersInQueue: claudeInfo.queued,
       estimatedQueueTime: claudeInfo.queueTime,

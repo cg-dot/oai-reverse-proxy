@@ -60,8 +60,6 @@ function getModelsResponse() {
   const allowed = new Set<ModelFamily>(config.allowedModelFamilies);
   available = new Set([...available].filter((x) => allowed.has(x)));
 
-  console.log(available);
-
   const models = knownModels
     .map((id) => ({
       id,

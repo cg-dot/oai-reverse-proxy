@@ -24,7 +24,11 @@ export type AnthropicKeyUpdate = Omit<
   | "rateLimitedUntil"
 >;
 
-export interface AnthropicKey extends Key {
+type AnthropicKeyUsage = {
+  [K in AnthropicModelFamily as `${K}Tokens`]: number;
+};
+
+export interface AnthropicKey extends Key, AnthropicKeyUsage {
   readonly service: "anthropic";
   readonly modelFamilies: AnthropicModelFamily[];
   /** The time at which this key was last rate limited. */
@@ -87,6 +91,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
           .digest("hex")
           .slice(0, 8)}`,
         lastChecked: 0,
+        claudeTokens: 0,
       };
       this.keys.push(newKey);
     }
@@ -162,10 +167,11 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     return false;
   }
 
-  public incrementPrompt(hash?: string) {
+  public incrementUsage(hash: string, _model: string, tokens: number) {
     const key = this.keys.find((k) => k.hash === hash);
     if (!key) return;
     key.promptCount++;
+    key.claudeTokens += tokens;
   }
 
   public getLockoutPeriod(_model: AnthropicModel) {
