@@ -20,7 +20,7 @@ let infoPageLastUpdated = 0;
 type KeyPoolKey = ReturnType<typeof keyPool.list>[0];
 const keyIsOpenAIKey = (k: KeyPoolKey): k is OpenAIKey =>
   k.service === "openai";
-const keyIsAnthropciKey = (k: KeyPoolKey): k is AnthropicKey =>
+const keyIsAnthropicKey = (k: KeyPoolKey): k is AnthropicKey =>
   k.service === "anthropic";
 
 type ModelAggregates = {
@@ -185,10 +185,11 @@ function addKeyToAggregates(k: KeyPoolKey) {
     } else {
       family = "turbo";
     }
-  } else if (keyIsAnthropciKey(k)) {
+  } else if (keyIsAnthropicKey(k)) {
     const tokens = k.claudeTokens;
     family = "claude";
     sumTokens += tokens;
+    sumCost += getTokenCostUsd(family, tokens);
     increment(modelStats, `${family}__tokens`, tokens);
   } else {
     logger.error({ key: k.hash }, "Unknown key type when adding to aggregates");
