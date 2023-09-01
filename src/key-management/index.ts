@@ -54,7 +54,7 @@ export interface KeyProvider<T extends Key = Key> {
   incrementUsage(hash: string, model: string, tokens: number): void;
   getLockoutPeriod(model: Model): number;
   markRateLimited(hash: string): void;
-  recheck(service: AIService): void;
+  recheck(): void;
 }
 
 export const keyPool = new KeyPool();

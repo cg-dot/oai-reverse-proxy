@@ -96,11 +96,7 @@ export class KeyPool {
     }
 
     const provider = this.getKeyProvider(service);
-    if (provider instanceof OpenAIKeyProvider) {
-      provider.recheck();
-    } else {
-      throw new Error(`Recheck not implemented for service '${service}'`);
-    }
+    provider.recheck();
   }
 
   private getService(model: Model): AIService {

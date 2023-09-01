@@ -3,6 +3,7 @@ import { Key, KeyProvider } from "..";
 import { config } from "../../config";
 import { logger } from "../../logger";
 import type { AnthropicModelFamily } from "../models";
+import { AnthropicKeyChecker } from "./checker";
 
 // https://docs.anthropic.com/claude/reference/selecting-a-model
 export const ANTHROPIC_SUPPORTED_MODELS = [
@@ -43,6 +44,11 @@ export interface AnthropicKey extends Key, AnthropicKeyUsage {
    * When a key returns this particular error, we set this flag to true.
    */
   requiresPreamble: boolean;
+  /**
+   * Whether this key has been detected as being affected by Anthropic's silent
+   * 'please answer ethically' prompt poisoning.
+   */
+  isPozzed: boolean;
 }
 
 /**
@@ -61,6 +67,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
   readonly service = "anthropic";
 
   private keys: AnthropicKey[] = [];
+  private checker?: AnthropicKeyChecker;
   private log = logger.child({ module: "key-provider", service: this.service });
 
   constructor() {
@@ -80,6 +87,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
         modelFamilies: ["claude"],
         isTrial: false,
         isDisabled: false,
+        isPozzed: false,
         promptCount: 0,
         lastUsed: 0,
         rateLimitedAt: 0,
@@ -99,8 +107,10 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
   }
 
   public init() {
-    // Nothing to do as Anthropic's API doesn't provide any usage information so
-    // there is no key checker implementation and no need to start it.
+    if (config.checkKeys) {
+      this.checker = new AnthropicKeyChecker(this.keys, this.update.bind(this));
+      this.checker.start();
+    }
   }
 
   public list() {
@@ -155,7 +165,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
 
   public update(hash: string, update: Partial<AnthropicKey>) {
     const keyFromPool = this.keys.find((k) => k.hash === hash)!;
-    Object.assign(keyFromPool, update);
+    Object.assign(keyFromPool, { lastChecked: Date.now(), ...update });
   }
 
   public available() {
@@ -210,6 +220,13 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
   }
 
   public recheck() {
-    throw new Error("Method not implemented.");
+    this.keys.forEach((key) => {
+      this.update(key.hash, {
+        isPozzed: false,
+        isDisabled: false,
+        lastChecked: 0,
+      });
+    });
+    this.checker?.scheduleNextCheck();
   }
 }

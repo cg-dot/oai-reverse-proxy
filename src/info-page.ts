@@ -29,6 +29,7 @@ type ModelAggregates = {
   trial?: number;
   revoked?: number;
   overQuota?: number;
+  pozzed?: number;
   queued: number;
   queueTime: string;
   tokens: number;
@@ -42,7 +43,8 @@ type ServiceAggregates = {
   proompts: number;
   tokens: number;
   tokenCost: number;
-  uncheckedKeys?: number;
+  openAiUncheckedKeys?: number;
+  anthropicUncheckedKeys?: number;
 } & {
   [modelFamily in ModelFamily]?: ModelAggregates;
 };
@@ -147,8 +149,11 @@ function addKeyToAggregates(k: KeyPoolKey) {
   );
 
   if (keyIsOpenAIKey(k)) {
-    // Currently only OpenAI keys are checked
-    increment(serviceStats, "uncheckedKeys", Boolean(k.lastChecked) ? 0 : 1);
+    increment(
+      serviceStats,
+      "openAiUncheckedKeys",
+      Boolean(k.lastChecked) ? 0 : 1
+    );
 
     // Technically this would not account for keys that have tokens recorded
     // on models they aren't provisioned for, but that would be strange
@@ -172,6 +177,12 @@ function addKeyToAggregates(k: KeyPoolKey) {
     sumTokens += tokens;
     sumCost += getTokenCostUsd(family, tokens);
     increment(modelStats, `${family}__tokens`, tokens);
+    increment(modelStats, `${family}__pozzed`, k.isPozzed ? 1 : 0);
+    increment(
+      serviceStats,
+      "anthropicUncheckedKeys",
+      Boolean(k.lastChecked) ? 0 : 1
+    );
   } else {
     logger.error({ key: k.hash }, "Unknown key type when adding to aggregates");
     return;
@@ -212,9 +223,9 @@ function getOpenAIInfo() {
   families = new Set([...families].filter((f) => allowedFamilies.has(f)));
 
   if (config.checkKeys) {
-    const unchecked = serviceStats.get("uncheckedKeys") || 0;
+    const unchecked = serviceStats.get("openAiUncheckedKeys") || 0;
     if (unchecked > 0) {
-      info.status = `Performing checks for ${unchecked} keys...`;
+      info.status = `Checking ${unchecked} keys...`;
     }
     info.openaiKeys = keys.length;
     info.openaiOrgs = getUniqueOpenAIOrgs(keys);
@@ -253,18 +264,26 @@ function getOpenAIInfo() {
 }
 
 function getAnthropicInfo() {
-  const claudeInfo: Partial<ModelAggregates> = {};
-  const keys = keyPool.list().filter((k) => k.service === "anthropic");
-  claudeInfo.active = keys.filter((k) => !k.isDisabled).length;
+  const claudeInfo: Partial<ModelAggregates> = {
+    active: modelStats.get("claude__active") || 0,
+    pozzed: modelStats.get("claude__pozzed") || 0,
+  };
+
   const queue = getQueueInformation("claude");
   claudeInfo.queued = queue.proomptersInQueue;
   claudeInfo.queueTime = queue.estimatedQueueTime;
+
   const tokens = modelStats.get("claude__tokens") || 0;
   const cost = getTokenCostUsd("claude", tokens);
+
+  const unchecked = serviceStats.get("anthropicUncheckedKeys") || 0;
+
   return {
     claude: {
       usage: `${prettyTokens(tokens)} tokens ($${cost.toFixed(2)})`,
+      ...(unchecked > 0 ? { status: `Checking ${unchecked} keys...` } : {}),
       activeKeys: claudeInfo.active,
+      ...(config.checkKeys ? { pozzedKeys: claudeInfo.pozzed } : {}),
       proomptersInQueue: claudeInfo.queued,
       estimatedQueueTime: claudeInfo.queueTime,
     },

@@ -160,10 +160,9 @@ router.post("/maintenance", (req, res) => {
   switch (action) {
     case "recheck": {
       keyPool.recheck("openai");
-      const size = keyPool
-        .list()
-        .filter((key) => key.service === "openai").length;
-      message = `success: Scheduled recheck of ${size} OpenAI keys.`;
+      keyPool.recheck("anthropic");
+      const size = keyPool.list().length;
+      message = `success: Scheduled recheck of ${size} keys.`;
       break;
     }
     case "resetQuotas": {
