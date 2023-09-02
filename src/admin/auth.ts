@@ -10,13 +10,9 @@ export const authorize: ({ via }: AuthorizeParams) => RequestHandler =
   ({ via }) =>
   (req, res, next) => {
     const bearerToken = req.headers.authorization?.slice("Bearer ".length);
-    const cookieToken = req.cookies["admin-token"];
+    const cookieToken = req.session.adminToken;
     const token = via === "cookie" ? cookieToken : bearerToken;
     const attempts = failedAttempts.get(req.ip) ?? 0;
-
-    if (!token) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
 
     if (!ADMIN_KEY) {
       req.log.warn(
@@ -34,16 +30,15 @@ export const authorize: ({ via }: AuthorizeParams) => RequestHandler =
       return res.status(401).json({ error: "Too many attempts" });
     }
 
-    if (token !== ADMIN_KEY) {
-      req.log.warn(
-        { ip: req.ip, attempts, token },
-        `Attempted admin request with invalid token`
-      );
-      return handleFailedLogin(req, res);
+    if (token && token === ADMIN_KEY) {
+      return next();
     }
 
-    req.log.info({ ip: req.ip }, `Admin request authorized`);
-    next();
+    req.log.warn(
+      { ip: req.ip, attempts, invalidToken: String(token) },
+      `Attempted admin request with invalid token`
+    );
+    return handleFailedLogin(req, res);
   };
 
 function handleFailedLogin(req: Request, res: Response) {
@@ -53,6 +48,6 @@ function handleFailedLogin(req: Request, res: Response) {
   if (req.accepts("json", "html") === "json") {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  res.clearCookie("admin-token");
+  delete req.session.adminToken;
   return res.redirect("/admin/login?failed=true");
 }

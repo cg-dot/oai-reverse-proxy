@@ -6,15 +6,16 @@ import path from "path";
 import pinoHttp from "pino-http";
 import childProcess from "child_process";
 import { logger } from "./logger";
-import { keyPool } from "./key-management";
+import { keyPool } from "./shared/key-management";
 import { adminRouter } from "./admin/routes";
 import { proxyRouter } from "./proxy/routes";
 import { handleInfoPage } from "./info-page";
-import { logQueue } from "./prompt-logging";
+import { logQueue } from "./shared/prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
-import { init as initUserStore } from "./proxy/auth/user-store";
-import { init as initTokenizers } from "./tokenization";
+import { init as initUserStore } from "./shared/users/user-store";
+import { init as initTokenizers } from "./shared/tokenization";
 import { checkOrigin } from "./proxy/check-origin";
+import { userRouter } from "./user/routes";
 
 const PORT = config.port;
 
@@ -51,7 +52,11 @@ app.use(
 app.set("trust proxy", true);
 
 app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
+app.set("views", [
+  path.join(__dirname, "admin/web/views"),
+  path.join(__dirname, "user/web/views"),
+  path.join(__dirname, "shared/views"),
+]);
 
 app.get("/health", (_req, res) => res.sendStatus(200));
 app.use(cors());
@@ -61,6 +66,7 @@ app.use(checkOrigin);
 app.get("/", handleInfoPage);
 app.use("/admin", adminRouter);
 app.use("/proxy", proxyRouter);
+app.use("/user", userRouter);
 
 // 500 and 404
 app.use((err: any, _req: unknown, res: express.Response, _next: unknown) => {

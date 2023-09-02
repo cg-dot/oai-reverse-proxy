@@ -1,7 +1,7 @@
 import { Request } from "express";
 import { z } from "zod";
 import { config } from "../../../config";
-import { OpenAIPromptMessage } from "../../../tokenization";
+import { OpenAIPromptMessage } from "../../../shared/tokenization";
 import { isCompletionRequest } from "../common";
 import { RequestPreprocessor } from ".";
 

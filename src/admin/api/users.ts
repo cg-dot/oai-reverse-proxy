@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import * as userStore from "../../proxy/auth/user-store";
-import { UserSchema, UserSchemaWithToken, parseSort, sortBy } from "../common";
+import * as userStore from "../../shared/users/user-store";
+import { parseSort, sortBy } from "../../shared/utils";
+import { UserPartialSchema } from "../../shared/users/schema";
 
 const router = Router();
 
@@ -44,11 +45,14 @@ router.post("/", (req, res) => {
  * PUT /admin/users/:token
  */
 router.put("/:token", (req, res) => {
-  const result = UserSchema.safeParse(req.body);
+  const result = UserPartialSchema.safeParse({
+    ...req.body,
+    token: req.params.token,
+  });
   if (!result.success) {
     return res.status(400).json({ error: result.error });
   }
-  userStore.upsertUser({ ...result.data, token: req.params.token });
+  userStore.upsertUser(result.data);
   res.json(userStore.getUser(req.params.token));
 });
 
@@ -59,7 +63,7 @@ router.put("/:token", (req, res) => {
  * PUT /admin/users
  */
 router.put("/", (req, res) => {
-  const result = z.array(UserSchemaWithToken).safeParse(req.body.users);
+  const result = z.array(UserPartialSchema).safeParse(req.body.users);
   if (!result.success) {
     return res.status(400).json({ error: result.error });
   }

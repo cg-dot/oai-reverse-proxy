@@ -4,12 +4,13 @@ import * as http from "http";
 import util from "util";
 import zlib from "zlib";
 import { logger } from "../../../logger";
-import { getOpenAIModelFamily, keyPool } from "../../../key-management";
+import { keyPool } from "../../../shared/key-management";
+import { getOpenAIModelFamily } from "../../../shared/models";
 import { enqueue, trackWaitTime } from "../../queue";
 import {
   incrementPromptCount,
   incrementTokenCount,
-} from "../../auth/user-store";
+} from "../../../shared/users/user-store";
 import {
   getCompletionForService,
   isCompletionRequest,
@@ -17,7 +18,7 @@ import {
 } from "../common";
 import { handleStreamedResponse } from "./handle-streamed-response";
 import { logPrompt } from "./log-prompt";
-import { countTokens } from "../../../tokenization";
+import { countTokens } from "../../../shared/tokenization";
 
 const DECODER_MAP = {
   gzip: util.promisify(zlib.gunzip),

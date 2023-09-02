@@ -2,17 +2,12 @@ import fs from "fs";
 import { Request, Response } from "express";
 import showdown from "showdown";
 import { config, listConfig } from "./config";
-import {
-  AnthropicKey,
-  ModelFamily,
-  OpenAIKey,
-  OpenAIModelFamily,
-  keyPool,
-} from "./key-management";
+import { AnthropicKey, OpenAIKey, keyPool } from "./shared/key-management";
+import { ModelFamily, OpenAIModelFamily } from "./shared/models";
 import { getUniqueIps } from "./proxy/rate-limit";
 import { getEstimatedWaitTime, getQueueLength } from "./proxy/queue";
 import { logger } from "./logger";
-import { getTokenCostUsd, prettyTokens } from "./stats";
+import { getTokenCostUsd, prettyTokens } from "./shared/stats";
 
 const INFO_PAGE_TTL = 2000;
 let infoPageHtml: string | undefined;
@@ -67,6 +62,11 @@ export const handleInfoPage = (req: Request, res: Response) => {
   res.send(cacheInfoPageHtml(baseUrl));
 };
 
+function getCostString(cost: number) {
+  if (!config.showTokenCosts) return "";
+  return ` ($${cost.toFixed(2)})`;
+}
+
 function cacheInfoPageHtml(baseUrl: string) {
   const keys = keyPool.list();
 
@@ -87,7 +87,9 @@ function cacheInfoPageHtml(baseUrl: string) {
       ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
     },
     proompts,
-    tookens: `${prettyTokens(tokens)} ($${tokenCost.toFixed(2)})`,
+    ...(config.showTokenCosts
+      ? { tookens: `${prettyTokens(tokens)}${getCostString(tokenCost)}` }
+      : { tookens: tokens }),
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
     openaiKeys,
     anthropicKeys,
@@ -235,7 +237,7 @@ function getOpenAIInfo() {
       const cost = getTokenCostUsd(f, tokens);
 
       info[f] = {
-        usage: `${prettyTokens(tokens)} tokens ($${cost.toFixed(2)})`,
+        usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
         activeKeys: modelStats.get(`${f}__active`) || 0,
         trialKeys: modelStats.get(`${f}__trial`) || 0,
         revokedKeys: modelStats.get(`${f}__revoked`) || 0,
@@ -276,11 +278,12 @@ function getAnthropicInfo() {
   const tokens = modelStats.get("claude__tokens") || 0;
   const cost = getTokenCostUsd("claude", tokens);
 
-  const unchecked = serviceStats.get("anthropicUncheckedKeys") || 0;
+  const unchecked =
+    (config.checkKeys && serviceStats.get("anthropicUncheckedKeys")) || 0;
 
   return {
     claude: {
-      usage: `${prettyTokens(tokens)} tokens ($${cost.toFixed(2)})`,
+      usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
       ...(unchecked > 0 ? { status: `Checking ${unchecked} keys...` } : {}),
       activeKeys: claudeInfo.active,
       ...(config.checkKeys ? { pozzedKeys: claudeInfo.pozzed } : {}),
@@ -343,8 +346,11 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
   infoBody += "\n\n" + waits.join(" / ");
 
   if (customGreeting) {
-    infoBody += `\n## Server Greeting\n
-${customGreeting}`;
+    infoBody += `\n## Server Greeting\n${customGreeting}`;
+  }
+
+  if (config.gatekeeper === "user_token") {
+    infoBody += `\n\n---\n\n[User lookup](/user/lookup)`;
   }
   return converter.makeHtml(infoBody);
 }

@@ -1,7 +1,7 @@
 import { Request } from "express";
 import { z } from "zod";
 import { config } from "../../../config";
-import { OpenAIPromptMessage, countTokens } from "../../../tokenization";
+import { OpenAIPromptMessage, countTokens } from "../../../shared/tokenization";
 import { RequestPreprocessor } from ".";
 
 const CLAUDE_MAX_CONTEXT = config.maxContextTokensAnthropic;

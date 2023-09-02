@@ -5,8 +5,8 @@ subset of the API is supported. Kobold requests must be transformed into
 equivalent OpenAI requests. */
 
 import * as express from "express";
-import { gatekeeper } from "./auth/gatekeeper";
-import { checkRisuToken } from "./auth/check-risu-token";
+import { gatekeeper } from "./gatekeeper";
+import { checkRisuToken } from "./check-risu-token";
 import { kobold } from "./kobold";
 import { openai } from "./openai";
 import { anthropic } from "./anthropic";

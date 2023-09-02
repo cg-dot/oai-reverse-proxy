@@ -1,4 +1,4 @@
-import { Key, OpenAIKey, keyPool } from "../../../key-management";
+import { Key, OpenAIKey, keyPool } from "../../../shared/key-management";
 import { isCompletionRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
 

@@ -1,0 +1,63 @@
+<%- include("partials/shared_header", { title: "OAI Reverse Proxy Admin" }) %>
+<h1>OAI Reverse Proxy Admin</h1>
+<% if (!persistenceEnabled) { %>
+<p style="color: red; background-color: #eedddd; padding: 1em">
+  <strong>⚠️ Users will be lost when the server restarts because persistence is not configured.</strong><br />
+  <br />Be sure to export your users and import them again after restarting the server if you want to keep them.<br />
+  <br />
+  See the
+  <a target="_blank" href="https://gitgud.io/khanon/oai-reverse-proxy/-/blob/main/docs/user-management.md#firebase-realtime-database">
+    user management documentation</a
+  >
+  to learn how to set up persistence.
+</p>
+<% } %>
+<h3>Users</h3>
+<ul>
+  <li><a href="/admin/manage/list-users">List Users</a></li>
+  <li><a href="/admin/manage/create-user">Create User</a></li>
+  <li><a href="/admin/manage/import-users">Import Users</a></li>
+  <li><a href="/admin/manage/export-users">Export Users</a></li>
+</ul>
+<h3>Maintenance</h3>
+<form id="maintenanceForm" action="/admin/manage/maintenance" method="post">
+  <input id="_csrf" type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <input id="hiddenAction" type="hidden" name="action" value="" />
+  <div display="flex" flex-direction="column">
+    <fieldset>
+      <legend>Key Recheck</legend>
+      <button id="recheck-keys" type="button" onclick="submitForm('recheck')">Force Key Recheck</button>
+      <label for="recheck-keys">Triggers a recheck of all keys without restarting the server.</label>
+    </fieldset>
+    <% if (quotasEnabled) { %>
+    <fieldset>
+      <legend>Bulk Quota Management</legend>
+      <p>
+        <button id="refresh-quotas" type="button" onclick="submitForm('resetQuotas')">Refresh All Quotas</button>
+        Resets all users' quotas to the values set in the <code>TOKEN_QUOTA_*</code> environment variables.
+      </p>
+      <p>
+        <button id="clear-token-counts" type="button" onclick="submitForm('resetCounts')">Clear All Token Counts</button>
+        Resets all users' token records to zero.
+      </p>
+    </fieldset>
+    <% } %>
+  </div>
+</form>
+
+<script>
+  let confirmed = false;
+  function submitForm(action) {
+    if (action === "resetCounts" && !confirmed) {
+      document.getElementById("clear-token-counts").innerText = "💣 Confirm Clear All Token Counts";
+      alert("⚠️ This will permanently clear token records for all users. If you only want to refresh quotas, use the other button.");
+      confirmed = true;
+      return;
+    }
+
+    document.getElementById("hiddenAction").value = action;
+    document.getElementById("maintenanceForm").submit();
+  }
+</script>
+
+<%- include("partials/admin-footer") %>

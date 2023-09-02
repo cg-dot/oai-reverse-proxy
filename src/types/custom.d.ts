@@ -1,6 +1,6 @@
 import { Express } from "express-serve-static-core";
-import { AIService, Key } from "../key-management/index";
-import { User } from "../proxy/auth/user-store";
+import { AIService, Key } from "../shared/key-management/index";
+import { User } from "../shared/users/user-store";
 
 declare global {
   namespace Express {
@@ -25,5 +25,12 @@ declare global {
       // TODO: remove later
       debug: Record<string, any>;
     }
+  }
+}
+
+declare module "express-session" {
+  interface SessionData {
+    adminToken?: string;
+    csrf?: string;
   }
 }

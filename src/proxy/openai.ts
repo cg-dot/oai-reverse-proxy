@@ -2,12 +2,12 @@ import { RequestHandler, Request, Router } from "express";
 import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
+import { keyPool } from "../shared/key-management";
 import {
   ModelFamily,
   OpenAIModelFamily,
   getOpenAIModelFamily,
-  keyPool,
-} from "../key-management";
+} from "../shared/models";
 import { logger } from "../logger";
 import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";

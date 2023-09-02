@@ -16,13 +16,12 @@
  */
 
 import type { Handler, Request } from "express";
+import { keyPool, SupportedModel } from "../shared/key-management";
 import {
   getClaudeModelFamily,
   getOpenAIModelFamily,
-  keyPool,
   ModelFamily,
-  SupportedModel,
-} from "../key-management";
+} from "../shared/models";
 import { logger } from "../logger";
 import { AGNAI_DOT_CHAT_IP } from "./rate-limit";
 import { buildFakeSseMessage } from "./middleware/common";

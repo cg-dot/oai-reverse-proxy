@@ -1,4 +1,4 @@
-import { AnthropicKey, Key } from "../../../key-management";
+import { AnthropicKey, Key } from "../../../shared/key-management";
 import { isCompletionRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
 

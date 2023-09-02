@@ -1,0 +1,15 @@
+  <hr />
+  <footer>
+    <a href="/admin">Index</a> | <a href="/admin/logout">Logout</a>
+  </footer>
+  <script>
+    document.querySelectorAll("td,time").forEach(function(td) {
+      if (td.innerText.match(/^\d{13}$/)) {
+        if (td.innerText == 0) return 'never';
+        var date = new Date(parseInt(td.innerText));
+        td.innerText = date.toISOString().replace("T", " ").replace(/\.\d+Z$/, "Z");
+      }
+    });
+  </script>
+  </body>
+</html>

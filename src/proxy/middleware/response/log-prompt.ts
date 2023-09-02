@@ -1,6 +1,6 @@
 import { Request } from "express";
 import { config } from "../../../config";
-import { logQueue } from "../../../prompt-logging";
+import { logQueue } from "../../../shared/prompt-logging";
 import { getCompletionForService, isCompletionRequest } from "../common";
 import { ProxyResHandlerWithBody } from ".";
 

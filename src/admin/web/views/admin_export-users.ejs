@@ -1,0 +1,28 @@
+<%- include("partials/shared_header", { title: "Export Users - OAI Reverse Proxy Admin" }) %>
+<h1>Export Users</h1>
+<p>
+  Export users to JSON. The JSON will be an array of objects under the key
+  <code>users</code>. You can use this JSON to import users later.
+</p>
+<script>
+  function exportUsers() {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/admin/manage/export-users.json", true);
+    xhr.responseType = "blob";
+    xhr.onload = function() {
+      if (this.status === 200) {
+        var blob = new Blob([this.response], { type: "application/json" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "users.json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    };
+    xhr.send();
+  }
+</script>
+<button onclick="exportUsers()">Export</button>
+<%- include("partials/admin-footer") %>

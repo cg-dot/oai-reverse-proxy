@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { AIService } from "../../../key-management";
+import { AIService } from "../../../shared/key-management";
 import { RequestPreprocessor } from ".";
 
 export const setApiFormat = (api: {

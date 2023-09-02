@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="csrf-token" content="<%= csrfToken %>">
+    <title><%= title %></title>
+    <style>
+      .pagination {
+        list-style-type: none;
+        padding: 0;
+      }
+      .pagination li {
+        display: inline-block;
+      }
+      .pagination li a {
+        display: block;
+        padding: 0.5em 1em;
+        text-decoration: none;
+      }
+      .pagination li.active a {
+        background-color: #58739c;
+        color: #fff;
+      }
+      
+      table {
+        border-collapse: collapse;
+        border: 1px solid #ccc;
+      }
+      table.striped tr:nth-child(even) {
+        background-color: #eaeaea 
+      }
+      table td, table th {
+        border: 1px solid #ccc;
+        padding: 0.25em 0.5em;
+      }
+      th.active {
+        background-color: #e0e6f6;
+      }
+      td.actions {
+        padding: 0;
+        width: 0;
+        text-align: center;
+      }
+      td.actions a {
+        text-decoration: none;
+        padding: 0.5em;
+        height: 100%;
+        width: 100%;
+      }
+      td.actions:hover {
+        background-color: #ccc;
+      }
+      
+      @media (max-width: 600px) {
+        table {
+          width: 100%;
+        }
+        table td, table th {
+          display: block;
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;">
+    <% if (flash && flash.type === "error") { %>
+      <p style="color: red; background-color: #eedddd; padding: 1em">
+        <strong>⚠️ Error:</strong> <%= flash.message %>
+      </p>
+    <% } %>
+    <% if (flash && flash.type === "success") { %>
+      <p style="color: green; background-color: #ddffee; padding: 1em">
+        <strong>✅ Success:</strong> <%= flash.message %>
+      </p>
+    <% } %>
+      
+    

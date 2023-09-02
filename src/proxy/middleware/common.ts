@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import httpProxy from "http-proxy";
 import { ZodError } from "zod";
-import { AIService } from "../../key-management";
+import { AIService } from "../../shared/key-management";
 import { QuotaExceededError } from "./request/apply-quota-limits";
 
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";

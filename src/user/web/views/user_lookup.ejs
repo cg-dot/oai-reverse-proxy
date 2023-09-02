@@ -1,0 +1,66 @@
+<%- include("partials/shared_header", { title: "User Token Lookup" }) %>
+<h1>User Token Lookup</h1>
+<p>Provide your user token to check your token usage and modify your details.</p>
+<form action="/user/lookup" method="post">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <label for="token">User Token</label>
+  <input type="password" name="token" value="<%= user?.token %>" />
+  <input type="submit" value="Lookup" />
+</form>
+<% if (user) { %>
+<hr />
+<table class="striped">
+  <tbody>
+    <tr>
+      <th scope="row">User Token</th>
+      <td colspan="2"><code> <%- "..." + user.token.slice(-5) %> </code></td>
+    </tr>
+
+    <tr>
+      <th scope="row">Nickname</th>
+      <td><%- user.nickname ?? "none" %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-nickname" href="#" onclick="updateNickname()">✏️</a>
+      </td>
+    </tr>
+    <tr>
+      <th scope="row">Type</th>
+      <td colspan="2"><%- user.type %></td>
+    </tr>
+    <tr>
+      <th scope="row">Prompts</th>
+      <td colspan="2"><%- user.promptCount %></td>
+    </tr>
+    <tr>
+      <th scope="row">Created At</th>
+      <td colspan="2"><%- user.createdAt %></td>
+    </tr>
+    <tr>
+      <th scope="row">Last Used At</th>
+      <td colspan="2"><%- user.lastUsedAt || "never" %></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Quota Information</h3>
+<%- include("partials/shared_quota-info", { quota, user }) %>
+
+<form id="edit-nickname-form" style="display: none" action="/user/edit-nickname" method="post">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <input type="hidden" name="token" value="<%= user.token %>" />
+  <input type="hidden" name="nickname" value="<%= user.nickname %>" />
+</form>
+
+<script>
+  function updateNickname() {
+    const form = document.getElementById("edit-nickname-form");
+    const existing = form.nickname.value;
+    const value = prompt("Enter a new nickname", existing);
+    if (value !== null) {
+      form.nickname.value = value;
+      form.submit();
+    }
+  }
+</script>
+
+<% } %> <%- include("partials/user_footer") %>

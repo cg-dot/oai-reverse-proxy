@@ -1,0 +1,15 @@
+<hr />
+<footer>
+  <a href="/user">Index</a>
+</footer>
+<script>
+  document.querySelectorAll("td,time").forEach(function(td) {
+    if (td.innerText.match(/^\d{13}$/)) {
+      if (td.innerText == 0) return 'never';
+      const date = new Date(parseInt(td.innerText));
+      td.innerText = date.toString();
+    }
+  });
+</script>
+</body>
+</html>

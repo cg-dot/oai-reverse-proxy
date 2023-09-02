@@ -1,0 +1,120 @@
+<%- include("partials/shared_header", { title: "View User - OAI Reverse Proxy Admin" }) %>
+<h1>View User</h1>
+
+<table class="striped">
+  <thead>
+    <tr>
+      <th scope="col">Key</th>
+      <th scope="col" colspan="2">Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th scope="row">Token</th>
+      <td colspan="2"><%- user.token %></td>
+    </tr>
+    <tr>
+      <th scope="row">Nickname</th>
+      <td><%- user.nickname ?? "none" %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-nickname" href="#" data-field="nickname" data-token="<%= user.token %>">✏️</a>
+      </td>
+    </tr>
+    <tr>
+      <th scope="row">Type</th>
+      <td><%- user.type %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-type" href="#" data-field="type" data-token="<%= user.token %>">✏️</a>
+      </td>
+    </tr>
+    <tr>
+      <th scope="row">Prompts</th>
+      <td colspan="2"><%- user.promptCount %></td>
+    </tr>
+    <tr>
+      <th scope="row">Created At</th>
+      <td colspan="2"><%- user.createdAt %></td>
+    </tr>
+    <tr>
+      <th scope="row">Last Used At</th>
+      <td colspan="2"><%- user.lastUsedAt || "never" %></td>
+    </tr>
+    <tr>
+      <th scope="row">Disabled At</th>
+      <td colspan="2"><%- user.disabledAt %></td>
+    </tr>
+    <tr>
+      <th scope="row">Disabled Reason</th>
+      <td colspan="2"><%- user.disabledReason %></td>
+    </tr>
+    <tr>
+      <th scope="row">IPs</th>
+      <td colspan="2">
+        <a href="#" id="ip-list-toggle">Show all (<%- user.ip.length %>)</a>
+        <ol id="ip-list" style="display: none; padding-left: 1em; margin: 0">
+          <% user.ip.forEach((ip) => { %>
+          <li><code><%- ip %></code></li>
+          <% }) %>
+        </ol>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Quota Information</h3>
+<% if (quotasEnabled) { %>
+<form action="/admin/manage/refresh-user-quota" method="POST">
+  <input type="hidden" name="token" value="<%- user.token %>" />
+  <input type="hidden" name="_csrf" value="<%- csrfToken %>" />
+  <button type="submit" class="btn btn-primary">Refresh Quotas for User</button>
+</form>
+<% } %>
+<%- include("partials/shared_quota-info", { quota, user }) %>
+
+
+<p><a href="/admin/manage/list-users">Back to User List</a></p>
+
+<script>
+  document.getElementById("ip-list-toggle").addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("ip-list").style.display = "block";
+    document.getElementById("ip-list-toggle").style.display = "none";
+  });
+
+  document.querySelectorAll("td.actions a[data-field]").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      const token = a.dataset.token;
+      const field = a.dataset.field;
+      let value = prompt(`Enter new value for '${field}'':`);
+      if (value !== null) {
+        if (value === "") {
+          value = null;
+        }
+        fetch(`/admin/manage/edit-user/${token}`, {
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({
+            [field]: value,
+            _csrf: document.querySelector("meta[name=csrf-token]").getAttribute("content"),
+          }),
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+        })
+          .then((res) => Promise.all([res.ok, res.json()]))
+          .then(([ok, json]) => {
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams();
+            if (!ok) {
+              params.set("flash", `error: ${json.error.message}`);
+            } else {
+              params.set("flash", `success: User's ${field} updated.`);
+            }
+            url.search = params.toString();
+            window.location.assign(url);
+          });
+      }
+    });
+  });
+</script>
+
+<%- include("partials/admin-footer") %>

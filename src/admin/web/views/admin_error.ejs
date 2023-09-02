@@ -1,0 +1,8 @@
+<%- include("partials/shared_header", { title: "Error" }) %>
+    <div id="error-content" style="color: red; background-color: #eedddd; padding: 1em">
+      <p><strong>⚠️ Error <%= status %>:</strong> <%= message %></p>
+      <pre><%= stack %></pre>
+      <a href="#" onclick="window.history.back()">Go Back</a> | <a href="/admin">Go Home</a>
+    </div>
+  </body>
+</html>

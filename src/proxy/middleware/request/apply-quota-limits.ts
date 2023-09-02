@@ -1,4 +1,4 @@
-import { hasAvailableQuota } from "../../auth/user-store";
+import { hasAvailableQuota } from "../../../shared/users/user-store";
 import { isCompletionRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
 
