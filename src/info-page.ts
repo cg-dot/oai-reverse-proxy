@@ -354,7 +354,7 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
 
 function getSelfServiceLinks() {
   if (config.gatekeeper !== "user_token") return "";
-  return `<footer style="font-size: 0.8em;"><hr /><a href="/user/lookup">Check your user token info</a></footer>`;
+  return `<footer style="font-size: 0.8em;"><hr /><a target="_blank" href="/user/lookup">Check your user token info</a></footer>`;
 }
 
 /** Returns queue time in seconds, or minutes + seconds if over 60 seconds. */
