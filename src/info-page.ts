@@ -114,6 +114,7 @@ function cacheInfoPageHtml(baseUrl: string) {
     <hr />
     <h2>Service Info</h2>
     <pre>${JSON.stringify(info, null, 2)}</pre>
+    ${getSelfServiceLinks()}
   </body>
 </html>`;
 
@@ -348,11 +349,12 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
   if (customGreeting) {
     infoBody += `\n## Server Greeting\n${customGreeting}`;
   }
-
-  if (config.gatekeeper === "user_token") {
-    infoBody += `\n\n---\n\n[User lookup](/user/lookup)`;
-  }
   return converter.makeHtml(infoBody);
+}
+
+function getSelfServiceLinks() {
+  if (config.gatekeeper !== "user_token") return "";
+  return `<footer style="font-size: 0.8em;"><hr /><a href="/user/lookup">Check your user token info</a></footer>`;
 }
 
 /** Returns queue time in seconds, or minutes + seconds if over 60 seconds. */
