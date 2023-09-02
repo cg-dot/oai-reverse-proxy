@@ -143,6 +143,11 @@ type Config = {
    * Defaults to no automatic quota refresh.
    */
   quotaRefreshPeriod?: "hourly" | "daily" | string;
+  /**
+   * Whether to allow users to change their nickname via the UI. Defaults to
+   * true.
+   **/
+  allowNicknameChanges: boolean;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -206,6 +211,7 @@ export const config: Config = {
     claude: getEnvWithDefault("TOKEN_QUOTA_CLAUDE", 0),
   },
   quotaRefreshPeriod: getEnvWithDefault("QUOTA_REFRESH_PERIOD", undefined),
+  allowNicknameChanges: getEnvWithDefault("ALLOW_NICKNAME_CHANGES", true),
 } as const;
 
 function generateCookieSecret() {
@@ -306,6 +312,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "blockedOrigins",
   "blockMessage",
   "blockRedirect",
+  "allowNicknameChanges",
 ];
 
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;

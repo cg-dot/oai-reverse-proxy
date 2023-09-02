@@ -3,6 +3,7 @@ import { UserSchema } from "../../shared/users/schema";
 import * as userStore from "../../shared/users/user-store";
 import { UserInputError } from "../../shared/errors";
 import { sanitizeAndTrim } from "../../shared/utils";
+import { config } from "../../config";
 
 const router = Router();
 
@@ -27,6 +28,9 @@ router.post("/lookup", (req, res) => {
 });
 
 router.post("/edit-nickname", (req, res) => {
+  if (!config.allowNicknameChanges)
+    throw new UserInputError("Nickname changes are not allowed.");
+
   const nicknameUpdateSchema = UserSchema.pick({ token: true, nickname: true })
     .extend({
       nickname: UserSchema.shape.nickname.transform((v) => sanitizeAndTrim(v)),

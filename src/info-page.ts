@@ -87,9 +87,7 @@ function cacheInfoPageHtml(baseUrl: string) {
       ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
     },
     proompts,
-    ...(config.showTokenCosts
-      ? { tookens: `${prettyTokens(tokens)}${getCostString(tokenCost)}` }
-      : { tookens: tokens }),
+    tookens: `${prettyTokens(tokens)}${getCostString(tokenCost)}`,
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
     openaiKeys,
     anthropicKeys,

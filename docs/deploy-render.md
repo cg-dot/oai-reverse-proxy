@@ -1,5 +1,5 @@
 # Deploy to Render.com
-Render.com offers a free tier that includes 750 hours of compute time per month.  This is enough to run a single proxy instance 24/7.  Instances shut down after 15 minutes without traffic but start up again automatically when a request is received.
+Render.com offers a free tier that includes 750 hours of compute time per month.  This is enough to run a single proxy instance 24/7.  Instances shut down after 15 minutes without traffic but start up again automatically when a request is received.  You can use something like https://app.checklyhq.com/ to ping your proxy every 15 minutes to keep it alive.
 
 ### 1. Create account
 - [Sign up for Render.com](https://render.com/) to create an account and access the dashboard.
