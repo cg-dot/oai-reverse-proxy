@@ -60,7 +60,6 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
   // TODO: KeyProvider should assemble all necessary headers
   if (assignedKey.service === "anthropic") {
     proxyReq.setHeader("X-API-Key", assignedKey.key);
-    proxyReq.setHeader("anthropic-version", "2023-01-01");
   } else if (assignedKey.service === "openai") {
     const key: OpenAIKey = assignedKey as OpenAIKey;
     if (key.organizationId) {
