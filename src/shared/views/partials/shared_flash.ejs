@@ -1,0 +1,25 @@
+<% if (flashData) {
+  let flashStyle = { title: "", style: "" };
+  switch (flashData.type) {
+    case "success":
+      flashStyle.title = "✅ Success:";
+      flashStyle.style = "color: green; background-color: #ddffee; padding: 1em";
+      break;
+    case "error":
+      flashStyle.title = "⚠️ Error:";
+      flashStyle.style = "color: red; background-color: #eedddd; padding: 1em";
+      break;
+    case "warning":
+      flashStyle.title = "⚠️ Alert:";
+      flashStyle.style = "color: darkorange; background-color: #ffeecc; padding: 1em";
+      break;
+    case "info":
+      flashStyle.title = "ℹ️ Notice:";
+      flashStyle.style = "color: blue; background-color: #ddeeff; padding: 1em";
+      break;
+  }
+%>
+<p style="<%= flashStyle.style %>">
+  <strong><%= flashStyle.title %></strong> <%= flashData.message %>
+</p>
+<% } %>

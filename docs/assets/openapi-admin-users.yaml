@@ -1,4 +1,4 @@
-# Shat out by GPT-4, I did not check for correctness beyond a cursory glance
+
 openapi: 3.0.0
 info:
   version: 1.0.0
@@ -26,6 +26,26 @@ paths:
     post:
       summary: Create a new user
       operationId: createUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    type:
+                      type: string
+                      enum: ["normal", "special"]
+                - type: object
+                  properties:
+                    type:
+                      type: string
+                      enum: ["temporary"]
+                    expiresAt:
+                      type: integer
+                      format: int64
+                    tokenLimits:
+                      $ref: "#/components/schemas/TokenCount"       
       responses:
         "200":
           description: The created user's token
@@ -170,9 +190,24 @@ paths:
                 type: object
                 properties:
                   error:
-                    type: string
+                    type: string                    
 components:
   schemas:
+    TokenCount:
+      type: object
+      properties:
+        turbo:
+          type: integer
+          format: int32
+        gpt4:
+          type: integer
+          format: int32
+        "gpt4-32k":
+          type: integer
+          format: int32
+        claude:
+          type: integer
+          format: int32
     User:
       type: object
       properties:
@@ -182,15 +217,18 @@ components:
           type: array
           items:
             type: string
+        nickname:
+          type: string
         type:
           type: string
           enum: ["normal", "special"]
         promptCount:
           type: integer
           format: int32
-        tokenCount:
-          type: integer
-          format: int32
+        tokenLimits:
+          $ref: "#/components/schemas/TokenCount"
+        tokenCounts:
+          $ref: "#/components/schemas/TokenCount"
         createdAt:
           type: integer
           format: int64
@@ -202,3 +240,6 @@ components:
           format: int64
         disabledReason:
           type: string
+        expiresAt:
+          type: integer
+          format: int64

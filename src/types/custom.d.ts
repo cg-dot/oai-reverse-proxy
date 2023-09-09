@@ -31,6 +31,8 @@ declare global {
 declare module "express-session" {
   interface SessionData {
     adminToken?: string;
+    userToken?: string;
     csrf?: string;
+    flash?: { type: string; message: string };
   }
 }

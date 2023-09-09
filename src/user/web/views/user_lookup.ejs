@@ -1,6 +1,6 @@
 <%- include("partials/shared_header", { title: "User Token Lookup" }) %>
 <h1>User Token Lookup</h1>
-<p>Provide your user token to check your token usage and modify your details.</p>
+<p>Provide your user token to check your usage and quota information.</p>
 <form action="/user/lookup" method="post">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
   <label for="token">User Token</label>
@@ -9,6 +9,17 @@
 </form>
 <% if (user) { %>
 <hr />
+<% if (user.type === "temporary" && Boolean(user.disabledAt)) { %>
+<%- include("partials/shared_flash", { flashData: {
+      type: "info",
+      message: "This temporary user token has expired and is no longer usable. These records will be deleted soon.",
+    } }) %>
+<% } else if (user.disabledAt) { %>
+<%- include("partials/shared_flash", { flashData: {
+      type: "warning",
+      message: "This user token has been disabled." + (user.disabledReason ? ` Reason: ${user.disabledReason}` : ""),
+    } }) %>
+<% } %>
 <table class="striped">
   <tbody>
     <tr>
@@ -39,6 +50,16 @@
       <th scope="row">Last Used At</th>
       <td colspan="2"><%- user.lastUsedAt || "never" %></td>
     </tr>
+    <tr>
+      <th scope="row">IPs<%- maxIps ? ` (max ${maxIps})` : "" %> </th>
+      <td colspan="2"><%- include("partials/shared_user_ip_list", { user }) %></td>
+    </tr>
+    <% if (user.type === "temporary") { %>
+    <tr>
+      <th scope="row">Expires At</th>
+      <td colspan="2"><%- user.expiresAt %></td>
+    </tr>
+    <% } %>
   </tbody>
 </table>
 
@@ -47,7 +68,6 @@
 
 <form id="edit-nickname-form" style="display: none" action="/user/edit-nickname" method="post">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-  <input type="hidden" name="token" value="<%= user.token %>" />
   <input type="hidden" name="nickname" value="<%= user.nickname %>" />
 </form>
 

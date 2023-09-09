@@ -6,9 +6,14 @@ import { HttpError } from "../../shared/errors";
 import * as userStore from "../../shared/users/user-store";
 import { parseSort, sortBy, paginate } from "../../shared/utils";
 import { keyPool } from "../../shared/key-management";
-import { ModelFamily } from "../../shared/models";
+import { MODEL_FAMILIES } from "../../shared/models";
 import { getTokenCostUsd, prettyTokens } from "../../shared/stats";
-import { UserPartialSchema } from "../../shared/users/schema";
+import {
+  User,
+  UserPartialSchema,
+  UserSchema,
+  UserTokenCounts,
+} from "../../shared/users/schema";
 
 const router = Router();
 
@@ -34,41 +39,62 @@ router.get("/create-user", (req, res) => {
   });
 });
 
-router.post("/create-user", (_req, res) => {
-  userStore.createUser();
+router.post("/create-user", (req, res) => {
+  const body = req.body;
+
+  const base = z.object({ type: UserSchema.shape.type.default("normal") });
+  const tempUser = base
+    .extend({
+      temporaryUserDuration: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(10080 * 4),
+    })
+    .merge(
+      MODEL_FAMILIES.reduce((schema, model) => {
+        return schema.extend({
+          [`temporaryUserQuota_${model}`]: z.coerce.number().int().min(0),
+        });
+      }, z.object({}))
+    )
+    .transform((data: any) => {
+      const expiresAt = Date.now() + data.temporaryUserDuration * 60 * 1000;
+      const tokenLimits = MODEL_FAMILIES.reduce((limits, model) => {
+        limits[model] = data[`temporaryUserQuota_${model}`];
+        return limits;
+      }, {} as UserTokenCounts);
+      return { ...data, expiresAt, tokenLimits };
+    });
+
+  const createSchema = body.type === "temporary" ? tempUser : base;
+  const result = createSchema.safeParse(body);
+  if (!result.success) {
+    throw new HttpError(
+      400,
+      result.error.issues.flatMap((issue) => issue.message).join(", ")
+    );
+  }
+
+  userStore.createUser({ ...result.data });
   return res.redirect(`/admin/manage/create-user?created=true`);
 });
 
 router.get("/view-user/:token", (req, res) => {
   const user = userStore.getUser(req.params.token);
   if (!user) throw new HttpError(404, "User not found");
-
-  if (req.query.refreshed) {
-    res.locals.flash = {
-      type: "success",
-      message: "User's quota was refreshed",
-    };
-  }
   res.render("admin_view-user", { user });
 });
 
 router.get("/list-users", (req, res) => {
-  const sort = parseSort(req.query.sort) || ["sumCost", "createdAt"];
+  const sort = parseSort(req.query.sort) || ["sumTokens", "createdAt"];
   const requestedPageSize =
     Number(req.query.perPage) || Number(req.cookies.perPage) || 20;
   const perPage = Math.max(1, Math.min(1000, requestedPageSize));
   const users = userStore
     .getUsers()
     .map((user) => {
-      const sums = { sumTokens: 0, sumCost: 0, prettyUsage: "" };
-      Object.entries(user.tokenCounts).forEach(([model, tokens]) => {
-        const coalesced = tokens ?? 0;
-        sums.sumTokens += coalesced;
-        sums.sumCost += getTokenCostUsd(model as ModelFamily, coalesced);
-      });
-      sums.prettyUsage = `${prettyTokens(
-        sums.sumTokens
-      )} ($${sums.sumCost.toFixed(2)}) `;
+      const sums = getSumsForUser(user);
       return { ...user, ...sums };
     })
     .sort(sortBy(sort, false));
@@ -95,9 +121,11 @@ router.post("/import-users", upload.single("users"), (req, res) => {
   if (!result.success) throw new HttpError(400, result.error.toString());
 
   const upserts = result.data.map((user) => userStore.upsertUser(user));
-  res.render("admin_import-users", {
-    flash: { type: "success", message: `${upserts.length} users imported` },
-  });
+  req.session.flash = {
+    type: "success",
+    message: `${upserts.length} users imported`,
+  };
+  res.redirect("/admin/manage/import-users");
 });
 
 router.get("/export-users", (_req, res) => {
@@ -155,39 +183,124 @@ router.post("/refresh-user-quota", (req, res) => {
   const user = userStore.getUser(req.body.token);
   if (!user) throw new HttpError(404, "User not found");
 
-  userStore.refreshQuota(req.body.token);
-  return res.redirect(`/admin/manage/view-user/${req.body.token}?refreshed=1`);
+  userStore.refreshQuota(user.token);
+  req.session.flash = {
+    type: "success",
+    message: "User's quota was refreshed",
+  };
+  return res.redirect(`/admin/manage/view-user/${user.token}`);
 });
 
 router.post("/maintenance", (req, res) => {
   const action = req.body.action;
-  let message = "";
+  let flash = { type: "", message: "" };
   switch (action) {
     case "recheck": {
       keyPool.recheck("openai");
       keyPool.recheck("anthropic");
       const size = keyPool.list().length;
-      message = `success: Scheduled recheck of ${size} keys.`;
+      flash.type = "success";
+      flash.message = `Scheduled recheck of ${size} keys.`;
       break;
     }
     case "resetQuotas": {
       const users = userStore.getUsers();
       users.forEach((user) => userStore.refreshQuota(user.token));
       const { claude, gpt4, turbo } = config.tokenQuota;
-      message = `success: All users' token quotas reset to ${turbo} (Turbo), ${gpt4} (GPT-4), ${claude} (Claude).`;
+      flash.type = "success";
+      flash.message = `All users' token quotas reset to ${turbo} (Turbo), ${gpt4} (GPT-4), ${claude} (Claude).`;
       break;
     }
     case "resetCounts": {
       const users = userStore.getUsers();
       users.forEach((user) => userStore.resetUsage(user.token));
-      message = `success: All users' token usage records reset.`;
+      flash.type = "success";
+      flash.message = `All users' token usage records reset.`;
       break;
     }
     default: {
       throw new HttpError(400, "Invalid action");
     }
   }
-  return res.redirect(`/admin/manage?flash=${message}`);
+
+  req.session.flash = flash;
+
+  return res.redirect(`/admin/manage`);
 });
+
+router.get("/rentry-stats", (_req, res) => {
+  const users = userStore.getUsers();
+
+  let totalTokens = 0;
+  let totalCost = 0;
+  let totalPrompts = 0;
+  let totalIps = 0;
+
+  const lines = users
+    .map((user) => {
+      const sums = getSumsForUser(user);
+      totalTokens += sums.sumTokens;
+      totalCost += sums.sumCost;
+      totalPrompts += user.promptCount;
+      totalIps += user.ip.length;
+
+      const token = `...${user.token.slice(-5)}`;
+      const name = user.nickname
+        ? `${user.nickname.slice(0, 16).padEnd(16)} ${token}`
+        : `${"Anonymous".padEnd(16)} ${token}`;
+      const strUser = name.padEnd(25);
+      const strPrompts = `${user.promptCount} proompts`.padEnd(14);
+      const strIps = `${user.ip.length} IPs`.padEnd(8);
+      const strTokens = `${sums.prettyUsage} tokens`.padEnd(30);
+
+      return {
+        strUser,
+        strPrompts,
+        strIps,
+        strTokens,
+        sort: user.promptCount,
+      };
+    })
+    .sort((a, b) => b.sort - a.sort)
+    .map(
+      (l) => `${l.strUser} | ${l.strPrompts} | ${l.strIps} | ${l.strTokens}`
+    );
+
+  const strTotalPrompts = `${totalPrompts} proompts`;
+  const strTotalIps = `${totalIps} IPs`;
+  const strTotalTokens = `${prettyTokens(totalTokens)} tokens`;
+  const strTotalCost = `US$${totalCost.toFixed(2)} cost`;
+  let header = `!!!Note ${users.length} users | ${strTotalPrompts} | ${strTotalIps} | ${strTotalTokens} | ${strTotalCost}`;
+
+  const doc = [];
+  doc.push("# Stats");
+  doc.push(header);
+  doc.push("```");
+  doc.push(lines.join("\n"));
+  doc.push("```");
+  doc.push(` -> *(as of ${new Date().toISOString()})* <-`);
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename=proxy-stats-${new Date().toISOString()}.md`
+  );
+  res.setHeader("Content-Type", "text/markdown");
+  res.send(doc.join("\n"));
+});
+
+function getSumsForUser(user: User) {
+  const sums = MODEL_FAMILIES.reduce(
+    (s, model) => {
+      const tokens = user.tokenCounts[model] ?? 0;
+      s.sumTokens += tokens;
+      s.sumCost += getTokenCostUsd(model, tokens);
+      return s;
+    },
+    { sumTokens: 0, sumCost: 0, prettyUsage: "" }
+  );
+  sums.prettyUsage = `${prettyTokens(sums.sumTokens)} ($${sums.sumCost.toFixed(
+    2
+  )})`;
+  return sums;
+}
 
 export { router as usersWebRouter };

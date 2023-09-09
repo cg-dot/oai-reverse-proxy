@@ -1,5 +1,6 @@
 import { Query } from "express-serve-static-core";
 import sanitize from "sanitize-html";
+import { z } from "zod";
 
 export function parseSort(sort: Query["sort"]) {
   if (!sort) return null;
@@ -48,4 +49,29 @@ export function sanitizeAndTrim(
   }
 ) {
   return sanitize((input ?? "").trim(), options);
+}
+
+// https://github.com/colinhacks/zod/discussions/2050#discussioncomment-5018870
+export function makeOptionalPropsNullable<Schema extends z.AnyZodObject>(
+  schema: Schema
+) {
+  const entries = Object.entries(schema.shape) as [
+    keyof Schema["shape"],
+    z.ZodTypeAny
+  ][];
+  const newProps = entries.reduce(
+    (acc, [key, value]) => {
+      acc[key] =
+        value instanceof z.ZodOptional ? value.unwrap().nullable() : value;
+      return acc;
+    },
+    {} as {
+      [key in keyof Schema["shape"]]: Schema["shape"][key] extends z.ZodOptional<
+        infer T
+      >
+        ? z.ZodNullable<T>
+        : Schema["shape"][key];
+    }
+  );
+  return z.object(newProps);
 }

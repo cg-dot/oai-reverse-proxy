@@ -26,7 +26,11 @@
       <td><%- prettyTokens(user.tokenLimits[key]) %></td>
       <td><%- prettyTokens(user.tokenLimits[key] - user.tokenCounts[key]) %></td>
       <% } %>
+      <% if (user.type === "temporary") { %>
+      <td>N/A</td>
+      <% } else { %>
       <td><%- prettyTokens(quota[key]) %></td>
+      <% } %>
     </tr>
     <% }) %>
   </tbody>

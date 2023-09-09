@@ -1,0 +1,14 @@
+<a href="#" id="ip-list-toggle">Show all (<%- user.ip.length %>)</a>
+<ol id="ip-list" style="display: none; padding-left: 1em; margin: 0">
+  <% user.ip.forEach((ip) => { %>
+  <li><code><%- ip %></code></li>
+  <% }) %>
+</ol>
+
+<script>
+  document.getElementById("ip-list-toggle").addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("ip-list").style.display = "block";
+    document.getElementById("ip-list-toggle").style.display = "none";
+  });
+</script>

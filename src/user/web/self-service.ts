@@ -1,58 +1,61 @@
 import { Router } from "express";
-import { UserSchema } from "../../shared/users/schema";
+import { UserPartialSchema } from "../../shared/users/schema";
 import * as userStore from "../../shared/users/user-store";
-import { UserInputError } from "../../shared/errors";
+import { ForbiddenError, UserInputError } from "../../shared/errors";
 import { sanitizeAndTrim } from "../../shared/utils";
 import { config } from "../../config";
 
 const router = Router();
 
+router.use((req, res, next) => {
+  if (req.session.userToken) {
+    res.locals.currentSelfServiceUser =
+      userStore.getUser(req.session.userToken) || null;
+  }
+  next();
+});
+
 router.get("/", (_req, res) => {
   res.redirect("/");
 });
 
-router.get("/lookup", (req, res) => {
-  res.render("user_lookup", { user: null });
+router.get("/lookup", (_req, res) => {
+  res.render("user_lookup", { user: res.locals.currentSelfServiceUser });
 });
 
 router.post("/lookup", (req, res) => {
   const token = req.body.token;
   const user = userStore.getUser(token);
   if (!user) {
-    return res.status(401).render("user_lookup", {
-      user: null,
-      flash: { type: "error", message: "Invalid user token." },
-    });
+    req.session.flash = { type: "error", message: "Invalid user token." };
+    return res.redirect("/user/lookup");
   }
-  res.render("user_lookup", { user });
+  req.session.userToken = user.token;
+  return res.redirect("/user/lookup");
 });
 
 router.post("/edit-nickname", (req, res) => {
-  if (!config.allowNicknameChanges)
-    throw new UserInputError("Nickname changes are not allowed.");
+  const existing = res.locals.currentSelfServiceUser;
 
-  const nicknameUpdateSchema = UserSchema.pick({ token: true, nickname: true })
-    .extend({
-      nickname: UserSchema.shape.nickname.transform((v) => sanitizeAndTrim(v)),
-    })
-    .strict();
+  if (!existing) {
+    throw new ForbiddenError("Not logged in.");
+  } else if (!config.allowNicknameChanges || existing.disabledAt) {
+    throw new ForbiddenError("Nickname changes are not allowed.");
+  }
 
-  const result = nicknameUpdateSchema.safeParse(req.body);
+  const schema = UserPartialSchema.pick({ nickname: true })
+    .strict()
+    .transform((v) => ({ nickname: sanitizeAndTrim(v.nickname) }));
+
+  const result = schema.safeParse(req.body);
   if (!result.success) {
     throw new UserInputError(result.error.message);
   }
 
-  const existing = userStore.getUser(result.data.token);
-  if (!existing) {
-    throw new UserInputError("Invalid user token.");
-  }
-
   const newNickname = result.data.nickname || null;
-  userStore.upsertUser({ ...existing, nickname: newNickname });
-  res.render("user_lookup", {
-    user: { ...existing, nickname: newNickname },
-    flash: { type: "success", message: "Nickname updated" },
-  });
+  userStore.upsertUser({ token: existing.token, nickname: newNickname });
+  req.session.flash = { type: "success", message: "Nickname updated." };
+  return res.redirect("/user/lookup");
 });
 
 export { router as selfServiceRouter };

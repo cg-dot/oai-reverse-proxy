@@ -1,11 +1,8 @@
-import { config } from "../config";
 import { ModelFamily } from "./models";
 
 // technically slightly underestimates, because completion tokens cost more
 // than prompt tokens but we don't track those separately right now
 export function getTokenCostUsd(model: ModelFamily, tokens: number) {
-  if (!config.showTokenCosts) return 0;
-
   let cost = 0;
   switch (model) {
     case "gpt4-32k":

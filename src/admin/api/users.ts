@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import * as userStore from "../../shared/users/user-store";
 import { parseSort, sortBy } from "../../shared/utils";
-import { UserPartialSchema } from "../../shared/users/schema";
+import { UserPartialSchema, UserSchema } from "../../shared/users/schema";
 
 const router = Router();
 
@@ -30,11 +30,32 @@ router.get("/:token", (req, res) => {
 
 /**
  * Creates a new user.
+ * Optionally accepts a JSON body containing `type`, and for temporary-type
+ * users, `tokenLimits` and `expiresAt` fields.
  * Returns the created user's token.
  * POST /admin/users
  */
 router.post("/", (req, res) => {
-  const token = userStore.createUser();
+  const body = req.body;
+
+  const base = z.object({
+    type: UserSchema.shape.type.exclude(["temporary"]).default("normal"),
+  });
+  const tempUser = base
+    .extend({
+      type: z.literal("temporary"),
+      expiresAt: UserSchema.shape.expiresAt,
+      tokenLimits: UserSchema.shape.tokenLimits,
+    })
+    .required();
+
+  const schema = z.union([base, tempUser]);
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const token = userStore.createUser({ ...result.data });
   res.json({ token });
 });
 
@@ -68,10 +89,7 @@ router.put("/", (req, res) => {
     return res.status(400).json({ error: result.error });
   }
   const upserts = result.data.map((user) => userStore.upsertUser(user));
-  res.json({
-    upserted_users: upserts,
-    count: upserts.length,
-  });
+  res.json({ upserted_users: upserts, count: upserts.length });
 });
 
 /**

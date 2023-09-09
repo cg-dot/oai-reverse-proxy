@@ -8,7 +8,8 @@
     "start:watch": "nodemon --require source-map-support/register build/server.js",
     "start:replit": "tsc && node build/server.js",
     "start": "node build/server.js",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "prepare": "husky install"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -54,6 +55,7 @@
     "concurrently": "^8.0.1",
     "esbuild": "^0.17.16",
     "esbuild-register": "^3.4.2",
+    "husky": "^8.0.3",
     "nodemon": "^3.0.1",
     "source-map-support": "^0.5.21",
     "ts-node": "^10.9.1",

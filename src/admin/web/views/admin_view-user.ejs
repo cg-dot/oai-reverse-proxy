@@ -50,14 +50,15 @@
     <tr>
       <th scope="row">IPs</th>
       <td colspan="2">
-        <a href="#" id="ip-list-toggle">Show all (<%- user.ip.length %>)</a>
-        <ol id="ip-list" style="display: none; padding-left: 1em; margin: 0">
-          <% user.ip.forEach((ip) => { %>
-          <li><code><%- ip %></code></li>
-          <% }) %>
-        </ol>
+        <%- include("partials/shared_user_ip_list", { user }) %>
       </td>
     </tr>
+    <% if (user.type === "temporary") { %>
+    <tr>
+      <th scope="row">Expires At</th>
+      <td colspan="2"><%- user.expiresAt %></td>
+    </tr>
+    <% } %>
   </tbody>
 </table>
 
@@ -75,12 +76,6 @@
 <p><a href="/admin/manage/list-users">Back to User List</a></p>
 
 <script>
-  document.getElementById("ip-list-toggle").addEventListener("click", (e) => {
-    e.preventDefault();
-    document.getElementById("ip-list").style.display = "block";
-    document.getElementById("ip-list-toggle").style.display = "none";
-  });
-
   document.querySelectorAll("td.actions a[data-field]").forEach(function (a) {
     a.addEventListener("click", function (e) {
       e.preventDefault();

@@ -1,5 +1,4 @@
 import { RequestHandler } from "express";
-import sanitize from "sanitize-html";
 import { config } from "../config";
 import { getTokenCostUsd, prettyTokens } from "./stats";
 import * as userStore from "./users/user-store";
@@ -13,23 +12,17 @@ export const injectLocals: RequestHandler = (req, res, next) => {
   res.locals.nextQuotaRefresh = userStore.getNextQuotaRefresh();
   res.locals.persistenceEnabled = config.gatekeeperStore !== "memory";
   res.locals.showTokenCosts = config.showTokenCosts;
+  res.locals.maxIps = config.maxIpsPerUser;
 
-  // flash message
-  if (req.query.flash) {
-    const content = sanitize(String(req.query.flash))
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    const match = content.match(/^([a-z]+):(.*)/);
-    if (match) {
-      res.locals.flash = { type: match[1], message: match[2] };
-    } else {
-      res.locals.flash = { type: "error", message: content };
-    }
+  // flash messages
+  if (req.session.flash) {
+    res.locals.flash = req.session.flash;
+    delete req.session.flash;
   } else {
     res.locals.flash = null;
   }
 
-  // utils
+  // view helpers
   res.locals.prettyTokens = prettyTokens;
   res.locals.tokenCost = getTokenCostUsd;
 

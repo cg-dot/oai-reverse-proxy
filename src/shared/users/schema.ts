@@ -1,5 +1,6 @@
 import { ZodType, z } from "zod";
 import type { ModelFamily } from "../models";
+import { makeOptionalPropsNullable } from "../utils";
 
 export const tokenCountsSchema: ZodType<UserTokenCounts> = z
   .object({
@@ -15,44 +16,51 @@ export const tokenCountsSchema: ZodType<UserTokenCounts> = z
 
 export const UserSchema = z
   .object({
-    /** The user's personal access token. */
+    /** User's personal access token. */
     token: z.string(),
-    /** The IP addresses the user has connected from. */
+    /** IP addresses the user has connected from. */
     ip: z.array(z.string()),
-    /** The user's nickname. */
-    nickname: z.string().max(80).nullish(),
+    /** User's nickname. */
+    nickname: z.string().max(80).optional(),
     /**
      * The user's privilege level.
      * - `normal`: Default role. Subject to usual rate limits and quotas.
      * - `special`: Special role. Higher quotas and exempt from
      *   auto-ban/lockout.
      **/
-    type: z.enum(["normal", "special"]),
-    /** The number of prompts the user has made. */
+    type: z.enum(["normal", "special", "temporary"]),
+    /** Number of prompts the user has made. */
     promptCount: z.number(),
     /**
      * @deprecated Use `tokenCounts` instead.
      * Never used; retained for backwards compatibility.
      */
     tokenCount: z.any().optional(),
-    /** The number of tokens the user has consumed, by model family. */
+    /** Number of tokens the user has consumed, by model family. */
     tokenCounts: tokenCountsSchema,
-    /** The maximum number of tokens the user can consume, by model family. */
+    /** Maximum number of tokens the user can consume, by model family. */
     tokenLimits: tokenCountsSchema,
-    /** The time at which the user was created. */
+    /** Time at which the user was created. */
     createdAt: z.number(),
-    /** The time at which the user last connected. */
-    lastUsedAt: z.number().nullish(),
-    /** The time at which the user was disabled, if applicable. */
-    disabledAt: z.number().nullish(),
-    /** The reason for which the user was disabled, if applicable. */
-    disabledReason: z.string().nullish(),
+    /** Time at which the user last connected. */
+    lastUsedAt: z.number().optional(),
+    /** Time at which the user was disabled, if applicable. */
+    disabledAt: z.number().optional(),
+    /** Reason for which the user was disabled, if applicable. */
+    disabledReason: z.string().optional(),
+    /** Time at which the user will expire and be disabled (for temp users). */
+    expiresAt: z.number().optional(),
   })
   .strict();
 
-export const UserPartialSchema = UserSchema.partial().extend({
-  token: z.string(),
-});
+/**
+ * Variant of `UserSchema` which allows for partial updates, and makes any
+ * optional properties on the base schema nullable. Null values are used to
+ * indicate that the property should be deleted from the user object.
+ */
+export const UserPartialSchema = makeOptionalPropsNullable(UserSchema)
+  .partial()
+  .extend({ token: z.string() });
 
 // gpt4-32k was added after the initial release, so this tries to allow for
 // data imported from older versions of the app which may be missing the

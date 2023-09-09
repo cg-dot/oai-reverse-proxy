@@ -21,44 +21,43 @@ type Config = {
   /**
    * The proxy key to require for requests. Only applicable if the user
    * management mode is set to 'proxy_key', and required if so.
-   **/
+   */
   proxyKey?: string;
   /**
-   * The admin key used to access the /admin API. Required if the user
+   * The admin key used to access the /admin API or UI. Required if the user
    * management mode is set to 'user_token'.
-   **/
+   */
   adminKey?: string;
   /**
    * Which user management mode to use.
-   *
-   * `none`: No user management. Proxy is open to all requests with basic
-   *  abuse protection.
-   *
-   * `proxy_key`: A specific proxy key must be provided in the Authorization
-   *  header to use the proxy.
-   *
-   * `user_token`: Users must be created via the /admin REST API and provide
-   *  their personal access token in the Authorization header to use the proxy.
-   *  Configure this function and add users via the /admin API.
+   * - `none`: No user management. Proxy is open to all requests with basic
+   *   abuse protection.
+   * - `proxy_key`: A specific proxy key must be provided in the Authorization
+   *   header to use the proxy.
+   * - `user_token`: Users must be created via by admins and provide their
+   *   personal access token in the Authorization header to use the proxy.
+   *   Configure this function and add users via the admin API or UI.
    */
   gatekeeper: "none" | "proxy_key" | "user_token";
   /**
    * Persistence layer to use for user management.
-   *
-   * `memory`: Users are stored in memory and are lost on restart (default)
-   *
-   * `firebase_rtdb`: Users are stored in a Firebase Realtime Database; requires
-   *  `firebaseKey` and `firebaseRtdbUrl` to be set.
-   **/
+   * - `memory`: Users are stored in memory and are lost on restart (default)
+   * - `firebase_rtdb`: Users are stored in a Firebase Realtime Database;
+   *   requires `firebaseKey` and `firebaseRtdbUrl` to be set.
+   */
   gatekeeperStore: "memory" | "firebase_rtdb";
   /** URL of the Firebase Realtime Database if using the Firebase RTDB store. */
   firebaseRtdbUrl?: string;
-  /** Base64-encoded Firebase service account key if using the Firebase RTDB store. */
+  /**
+   * Base64-encoded Firebase service account key if using the Firebase RTDB
+   * store. Note that you should encode the *entire* JSON key file, not just the
+   * `private_key` field inside it.
+   */
   firebaseKey?: string;
   /**
    * Maximum number of IPs per user, after which their token is disabled.
    * Users with the manually-assigned `special` role are exempt from this limit.
-   * By default, this is 0, meaning that users are not IP-limited.
+   * - Defaults to 0, which means that users are not IP-limited.
    */
   maxIpsPerUser: number;
   /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
@@ -67,14 +66,14 @@ type Config = {
    * For OpenAI, the maximum number of context tokens (prompt + max output) a
    * user can request before their request is rejected.
    * Context limits can help prevent excessive spend.
-   * Defaults to 0, which means no limit beyond OpenAI's stated maximums.
+   * - Defaults to 0, which means no limit beyond OpenAI's stated maximums.
    */
   maxContextTokensOpenAI: number;
   /**
    * For Anthropic, the maximum number of context tokens a user can request.
    * Claude context limits can prevent requests from tying up concurrency slots
    * for too long, which can lengthen queue times for other users.
-   * Defaults to 0, which means no limit beyond Anthropic's stated maximums.
+   * - Defaults to 0, which means no limit beyond Anthropic's stated maximums.
    */
   maxContextTokensAnthropic: number;
   /** For OpenAI, the maximum number of sampled tokens a user can request. */
@@ -85,8 +84,8 @@ type Config = {
   rejectDisallowed?: boolean;
   /** Message to return when rejecting requests. */
   rejectMessage?: string;
-  /** Pino log level. */
-  logLevel?: "debug" | "info" | "warn" | "error";
+  /** Verbosity level of diagnostic logging. */
+  logLevel: "trace" | "debug" | "info" | "warn" | "error";
   /** Whether prompts and responses should be logged to persistent storage. */
   promptLogging?: boolean;
   /** Which prompt logging backend to use. */
@@ -96,57 +95,41 @@ type Config = {
   /** Google Sheets spreadsheet ID. */
   googleSheetsSpreadsheetId?: string;
   /** Whether to periodically check keys for usage and validity. */
-  checkKeys?: boolean;
-  /** Whether to show token costs in the UI. */
-  showTokenCosts?: boolean;
+  checkKeys: boolean;
+  /** Whether to publicly show total token costs on the info page. */
+  showTokenCosts: boolean;
   /**
    * Comma-separated list of origins to block. Requests matching any of these
    * origins or referers will be rejected.
-   * Partial matches are allowed, so `reddit` will match `www.reddit.com`.
-   * Include only the hostname, not the protocol or path, e.g:
+   * - Partial matches are allowed, so `reddit` will match `www.reddit.com`.
+   * - Include only the hostname, not the protocol or path, e.g:
    *  `reddit.com,9gag.com,gaiaonline.com`
    */
   blockedOrigins?: string;
-  /**
-   * Message to return when rejecting requests from blocked origins.
-   */
+  /** Message to return when rejecting requests from blocked origins. */
   blockMessage?: string;
-  /**
-   * Desination URL to redirect blocked requests to, for non-JSON requests.
-   */
+  /** Desination URL to redirect blocked requests to, for non-JSON requests. */
   blockRedirect?: string;
   /** Which model families to allow requests for. Applies only to OpenAI. */
   allowedModelFamilies: ModelFamily[];
   /**
    * The number of (LLM) tokens a user can consume before requests are rejected.
    * Limits include both prompt and response tokens. `special` users are exempt.
-   * Defaults to 0, which means no limit.
-   *
-   * Note: Changes are not automatically applied to existing users. Use the
+   * - Defaults to 0, which means no limit.
+   * - Changes are not automatically applied to existing users. Use the
    * admin API or UI to update existing users, or use the QUOTA_REFRESH_PERIOD
    * setting to periodically set all users' quotas to these values.
    */
-  tokenQuota: {
-    /** Token allowance for GPT-3.5 Turbo models. */
-    turbo: number;
-    /** Token allowance for GPT-4 models. */
-    gpt4: number;
-    /** Token allowance for GPT-4 32k models. */
-    "gpt4-32k": number;
-    /** Token allowance for Claude models. */
-    claude: number;
-  };
+  tokenQuota: { [key in ModelFamily]: number };
   /**
    * The period over which to enforce token quotas. Quotas will be fully reset
    * at the start of each period, server time. Unused quota does not roll over.
-   * You can also provide a cron expression for a custom schedule.
-   * Defaults to no automatic quota refresh.
+   * You can also provide a cron expression for a custom schedule. If not set,
+   * quotas will never automatically refresh.
+   * - Defaults to unset, which means quotas will never automatically refresh.
    */
   quotaRefreshPeriod?: "hourly" | "daily" | string;
-  /**
-   * Whether to allow users to change their nickname via the UI. Defaults to
-   * true.
-   **/
+  /** Whether to allow users to change their own nicknames via the UI. */
   allowNicknameChanges: boolean;
 };
 

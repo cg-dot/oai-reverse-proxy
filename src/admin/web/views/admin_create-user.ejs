@@ -1,18 +1,133 @@
 <%- include("partials/shared_header", { title: "Create User - OAI Reverse Proxy Admin" }) %>
-<!-- 
- -->
+
+<style>
+  #temporaryUserOptions {
+    margin-top: 1em;
+    max-width: 30em;
+  }
+  
+  #temporaryUserOptions h3 {
+    margin-bottom: -0.4em;
+  }
+
+  input[type="number"] {
+    max-width: 10em;
+  }
+
+  .temporary-user-fieldset {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* Four equal-width columns */
+    column-gap: 1em;
+    row-gap: 0.2em;
+  }
+
+  .full-width {
+    grid-column: 1 / -1;
+  }
+
+  .quota-label {
+    text-align: right;
+  }
+</style>
+
 <h1>Create User Token</h1>
+<p>User token types:</p>
+<ul>
+  <li><strong>Normal</strong> - Standard users.
+  <li><strong>Special</strong> - Exempt from token quotas and <code>MAX_IPS_PER_USER</code> enforcement.</li>
+  <li><strong>Temporary</strong> - Disabled after a specified duration. Quotas never refresh.</li>
+</ul>
+  
 <form action="/admin/manage/create-user" method="post">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <label for="type">Type</label>
+  <select name="type">
+    <option value="normal">Normal</option>
+    <option value="special">Special</option>
+    <option value="temporary">Temporary</option>
+  </select>
   <input type="submit" value="Create" />
+  <fieldset id="temporaryUserOptions" style="display: none">
+    <legend>Temporary User Options</legend>
+    <div class="temporary-user-fieldset">
+      <p class="full-width">
+        Temporary users will be disabled after the specified duration, and their records will be deleted 72 hours after that.
+        These options apply only to new
+        temporary users; existing ones use whatever options were in effect when they were created.
+      </p>
+      <label for="temporaryUserDuration" class="full-width">Access duration (in minutes)</label>
+      <input type="number" name="temporaryUserDuration" id="temporaryUserDuration" value="60" class="full-width" />
+      <!-- convenience calculations -->
+      <span>6 hours:</span><code>360</code>
+      <span>12 hours:</span><code>720</code>
+      <span>1 day:</span><code>1440</code>
+      <span>1 week:</span><code>10080</code>
+      <h3 class="full-width">Token Quotas</h3>
+      <p class="full-width">Temporary users' quotas are never refreshed.</p>
+      <% Object.entries(quota).forEach(function([model, tokens]) { %>
+      <label class="quota-label" for="temporaryUserQuota_<%= model %>"><%= model %></label>
+      <input
+        type="number"
+        name="temporaryUserQuota_<%= model %>"
+        id="temporaryUserQuota_<%= model %>"
+        value="0"
+        data-fieldtype="tokenquota"
+        data-default="<%= tokens %>" />
+      <% }) %>
+    </div>
+  </fieldset>
 </form>
 <% if (newToken) { %>
-  <p>Just created <code><%= recentUsers[0].token %></code>.</p>
+<p>Just created <code><%= recentUsers[0].token %></code>.</p>
 <% } %>
-<h3>Recent Tokens</h2>
+<h2>Recent Tokens</h2>
 <ul>
   <% recentUsers.forEach(function(user) { %>
   <li><a href="/admin/manage/view-user/<%= user.token %>"><%= user.token %></a></li>
   <% }) %>
 </ul>
+
+<script>
+  const typeInput = document.querySelector("select[name=type]");
+  const temporaryUserOptions = document.querySelector("#temporaryUserOptions");
+  typeInput.addEventListener("change", function () {
+    localStorage.setItem("admin__create-user__type", typeInput.value);
+    if (typeInput.value === "temporary") {
+      temporaryUserOptions.style.display = "block";
+    } else {
+      temporaryUserOptions.style.display = "none";
+    }
+  });
+
+  function loadDefaults() {
+    const defaultType = localStorage.getItem("admin__create-user__type");
+    if (defaultType) {
+      typeInput.value = defaultType;
+      typeInput.dispatchEvent(new Event("change"));
+    }
+
+    const durationInput = document.querySelector("input[name=temporaryUserDuration]");
+    const defaultDuration = localStorage.getItem("admin__create-user__duration");
+    durationInput.addEventListener("change", function () {
+      localStorage.setItem("admin__create-user__duration", durationInput.value);
+    });
+    if (defaultDuration) {
+      durationInput.value = defaultDuration;
+    }
+
+    const tokenQuotaInputs = document.querySelectorAll("input[data-fieldtype=tokenquota]");
+    tokenQuotaInputs.forEach(function (input) {
+      const defaultQuota = localStorage.getItem("admin__create-user__quota__" + input.id);
+      input.addEventListener("change", function () {
+        localStorage.setItem("admin__create-user__quota__" + input.id, input.value);
+      });
+      if (defaultQuota) {
+        input.value = defaultQuota;
+      }
+    });
+  }
+
+  loadDefaults();
+</script>
+
 <%- include("partials/admin-footer") %>

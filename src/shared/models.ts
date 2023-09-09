@@ -3,7 +3,10 @@ import { logger } from "../logger";
 export type OpenAIModelFamily = "turbo" | "gpt4" | "gpt4-32k";
 export type AnthropicModelFamily = "claude";
 export type ModelFamily = OpenAIModelFamily | AnthropicModelFamily;
-export type ModelFamilyMap = { [regex: string]: ModelFamily };
+
+export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
+  arr: A & ([ModelFamily] extends [A[number]] ? unknown : never)
+) => arr)(["turbo", "gpt4", "gpt4-32k", "claude"] as const);
 
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^gpt-4-32k-\\d{4}$": "gpt4-32k",
@@ -24,4 +27,12 @@ export function getOpenAIModelFamily(model: string): OpenAIModelFamily {
 
 export function getClaudeModelFamily(_model: string): ModelFamily {
   return "claude";
+}
+
+export function assertIsKnownModelFamily(
+  modelFamily: string
+): asserts modelFamily is ModelFamily {
+  if (!MODEL_FAMILIES.includes(modelFamily as ModelFamily)) {
+    throw new Error(`Unknown model family: ${modelFamily}`);
+  }
 }
