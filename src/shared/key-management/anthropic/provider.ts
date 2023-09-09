@@ -130,7 +130,8 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     // 1. Keys which are not rate limited
     //    a. If all keys were rate limited recently, select the least-recently
     //       rate limited key.
-    // 2. Keys which have not been used in the longest time
+    // 2. Keys which are not pozzed
+    // 3. Keys which have not been used in the longest time
 
     const now = Date.now();
 
@@ -143,6 +144,10 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
       if (aRateLimited && bRateLimited) {
         return a.rateLimitedAt - b.rateLimitedAt;
       }
+
+      if (a.isPozzed && !b.isPozzed) return 1;
+      if (!a.isPozzed && b.isPozzed) return -1;
+
       return a.lastUsed - b.lastUsed;
     });
 

@@ -67,6 +67,13 @@ export type OpenAIKeyUpdate = Omit<
   "key" | "hash" | "promptCount"
 >;
 
+/**
+ * Upon assigning a key, we will wait this many milliseconds before allowing it
+ * to be used again. This is to prevent the queue from flooding a key with too
+ * many requests while we wait to learn whether previous ones succeeded.
+ */
+const KEY_REUSE_DELAY = 1000;
+
 export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
   readonly service = "openai" as const;
 
@@ -212,7 +219,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     // Instead, we will let a request through every second until the key
     // becomes fully saturated and locked out again.
     selectedKey.rateLimitedAt = now;
-    selectedKey.rateLimitRequestsReset = 1000;
+    selectedKey.rateLimitRequestsReset = KEY_REUSE_DELAY;
     return { ...selectedKey };
   }
 
@@ -335,7 +342,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     // unclear why.
 
     if (requestsReset && typeof requestsReset === "string") {
-      this.log.info(
+      this.log.debug(
         { key: key.hash, requestsReset },
         `Updating rate limit requests reset time`
       );
@@ -343,7 +350,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     }
 
     if (tokensReset && typeof tokensReset === "string") {
-      this.log.info(
+      this.log.debug(
         { key: key.hash, tokensReset },
         `Updating rate limit tokens reset time`
       );
