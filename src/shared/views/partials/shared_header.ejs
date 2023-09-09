@@ -5,6 +5,14 @@
     <meta name="csrf-token" content="<%= csrfToken %>">
     <title><%= title %></title>
     <style>
+      a:hover {
+        background-color: #e0e6f6;
+      }
+      
+      a:visited:hover {
+        background-color: #e7e0f6;
+      }
+      
       .pagination {
         list-style-type: none;
         padding: 0;
@@ -43,12 +51,13 @@
       }
       td.actions a {
         text-decoration: none;
+        background-color: transparent;
         padding: 0.5em;
         height: 100%;
         width: 100%;
       }
       td.actions:hover {
-        background-color: #ccc;
+        background-color: #e0e6f6;
       }
       
       @media (max-width: 600px) {

@@ -228,7 +228,7 @@ router.post("/maintenance", (req, res) => {
   return res.redirect(`/admin/manage`);
 });
 
-router.get("/rentry-stats", (_req, res) => {
+router.get("/rentry-stats", (req, res) => {
   const users = userStore.getUsers();
 
   let totalTokens = 0;
@@ -245,9 +245,10 @@ router.get("/rentry-stats", (_req, res) => {
       totalIps += user.ip.length;
 
       const token = `...${user.token.slice(-5)}`;
-      const name = user.nickname
-        ? `${user.nickname.slice(0, 16).padEnd(16)} ${token}`
-        : `${"Anonymous".padEnd(16)} ${token}`;
+      const name =
+        user.nickname && !req.query.anon
+          ? `${user.nickname.slice(0, 16).padEnd(16)} ${token}`
+          : `${"Anonymous".padEnd(16)} ${token}`;
       const strUser = name.padEnd(25);
       const strPrompts = `${user.promptCount} proompts`.padEnd(14);
       const strIps = `${user.ip.length} IPs`.padEnd(8);
