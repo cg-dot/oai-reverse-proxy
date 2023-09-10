@@ -229,7 +229,7 @@ router.post("/maintenance", (req, res) => {
 });
 
 router.get("/rentry-stats", (req, res) => {
-  const users = userStore.getUsers();
+  const users = userStore.getUsers().filter((u) => !u.disabledAt);
 
   let totalTokens = 0;
   let totalCost = 0;
@@ -237,35 +237,30 @@ router.get("/rentry-stats", (req, res) => {
   let totalIps = 0;
 
   const lines = users
-    .map((user) => {
-      const sums = getSumsForUser(user);
+    .map((u) => {
+      const sums = getSumsForUser(u);
       totalTokens += sums.sumTokens;
       totalCost += sums.sumCost;
-      totalPrompts += user.promptCount;
-      totalIps += user.ip.length;
+      totalPrompts += u.promptCount;
+      totalIps += u.ip.length;
 
-      const token = `...${user.token.slice(-5)}`;
+      const id = `...${u.token.slice(-5)}`;
       const name =
-        user.nickname && !req.query.anon
-          ? `${user.nickname.slice(0, 16).padEnd(16)} ${token}`
-          : `${"Anonymous".padEnd(16)} ${token}`;
-      const strUser = name.padEnd(25);
-      const strPrompts = `${user.promptCount} proompts`.padEnd(14);
-      const strIps = `${user.ip.length} IPs`.padEnd(8);
-      const strTokens = `${sums.prettyUsage} tokens`.padEnd(30);
+        u.nickname && !req.query.anon
+          ? `${u.nickname.slice(0, 16).padEnd(16)} ${id}`
+          : `${"Anonymous".padEnd(16)} ${id}`;
+      const user = name.padEnd(25);
+      const prompts = `${u.promptCount} proompts`.padEnd(14);
+      const ips = `${u.ip.length} IPs`.padEnd(8);
+      const tokens = `${sums.prettyUsage} tokens`.padEnd(30);
 
-      return {
-        strUser,
-        strPrompts,
-        strIps,
-        strTokens,
-        sort: user.promptCount,
-      };
+      return { user, prompts, ips, tokens, sort: u.promptCount };
     })
     .sort((a, b) => b.sort - a.sort)
-    .map(
-      (l) => `${l.strUser} | ${l.strPrompts} | ${l.strIps} | ${l.strTokens}`
-    );
+    .map(({ user, prompts, ips, tokens }, i) => {
+      const pos = (i + 1 + ".").padEnd(4);
+      return `${pos} | ${user} | ${prompts} | ${ips} | ${tokens}`;
+    });
 
   const strTotalPrompts = `${totalPrompts} proompts`;
   const strTotalIps = `${totalIps} IPs`;
