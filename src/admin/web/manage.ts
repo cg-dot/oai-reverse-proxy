@@ -228,8 +228,42 @@ router.post("/maintenance", (req, res) => {
   return res.redirect(`/admin/manage`);
 });
 
-router.get("/rentry-stats", (req, res) => {
-  const users = userStore.getUsers().filter((u) => !u.disabledAt);
+router.get("/download-stats", (_req, res) => {
+  return res.render("admin_download-stats");
+});
+
+router.post("/generate-stats", (req, res) => {
+  const body = req.body;
+
+  const valid = z
+    .object({
+      anon: z.coerce.boolean().optional().default(false),
+      sort: z.string().optional().default("prompts"),
+      maxUsers: z.coerce
+        .number()
+        .int()
+        .min(5)
+        .max(1000)
+        .optional()
+        .default(1000),
+      tableType: z.enum(["code", "markdown"]).optional().default("markdown"),
+      format: z
+        .string()
+        .optional()
+        .default("# Stats\n{{header}}\n{{stats}}\n{{time}}"),
+    })
+    .strict()
+    .safeParse(body);
+
+  if (!valid.success) {
+    throw new HttpError(
+      400,
+      valid.error.issues.flatMap((issue) => issue.message).join(", ")
+    );
+  }
+
+  const { anon, sort, format, maxUsers, tableType } = valid.data;
+  const users = userStore.getUsers();
 
   let totalTokens = 0;
   let totalCost = 0;
@@ -244,43 +278,63 @@ router.get("/rentry-stats", (req, res) => {
       totalPrompts += u.promptCount;
       totalIps += u.ip.length;
 
-      const id = `...${u.token.slice(-5)}`;
-      const name =
-        u.nickname && !req.query.anon
-          ? `${u.nickname.slice(0, 16).padEnd(16)} ${id}`
-          : `${"Anonymous".padEnd(16)} ${id}`;
-      const user = name.padEnd(25);
+      const getName = (u: User) => {
+        const id = `...${u.token.slice(-5)}`;
+        const banned = !!u.disabledAt;
+        let nick = anon || !u.nickname ? "Anonymous" : u.nickname;
+
+        if (tableType === "markdown") {
+          nick = banned ? `~~${nick}~~` : nick;
+          return `${nick.slice(0, 18)} | ${id}`;
+        } else {
+          // Strikethrough doesn't work within code blocks
+          const dead = !!u.disabledAt ? "[dead] " : "";
+          nick = `${dead}${nick}`;
+          return `${nick.slice(0, 18).padEnd(18)} ${id}`.padEnd(27);
+        }
+      };
+
+      const user = getName(u);
       const prompts = `${u.promptCount} proompts`.padEnd(14);
       const ips = `${u.ip.length} IPs`.padEnd(8);
       const tokens = `${sums.prettyUsage} tokens`.padEnd(30);
-
-      return { user, prompts, ips, tokens, sort: u.promptCount };
+      const sortField = sort === "prompts" ? u.promptCount : sums.sumTokens;
+      return { user, prompts, ips, tokens, sortField };
     })
-    .sort((a, b) => b.sort - a.sort)
+    .sort((a, b) => b.sortField - a.sortField)
     .map(({ user, prompts, ips, tokens }, i) => {
-      const pos = (i + 1 + ".").padEnd(4);
-      return `${pos} | ${user} | ${prompts} | ${ips} | ${tokens}`;
-    });
+      const pos = tableType === "markdown" ? (i + 1 + ".").padEnd(4) : "";
+      return `${pos}${user} | ${prompts} | ${ips} | ${tokens}`;
+    })
+    .slice(0, maxUsers);
 
   const strTotalPrompts = `${totalPrompts} proompts`;
   const strTotalIps = `${totalIps} IPs`;
   const strTotalTokens = `${prettyTokens(totalTokens)} tokens`;
   const strTotalCost = `US$${totalCost.toFixed(2)} cost`;
-  let header = `!!!Note ${users.length} users | ${strTotalPrompts} | ${strTotalIps} | ${strTotalTokens} | ${strTotalCost}`;
+  const header = `!!!Note ${users.length} users | ${strTotalPrompts} | ${strTotalIps} | ${strTotalTokens} | ${strTotalCost}`;
+  const time = `\n-> *(as of ${new Date().toISOString()})* <-`;
 
-  const doc = [];
-  doc.push("# Stats");
-  doc.push(header);
-  doc.push("```");
-  doc.push(lines.join("\n"));
-  doc.push("```");
-  doc.push(` -> *(as of ${new Date().toISOString()})* <-`);
+  let table = [];
+  table.push(lines.join("\n"));
+
+  if (valid.data.tableType === "markdown") {
+    table = ["User||Prompts|IPs|Usage", "---|---|---|---|---", ...table];
+  } else {
+    table = ["```text", ...table, "```"];
+  }
+
+  const result = format
+    .replace("{{header}}", header)
+    .replace("{{stats}}", table.join("\n"))
+    .replace("{{time}}", time);
+
   res.setHeader(
     "Content-Disposition",
     `attachment; filename=proxy-stats-${new Date().toISOString()}.md`
   );
   res.setHeader("Content-Type", "text/markdown");
-  res.send(doc.join("\n"));
+  res.send(result);
 });
 
 function getSumsForUser(user: User) {

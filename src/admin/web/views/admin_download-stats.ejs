@@ -1,0 +1,147 @@
+<%- include("partials/shared_header", { title: "Download Stats - OAI Reverse Proxy Admin" }) %>
+<style>
+  #statsForm {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #statsForm div {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 0.5em;
+  }
+
+  #statsForm div label {
+    width: 6em;
+    text-align: right;
+    margin-right: 1em;
+  }
+
+  #statsForm ul {
+    margin: 0;
+    padding-left: 2em;
+    font-size: 0.8em;
+  }
+
+  #statsForm li {
+    list-style: none;
+  }
+
+  #statsForm textarea {
+    font-family: monospace;
+    flex-grow: 1;
+  }
+</style>
+<h1>Download Stats</h1>
+<p>
+  Download usage statistics to a Markdown document. You can paste this into a service like Rentry.org to share it.
+</p>
+<div>
+  <h3>Options</h3>
+  <form id="statsForm" action="/admin/manage/generate-stats" method="post"
+    style="display: flex; flex-direction: column;">
+    <input id="_csrf" type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div>
+      <label for="anon">Anonymize</label>
+      <input id="anon" type="checkbox" name="anon" value="true" />
+    </div>
+    <div>
+      <label for="sort">Sort</label>
+      <select id="sort" name="sort">
+        <option value="tokens" selected>By Token Count</option>
+        <option value="prompts">By Prompt Count</option>
+      </select>
+    </div>
+    <div>
+      <label for="maxUsers">Max Users</label>
+      <input id="maxUsers" type="number" name="maxUsers" value="1000" />
+    </div>
+    <div>
+      <label for="tableType">Table Type</label>
+      <select id="tableType" name="tableType">
+        <option value="markdown" selected>Markdown Table</option>
+        <option value="code">Code Block</option>
+      </select>
+    </div>
+    <div>
+      <label for="format">Custom Format <ul>
+          <li><code>{{header}}</code></li>
+          <li><code>{{stats}}</code></li>
+          <li><code>{{time}}</code></li>
+        </ul></label>
+      <textarea id="format" name="format" rows="10" cols="50" placeholder="{{stats}}" ">
+# Stats
+{{header}}
+{{stats}}
+{{time}}
+    </textarea>
+    </div>
+    <div>
+      <button type=" submit">Download</button>
+      <button id="copyButton" type="button">Copy to Clipboard</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  function loadDefaults() {
+    const getState = (key) => localStorage.getItem("admin__download-stats__" + key);
+    const setState = (key, value) => localStorage.setItem("admin__download-stats__" + key, value);
+
+    const checkboxes = ["anon"];
+    const values = ["sort", "format", "tableType", "maxUsers"];
+
+    checkboxes.forEach((key) => {
+      const value = getState(key);
+      if (value) {
+        document.getElementById(key).checked = value == "true";
+      }
+      document.getElementById(key).addEventListener("change", (e) => {
+        setState(key, e.target.checked);
+      });
+    });
+
+    values.forEach((key) => {
+      const value = getState(key);
+      if (value) {
+        document.getElementById(key).value = value;
+      }
+      document.getElementById(key).addEventListener("change", (e) => {
+        setState(key, e.target.value?.trim());
+      });
+    });
+  }
+
+  loadDefaults();
+
+  async function fetchAndCopy() {
+    const form = document.getElementById('statsForm');
+    const formData = new FormData(form);
+
+    const response = await fetch(form.action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'same-origin',
+      body: new URLSearchParams(formData),
+    });
+
+
+    if (response.ok) {
+      const content = await response.text();
+      copyToClipboard(content);
+    } else {
+      console.error('Failed to fetch markdown content');
+    }
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Copied to clipboard');
+    }).catch(err => {
+      alert('Failed to copy to clipboard. Try downloading the file instead.');
+    });
+  }
+
+  document.getElementById('copyButton').addEventListener('click', fetchAndCopy);
+</script>
+<%- include("partials/admin-footer") %>
