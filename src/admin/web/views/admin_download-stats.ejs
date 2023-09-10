@@ -69,7 +69,7 @@
           <li><code>{{stats}}</code></li>
           <li><code>{{time}}</code></li>
         </ul></label>
-      <textarea id="format" name="format" rows="10" cols="50" placeholder="{{stats}}" ">
+      <textarea id="format" name="format" rows="10" cols="50" placeholder="{{stats}}">
 # Stats
 {{header}}
 {{stats}}
@@ -77,7 +77,7 @@
     </textarea>
     </div>
     <div>
-      <button type=" submit">Download</button>
+      <button type="submit">Download</button>
       <button id="copyButton" type="button">Copy to Clipboard</button>
     </div>
   </form>
@@ -130,7 +130,7 @@
       const content = await response.text();
       copyToClipboard(content);
     } else {
-      console.error('Failed to fetch markdown content');
+      throw new Error('Failed to fetch generated stats. Try reloading the page.');
     }
   }
 
