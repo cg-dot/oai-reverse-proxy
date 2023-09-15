@@ -210,7 +210,7 @@ export class AnthropicKeyChecker {
     const payload = {
       model: "claude-2",
       max_tokens_to_sample: 30,
-      tempertature: 0,
+      temperature: 0,
       stream: false,
       prompt: DETECTION_PROMPT,
     };
