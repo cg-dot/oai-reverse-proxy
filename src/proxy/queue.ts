@@ -98,7 +98,7 @@ export function enqueue(req: Request) {
     }
     req.heartbeatInterval = setInterval(() => {
       if (process.env.NODE_ENV === "production") {
-        req.res!.write(": queue heartbeat\n\n");
+        if (!req.query.badSseParser) req.res!.write(": queue heartbeat\n\n");
       } else {
         req.log.info(`Sending heartbeat to request in queue.`);
         const partition = getPartitionForRequest(req);
@@ -340,6 +340,14 @@ function initStreaming(req: Request) {
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no"); // nginx-specific fix
   res.flushHeaders();
+
+  if (req.query.badSseParser) {
+    // Some clients have a broken SSE parser that doesn't handle comments
+    // correctly. These clients can pass ?badSseParser=true to
+    // disable comments in the SSE stream.
+    return;
+  }
+
   res.write("\n");
   res.write(": joining queue\n\n");
 }

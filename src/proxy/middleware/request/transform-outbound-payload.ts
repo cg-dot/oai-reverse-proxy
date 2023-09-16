@@ -57,9 +57,9 @@ const OpenAIV1ChatCompletionSchema = z.object({
   max_tokens: z.coerce
     .number()
     .int()
-    .optional()
+    .nullish()
     .default(16)
-    .transform((v) => Math.min(v, OPENAI_OUTPUT_MAX)),
+    .transform((v) => Math.min(v ?? OPENAI_OUTPUT_MAX, OPENAI_OUTPUT_MAX)),
   frequency_penalty: z.number().optional().default(0),
   presence_penalty: z.number().optional().default(0),
   logit_bias: z.any().optional(),
