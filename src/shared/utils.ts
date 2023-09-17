@@ -75,3 +75,8 @@ export function makeOptionalPropsNullable<Schema extends z.AnyZodObject>(
   );
   return z.object(newProps);
 }
+
+export function redactIp(ip: string) {
+  const ipv6 = ip.includes(":");
+  return ipv6 ? "redacted:ipv6" : ip.replace(/\.\d+\.\d+$/, ".xxx.xxx");
+}

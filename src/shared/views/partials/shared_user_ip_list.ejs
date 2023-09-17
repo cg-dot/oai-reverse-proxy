@@ -1,7 +1,7 @@
 <a href="#" id="ip-list-toggle">Show all (<%- user.ip.length %>)</a>
 <ol id="ip-list" style="display: none; padding-left: 1em; margin: 0">
   <% user.ip.forEach((ip) => { %>
-  <li><code><%- ip %></code></li>
+  <li><code><%- shouldRedact ? redactIp(ip) : ip %></code></li>
   <% }) %>
 </ol>
 

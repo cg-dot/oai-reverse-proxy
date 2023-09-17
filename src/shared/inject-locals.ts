@@ -1,6 +1,7 @@
 import { RequestHandler } from "express";
 import { config } from "../config";
 import { getTokenCostUsd, prettyTokens } from "./stats";
+import { redactIp } from "./utils";
 import * as userStore from "./users/user-store";
 
 export const injectLocals: RequestHandler = (req, res, next) => {
@@ -25,6 +26,7 @@ export const injectLocals: RequestHandler = (req, res, next) => {
   // view helpers
   res.locals.prettyTokens = prettyTokens;
   res.locals.tokenCost = getTokenCostUsd;
+  res.locals.redactIp = redactIp;
 
   next();
 };

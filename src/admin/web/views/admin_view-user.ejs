@@ -50,7 +50,7 @@
     <tr>
       <th scope="row">IPs</th>
       <td colspan="2">
-        <%- include("partials/shared_user_ip_list", { user }) %>
+        <%- include("partials/shared_user_ip_list", { user, shouldRedact: false }) %>
       </td>
     </tr>
     <% if (user.type === "temporary") { %>
