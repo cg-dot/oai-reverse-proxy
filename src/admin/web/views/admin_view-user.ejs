@@ -90,7 +90,7 @@
 
 <form style="display:none" id="current-values">
   <input type="hidden" name="token" value="<%- user.token %>" />
-  <% Object.keys(user).forEach(function (key) { %>
+  <% ["nickname", "type", "disabledAt", "disabledReason", "maxIps", "adminNote"].forEach(function (key) { %>
   <input type="hidden" name="<%- key %>" value="<%- user[key] %>" />
   <% }); %>
 </form>
