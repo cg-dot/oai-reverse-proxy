@@ -51,7 +51,7 @@
       <td colspan="2"><%- user.lastUsedAt || "never" %></td>
     </tr>
     <tr>
-      <th scope="row">IPs<%- maxIps ? ` (max ${maxIps})` : "" %> </th>
+      <th scope="row">IPs<%- ipLimit ? ` (max ${ipLimit})` : "" %></th>
       <td colspan="2"><%- include("partials/shared_user_ip_list", { user, shouldRedact: true }) %></td>
     </tr>
     <% if (user.type === "temporary") { %>

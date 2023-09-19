@@ -17,8 +17,6 @@ import { User, UserUpdate } from "./schema";
 
 const log = logger.child({ module: "users" });
 
-const MAX_IPS_PER_USER = config.maxIpsPerUser;
-
 const users: Map<string, User> = new Map();
 const usersToFlush = new Set<string>();
 let quotaRefreshJob: schedule.Job | null = null;
@@ -173,10 +171,10 @@ export function authenticate(token: string, ip: string) {
   const user = users.get(token);
   if (!user || user.disabledAt) return;
   if (!user.ip.includes(ip)) user.ip.push(ip);
-
-  // If too many IPs are associated with the user, disable the account.
+  
+  const configIpLimit = user.maxIps ?? config.maxIpsPerUser;
   const ipLimit =
-    user.type === "special" || !MAX_IPS_PER_USER ? Infinity : MAX_IPS_PER_USER;
+    user.type === "special" || !configIpLimit ? Infinity : configIpLimit;
   if (user.ip.length > ipLimit) {
     disableUser(token, "IP address limit exceeded.");
     return;

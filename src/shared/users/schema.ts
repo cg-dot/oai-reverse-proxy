@@ -50,6 +50,8 @@ export const UserSchema = z
     disabledReason: z.string().optional(),
     /** Time at which the user will expire and be disabled (for temp users). */
     expiresAt: z.number().optional(),
+    /** The user's maximum number of IP addresses; supercedes global max. */
+    maxIps: z.coerce.number().int().min(0).optional(),
   })
   .strict();
 

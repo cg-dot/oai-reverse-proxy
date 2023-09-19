@@ -165,8 +165,8 @@ router.post("/reactivate-user/:token", (req, res) => {
 
   userStore.upsertUser({
     token: user.token,
-    disabledAt: 0,
-    disabledReason: "",
+    disabledAt: null,
+    disabledReason: null,
   });
   return res.sendStatus(204);
 });

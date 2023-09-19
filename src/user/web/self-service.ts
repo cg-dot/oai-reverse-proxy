@@ -20,7 +20,12 @@ router.get("/", (_req, res) => {
 });
 
 router.get("/lookup", (_req, res) => {
-  res.render("user_lookup", { user: res.locals.currentSelfServiceUser });
+  const ipLimit =
+    (res.locals.currentSelfServiceUser?.maxIps ?? config.maxIpsPerUser) || 0;
+  res.render("user_lookup", {
+    user: res.locals.currentSelfServiceUser,
+    ipLimit,
+  });
 });
 
 router.post("/lookup", (req, res) => {

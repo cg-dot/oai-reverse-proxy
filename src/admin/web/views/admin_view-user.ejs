@@ -41,17 +41,35 @@
     </tr>
     <tr>
       <th scope="row">Disabled At</th>
-      <td colspan="2"><%- user.disabledAt %></td>
+      <td><%- user.disabledAt %></td>
+      <td class="actions">
+        <% if (user.disabledAt) { %>
+        <a title="Unban" href="#" class="unban" data-token="<%= user.token %>">🔄️</a>
+        <% } else { %>
+        <a title="Ban" href="#" class="ban" data-token="<%= user.token %>">🚫</a>
+        <% } %>
+      </td>
     </tr>
     <tr>
       <th scope="row">Disabled Reason</th>
-      <td colspan="2"><%- user.disabledReason %></td>
+      <td><%- user.disabledReason %></td>
+      <% if (user.disabledAt) { %>
+      <td class="actions">
+        <a title="Edit" id="edit-disabledReason" href="#" data-field="disabledReason"
+          data-token="<%= user.token %>">✏️</a>
+      </td>
+      <% } %>
+    </tr>
+    <tr>
+      <th scope="row">IP Address Limit</th>
+      <td><%- (user.maxIps ?? maxIps) || "Unlimited" %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-maxIps" href="#" data-field="maxIps" data-token="<%= user.token %>">✏️</a>
+      </td>
     </tr>
     <tr>
       <th scope="row">IPs</th>
-      <td colspan="2">
-        <%- include("partials/shared_user_ip_list", { user, shouldRedact: false }) %>
-      </td>
+      <td colspan="2"><%- include("partials/shared_user_ip_list", { user, shouldRedact: false }) %></td>
     </tr>
     <% if (user.type === "temporary") { %>
     <tr>
@@ -69,9 +87,7 @@
   <input type="hidden" name="_csrf" value="<%- csrfToken %>" />
   <button type="submit" class="btn btn-primary">Refresh Quotas for User</button>
 </form>
-<% } %>
-<%- include("partials/shared_quota-info", { quota, user }) %>
-
+<% } %> <%- include("partials/shared_quota-info", { quota, user }) %>
 
 <p><a href="/admin/manage/list-users">Back to User List</a></p>
 
@@ -112,4 +128,4 @@
   });
 </script>
 
-<%- include("partials/admin-footer") %>
+<%- include("partials/admin-ban-xhr-script") %> <%- include("partials/admin-footer") %>

@@ -1,0 +1,32 @@
+<script>
+  document.querySelectorAll("td.actions a.ban").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      var token = a.getAttribute("data-token");
+      if (confirm("Are you sure you want to ban this user?")) {
+        let reason = prompt("Reason for ban:");
+        fetch("/admin/manage/disable-user/" + token, {
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({ reason, _csrf: document.querySelector("meta[name=csrf-token]").getAttribute("content") }),
+          headers: { "Content-Type": "application/json" },
+        }).then(() => window.location.reload());
+      }
+    });
+  });
+
+  document.querySelectorAll("td.actions a.unban").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      var token = a.getAttribute("data-token");
+      if (confirm("Are you sure you want to unban this user?")) {
+        fetch("/admin/manage/reactivate-user/" + token, {
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({ _csrf: document.querySelector("meta[name=csrf-token]").getAttribute("content") }),
+          headers: { "Content-Type": "application/json" },
+        }).then(() => window.location.reload());
+      }
+    });
+  });
+</script>
