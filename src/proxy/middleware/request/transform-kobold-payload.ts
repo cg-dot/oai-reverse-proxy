@@ -72,9 +72,9 @@ export const transformKoboldPayload: ProxyRequestMiddleware = (
   _proxyReq,
   req
 ) => {
-  if (req.inboundApi !== "kobold") {
-    throw new Error("transformKoboldPayload called for non-kobold request.");
-  }
+  // if (req.inboundApi !== "kobold") {
+  //   throw new Error("transformKoboldPayload called for non-kobold request.");
+  // }
 
   const { body } = req;
   const { prompt, max_length, rep_pen, top_p, temperature } = body;

@@ -19,6 +19,7 @@ import {
 import { handleStreamedResponse } from "./handle-streamed-response";
 import { logPrompt } from "./log-prompt";
 import { countTokens } from "../../../shared/tokenization";
+import { assertNever } from "../../../shared/utils";
 
 const DECODER_MAP = {
   gzip: util.promisify(zlib.gunzip),
@@ -276,38 +277,59 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
 
   if (statusCode === 400) {
     // Bad request (likely prompt is too long)
-    if (req.outboundApi === "openai") {
-      errorPayload.proxy_note = `Upstream service rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
-    } else if (req.outboundApi === "anthropic") {
-      maybeHandleMissingPreambleError(req, errorPayload);
+    switch (req.outboundApi) {
+      case "openai":
+      case "openai-text":
+      case "google-palm":
+        errorPayload.proxy_note = `Upstream service rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
+        break;
+      case "anthropic":
+        maybeHandleMissingPreambleError(req, errorPayload);
+        break;
+      default:
+        assertNever(req.outboundApi);
     }
   } else if (statusCode === 401) {
     // Key is invalid or was revoked
     keyPool.disable(req.key!, "revoked");
     errorPayload.proxy_note = `API key is invalid or revoked. ${tryAgainMessage}`;
   } else if (statusCode === 429) {
-    // OpenAI uses this for a bunch of different rate-limiting scenarios.
-    if (req.outboundApi === "openai") {
-      handleOpenAIRateLimitError(req, tryAgainMessage, errorPayload);
-    } else if (req.outboundApi === "anthropic") {
-      handleAnthropicRateLimitError(req, errorPayload);
+    switch (req.outboundApi) {
+      case "openai":
+      case "openai-text":
+        handleOpenAIRateLimitError(req, tryAgainMessage, errorPayload);
+        break;
+      case "anthropic":
+        handleAnthropicRateLimitError(req, errorPayload);
+        break;
+      case "google-palm":
+        throw new Error("Rate limit handling not implemented for PaLM");
+      default:
+        assertNever(req.outboundApi);
     }
   } else if (statusCode === 404) {
     // Most likely model not found
-    if (req.outboundApi === "openai") {
-      // TODO: this probably doesn't handle GPT-4-32k variants properly if the
-      // proxy has keys for both the 8k and 32k context models at the same time.
-      if (errorPayload.error?.code === "model_not_found") {
-        const requestedModel = req.body.model;
-        const modelFamily = getOpenAIModelFamily(requestedModel);
-        errorPayload.proxy_note = `The key assigned to your prompt does not support the requested model (${requestedModel}, family: ${modelFamily}).`;
-        req.log.error(
-          { key: req.key?.hash, model: requestedModel, modelFamily },
-          "Prompt was routed to a key that does not support the requested model."
-        );
-      }
-    } else if (req.outboundApi === "anthropic") {
-      errorPayload.proxy_note = `The requested Claude model might not exist, or the key might not be provisioned for it.`;
+    switch (req.outboundApi) {
+      case "openai":
+      case "openai-text":
+        if (errorPayload.error?.code === "model_not_found") {
+          const requestedModel = req.body.model;
+          const modelFamily = getOpenAIModelFamily(requestedModel);
+          errorPayload.proxy_note = `The key assigned to your prompt does not support the requested model (${requestedModel}, family: ${modelFamily}).`;
+          req.log.error(
+            { key: req.key?.hash, model: requestedModel, modelFamily },
+            "Prompt was routed to a key that does not support the requested model."
+          );
+        }
+        break;
+      case "anthropic":
+        errorPayload.proxy_note = `The requested Claude model might not exist, or the key might not be provisioned for it.`;
+        break;
+      case "google-palm":
+        errorPayload.proxy_note = `The requested Google PaLM model might not exist, or the key might not be provisioned for it.`;
+        break;
+      default:
+        assertNever(req.outboundApi);
     }
   } else {
     errorPayload.proxy_note = `Unrecognized error from upstream service.`;
@@ -438,7 +460,7 @@ const countResponseTokens: ProxyResHandlerWithBody = async (
     }
 
     const service = req.outboundApi;
-    const { completion } = getCompletionForService({ service, body });
+    const { completion } = getCompletionForService({ req, service, body });
     const tokens = await countTokens({ req, completion, service });
 
     req.log.debug(

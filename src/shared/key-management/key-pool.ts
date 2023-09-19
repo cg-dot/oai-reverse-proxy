@@ -1,23 +1,24 @@
 import type * as http from "http";
 import schedule from "node-schedule";
-import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
-import { Key, Model, KeyProvider, AIService } from "./index";
-import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
 import { config } from "../../config";
 import { logger } from "../../logger";
+import { Key, Model, KeyProvider, APIFormat } from "./index";
+import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
+import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
+import { GooglePalmKeyProvider } from "./palm/provider";
 
 type AllowedPartial = OpenAIKeyUpdate | AnthropicKeyUpdate;
 
 export class KeyPool {
   private keyProviders: KeyProvider[] = [];
-  private recheckJobs: Record<AIService, schedule.Job | null> = {
+  private recheckJobs: Partial<Record<APIFormat, schedule.Job | null>> = {
     openai: null,
-    anthropic: null,
   };
 
   constructor() {
     this.keyProviders.push(new OpenAIKeyProvider());
     this.keyProviders.push(new AnthropicKeyProvider());
+    this.keyProviders.push(new GooglePalmKeyProvider());
   }
 
   public init() {
@@ -25,7 +26,7 @@ export class KeyPool {
     const availableKeys = this.available("all");
     if (availableKeys === 0) {
       throw new Error(
-        "No keys loaded. Ensure either OPENAI_KEY or ANTHROPIC_KEY is set."
+        "No keys loaded. Ensure OPENAI_KEY, ANTHROPIC_KEY, or GOOGLE_PALM_KEY are set."
       );
     }
     this.scheduleMonthlyRecheck();
@@ -56,7 +57,7 @@ export class KeyPool {
     service.update(key.hash, props);
   }
 
-  public available(service: AIService | "all" = "all"): number {
+  public available(service: APIFormat | "all" = "all"): number {
     return this.keyProviders.reduce((sum, provider) => {
       const includeProvider = service === "all" || service === provider.service;
       return sum + (includeProvider ? provider.available() : 0);
@@ -89,7 +90,7 @@ export class KeyPool {
     }
   }
 
-  public recheck(service: AIService): void {
+  public recheck(service: APIFormat): void {
     if (!config.checkKeys) {
       logger.info("Skipping key recheck because key checking is disabled");
       return;
@@ -99,18 +100,26 @@ export class KeyPool {
     provider.recheck();
   }
 
-  private getService(model: Model): AIService {
+  private getService(model: Model): APIFormat {
     if (model.startsWith("gpt")) {
       // https://platform.openai.com/docs/models/model-endpoint-compatibility
       return "openai";
     } else if (model.startsWith("claude-")) {
       // https://console.anthropic.com/docs/api/reference#parameters
       return "anthropic";
+    } else if (model.includes("bison")) {
+      // https://developers.generativeai.google.com/models/language
+      return "google-palm";
     }
     throw new Error(`Unknown service for model '${model}'`);
   }
 
-  private getKeyProvider(service: AIService): KeyProvider {
+  private getKeyProvider(service: APIFormat): KeyProvider {
+    // The "openai-text" service is a special case handled by OpenAIKeyProvider.
+    if (service === "openai-text") {
+      service = "openai";
+    }
+
     return this.keyProviders.find((provider) => provider.service === service)!;
   }
 

@@ -2,12 +2,17 @@ import fs from "fs";
 import { Request, Response } from "express";
 import showdown from "showdown";
 import { config, listConfig } from "./config";
-import { AnthropicKey, OpenAIKey, keyPool } from "./shared/key-management";
+import {
+  AnthropicKey,
+  GooglePalmKey,
+  OpenAIKey,
+  keyPool,
+} from "./shared/key-management";
 import { ModelFamily, OpenAIModelFamily } from "./shared/models";
 import { getUniqueIps } from "./proxy/rate-limit";
 import { getEstimatedWaitTime, getQueueLength } from "./proxy/queue";
-import { logger } from "./logger";
 import { getTokenCostUsd, prettyTokens } from "./shared/stats";
+import { assertNever } from "./shared/utils";
 
 const INFO_PAGE_TTL = 2000;
 let infoPageHtml: string | undefined;
@@ -18,6 +23,8 @@ const keyIsOpenAIKey = (k: KeyPoolKey): k is OpenAIKey =>
   k.service === "openai";
 const keyIsAnthropicKey = (k: KeyPoolKey): k is AnthropicKey =>
   k.service === "anthropic";
+const keyIsGooglePalmKey = (k: KeyPoolKey): k is GooglePalmKey =>
+  k.service === "google-palm";
 
 type ModelAggregates = {
   active: number;
@@ -35,6 +42,7 @@ type ServiceAggregates = {
   openaiKeys?: number;
   openaiOrgs?: number;
   anthropicKeys?: number;
+  palmKeys?: number;
   proompts: number;
   tokens: number;
   tokenCost: number;
@@ -76,6 +84,7 @@ function cacheInfoPageHtml(baseUrl: string) {
 
   const openaiKeys = serviceStats.get("openaiKeys") || 0;
   const anthropicKeys = serviceStats.get("anthropicKeys") || 0;
+  const palmKeys = serviceStats.get("palmKeys") || 0;
   const proompts = serviceStats.get("proompts") || 0;
   const tokens = serviceStats.get("tokens") || 0;
   const tokenCost = serviceStats.get("tokenCost") || 0;
@@ -85,14 +94,17 @@ function cacheInfoPageHtml(baseUrl: string) {
     endpoints: {
       ...(openaiKeys ? { openai: baseUrl + "/proxy/openai" } : {}),
       ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
+      ...(palmKeys ? { "google-palm": baseUrl + "/proxy/google-palm" } : {}),
     },
     proompts,
     tookens: `${prettyTokens(tokens)}${getCostString(tokenCost)}`,
     ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
     openaiKeys,
     anthropicKeys,
+    palmKeys,
     ...(openaiKeys ? getOpenAIInfo() : {}),
     ...(anthropicKeys ? getAnthropicInfo() : {}),
+    ...(palmKeys ? { "palm-bison": getPalmInfo() } : {}),
     config: listConfig(),
     build: process.env.BUILD_INFO || "dev",
   };
@@ -141,6 +153,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
   increment(serviceStats, "proompts", k.promptCount);
   increment(serviceStats, "openaiKeys", k.service === "openai" ? 1 : 0);
   increment(serviceStats, "anthropicKeys", k.service === "anthropic" ? 1 : 0);
+  increment(serviceStats, "palmKeys", k.service === "google-palm" ? 1 : 0);
 
   let sumTokens = 0;
   let sumCost = 0;
@@ -149,44 +162,55 @@ function addKeyToAggregates(k: KeyPoolKey) {
     config.allowedModelFamilies.includes(f)
   );
 
-  if (keyIsOpenAIKey(k)) {
-    increment(
-      serviceStats,
-      "openAiUncheckedKeys",
-      Boolean(k.lastChecked) ? 0 : 1
-    );
+  switch (k.service) {
+    case "openai":
+    case "openai-text":
+      if (!keyIsOpenAIKey(k)) throw new Error("Invalid key type");
+      increment(
+        serviceStats,
+        "openAiUncheckedKeys",
+        Boolean(k.lastChecked) ? 0 : 1
+      );
 
-    // Technically this would not account for keys that have tokens recorded
-    // on models they aren't provisioned for, but that would be strange
-    k.modelFamilies.forEach((f) => {
-      const tokens = k[`${f}Tokens`];
-      sumTokens += tokens;
-      sumCost += getTokenCostUsd(f, tokens);
-      increment(modelStats, `${f}__tokens`, tokens);
-    });
+      // Technically this would not account for keys that have tokens recorded
+      // on models they aren't provisioned for, but that would be strange
+      k.modelFamilies.forEach((f) => {
+        const tokens = k[`${f}Tokens`];
+        sumTokens += tokens;
+        sumCost += getTokenCostUsd(f, tokens);
+        increment(modelStats, `${f}__tokens`, tokens);
+      });
 
-    if (families.includes("gpt4-32k")) {
-      family = "gpt4-32k";
-    } else if (families.includes("gpt4")) {
-      family = "gpt4";
-    } else {
-      family = "turbo";
-    }
-  } else if (keyIsAnthropicKey(k)) {
-    const tokens = k.claudeTokens;
-    family = "claude";
-    sumTokens += tokens;
-    sumCost += getTokenCostUsd(family, tokens);
-    increment(modelStats, `${family}__tokens`, tokens);
-    increment(modelStats, `${family}__pozzed`, k.isPozzed ? 1 : 0);
-    increment(
-      serviceStats,
-      "anthropicUncheckedKeys",
-      Boolean(k.lastChecked) ? 0 : 1
-    );
-  } else {
-    logger.error({ key: k.hash }, "Unknown key type when adding to aggregates");
-    return;
+      if (families.includes("gpt4-32k")) {
+        family = "gpt4-32k";
+      } else if (families.includes("gpt4")) {
+        family = "gpt4";
+      } else {
+        family = "turbo";
+      }
+      break;
+    case "anthropic":
+      if (!keyIsAnthropicKey(k)) throw new Error("Invalid key type");
+      family = "claude";
+      sumTokens += k.claudeTokens;
+      sumCost += getTokenCostUsd(family, k.claudeTokens);
+      increment(modelStats, `${family}__tokens`, k.claudeTokens);
+      increment(modelStats, `${family}__pozzed`, k.isPozzed ? 1 : 0);
+      increment(
+        serviceStats,
+        "anthropicUncheckedKeys",
+        Boolean(k.lastChecked) ? 0 : 1
+      );
+      break;
+    case "google-palm":
+      if (!keyIsGooglePalmKey(k)) throw new Error("Invalid key type");
+      family = "bison";
+      sumTokens += k.bisonTokens;
+      sumCost += getTokenCostUsd(family, k.bisonTokens);
+      increment(modelStats, `${family}__tokens`, k.bisonTokens);
+      break;
+    default:
+      assertNever(k.service);
   }
 
   increment(serviceStats, "tokens", sumTokens);
@@ -289,6 +313,26 @@ function getAnthropicInfo() {
       proomptersInQueue: claudeInfo.queued,
       estimatedQueueTime: claudeInfo.queueTime,
     },
+  };
+}
+
+function getPalmInfo() {
+  const bisonInfo: Partial<ModelAggregates> = {
+    active: modelStats.get("bison__active") || 0,
+  };
+
+  const queue = getQueueInformation("bison");
+  bisonInfo.queued = queue.proomptersInQueue;
+  bisonInfo.queueTime = queue.estimatedQueueTime;
+
+  const tokens = modelStats.get("bison__tokens") || 0;
+  const cost = getTokenCostUsd("bison", tokens);
+
+  return {
+    usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
+    activeKeys: bisonInfo.active,
+    proomptersInQueue: bisonInfo.queued,
+    estimatedQueueTime: bisonInfo.queueTime,
   };
 }
 

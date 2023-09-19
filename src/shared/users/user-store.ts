@@ -13,9 +13,17 @@ import { v4 as uuid } from "uuid";
 import { config, getFirebaseApp } from "../../config";
 import { ModelFamily } from "../models";
 import { logger } from "../../logger";
-import { User, UserUpdate } from "./schema";
+import { User, UserTokenCounts, UserUpdate } from "./schema";
 
 const log = logger.child({ module: "users" });
+
+const INITIAL_TOKENS: Required<UserTokenCounts> = {
+  turbo: 0,
+  gpt4: 0,
+  "gpt4-32k": 0,
+  claude: 0,
+  bison: 0,
+};
 
 const users: Map<string, User> = new Map();
 const usersToFlush = new Set<string>();
@@ -61,7 +69,7 @@ export function createUser(createOptions?: {
     ip: [],
     type: "normal",
     promptCount: 0,
-    tokenCounts: { turbo: 0, gpt4: 0, "gpt4-32k": 0, claude: 0 },
+    tokenCounts: { ...INITIAL_TOKENS },
     tokenLimits: createOptions?.tokenLimits ?? { ...config.tokenQuota },
     createdAt: Date.now(),
   };
@@ -104,7 +112,7 @@ export function upsertUser(user: UserUpdate) {
     ip: [],
     type: "normal",
     promptCount: 0,
-    tokenCounts: { turbo: 0, gpt4: 0, "gpt4-32k": 0, claude: 0 },
+    tokenCounts: { ...INITIAL_TOKENS },
     tokenLimits: { ...config.tokenQuota },
     createdAt: Date.now(),
   };
@@ -121,12 +129,14 @@ export function upsertUser(user: UserUpdate) {
     }
   }
 
-  // TODO: Write firebase migration to backfill gpt4-32k token counts
+  // TODO: Write firebase migration to backfill new fields
   if (updates.tokenCounts) {
     updates.tokenCounts["gpt4-32k"] ??= 0;
+    updates.tokenCounts["bison"] ??= 0;
   }
   if (updates.tokenLimits) {
     updates.tokenLimits["gpt4-32k"] ??= 0;
+    updates.tokenLimits["bison"] ??= 0;
   }
 
   users.set(user.token, Object.assign(existing, updates));
@@ -157,8 +167,8 @@ export function incrementTokenCount(
   const user = users.get(token);
   if (!user) return;
   const modelFamily = getModelFamilyForQuotaUsage(model);
-  user.tokenCounts[modelFamily] ??= 0;
-  user.tokenCounts[modelFamily] += consumption;
+  const existing = user.tokenCounts[modelFamily] ?? 0;
+  user.tokenCounts[modelFamily] = existing + consumption;
   usersToFlush.add(token);
 }
 
@@ -347,7 +357,13 @@ function getModelFamilyForQuotaUsage(model: string): ModelFamily {
   if (model.startsWith("gpt-3.5")) {
     return "turbo";
   }
-  return "claude";
+  if (model.includes("bison")) {
+    return "bison";
+  }
+  if (model.includes("claude")) {
+    return "claude";
+  }
+  throw new Error(`Unknown quota model family for model ${model}`);
 }
 
 function getRefreshCrontab() {

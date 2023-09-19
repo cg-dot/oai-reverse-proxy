@@ -80,3 +80,7 @@ export function redactIp(ip: string) {
   const ipv6 = ip.includes(":");
   return ipv6 ? "redacted:ipv6" : ip.replace(/\.\d+\.\d+$/, ".xxx.xxx");
 }
+
+export function assertNever(x: never): never {
+  throw new Error(`Called assertNever with argument ${x}.`);
+}

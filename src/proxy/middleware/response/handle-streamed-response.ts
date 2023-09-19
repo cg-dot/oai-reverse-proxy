@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as http from "http";
 import { buildFakeSseMessage } from "../common";
 import { RawResponseBodyHandler, decodeResponseBody } from ".";
+import { assertNever } from "../../../shared/utils";
 
 type OpenAiChatCompletionResponse = {
   id: string;
@@ -12,6 +13,19 @@ type OpenAiChatCompletionResponse = {
     message: { role: string; content: string };
     finish_reason: string | null;
     index: number;
+  }[];
+};
+
+type OpenAiTextCompletionResponse = {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: {
+    text: string;
+    finish_reason: string | null;
+    index: number;
+    logprobs: null;
   }[];
 };
 
@@ -86,6 +100,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     const originalEvents: string[] = [];
     let partialMessage = "";
     let lastPosition = 0;
+    let eventCount = 0;
 
     type ProxyResHandler<T extends unknown> = (...args: T[]) => void;
     function withErrorHandling<T extends unknown>(fn: ProxyResHandler<T>) {
@@ -125,6 +140,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
           requestApi: req.inboundApi,
           responseApi: req.outboundApi,
           lastPosition,
+          index: eventCount++,
         });
         lastPosition = position;
         res.write(event + "\n\n");
@@ -156,29 +172,91 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
   });
 };
 
-/**
- * Transforms SSE events from the given response API into events compatible with
- * the API requested by the client.
- */
-function transformEvent({
-  data,
-  requestApi,
-  responseApi,
-  lastPosition,
-}: {
+type SSETransformationArgs = {
   data: string;
   requestApi: string;
   responseApi: string;
   lastPosition: number;
-}) {
+  index: number;
+};
+
+/**
+ * Transforms SSE events from the given response API into events compatible with
+ * the API requested by the client.
+ */
+function transformEvent(params: SSETransformationArgs) {
+  const { data, requestApi, responseApi } = params;
   if (requestApi === responseApi) {
     return { position: -1, event: data };
   }
 
-  if (requestApi === "anthropic" && responseApi === "openai") {
-    throw new Error(`Anthropic -> OpenAI streaming not implemented.`);
+  const trans = `${requestApi}->${responseApi}`;
+  switch (trans) {
+    case "openai->openai-text":
+      return transformOpenAITextEventToOpenAIChat(params);
+    case "openai->anthropic":
+      // TODO: handle new anthropic streaming format
+      return transformV1AnthropicEventToOpenAI(params);
+    case "openai->google-palm":
+      return transformPalmEventToOpenAI(params);
+    default:
+      throw new Error(`Unsupported streaming API transformation. ${trans}`);
+  }
+}
+
+function transformOpenAITextEventToOpenAIChat(params: SSETransformationArgs) {
+  const { data, index } = params;
+
+  if (!data.startsWith("data:")) return { position: -1, event: data };
+  if (data.startsWith("data: [DONE]")) return { position: -1, event: data };
+
+  const event = JSON.parse(data.slice("data: ".length));
+
+  // The very first event must be a role assignment with no content.
+
+  const createEvent = () => ({
+    id: event.id,
+    object: "chat.completion.chunk",
+    created: event.created,
+    model: event.model,
+    choices: [
+      {
+        message: { role: "", content: "" } as {
+          role?: string;
+          content: string;
+        },
+        index: 0,
+        finish_reason: null,
+      },
+    ],
+  });
+
+  let buffer = "";
+
+  if (index === 0) {
+    const initialEvent = createEvent();
+    initialEvent.choices[0].message.role = "assistant";
+    buffer = `data: ${JSON.stringify(initialEvent)}\n\n`;
   }
 
+  const newEvent = {
+    ...event,
+    choices: [
+      {
+        ...event.choices[0],
+        delta: { content: event.choices[0].text },
+        text: undefined,
+      },
+    ],
+  };
+
+  buffer += `data: ${JSON.stringify(newEvent)}`;
+
+  return { position: -1, event: buffer };
+}
+
+function transformV1AnthropicEventToOpenAI(params: SSETransformationArgs) {
+  const { data, lastPosition } = params;
   // Anthropic sends the full completion so far with each event whereas OpenAI
   // only sends the delta. To make the SSE events compatible, we remove
   // everything before `lastPosition` from the completion.
@@ -210,6 +288,11 @@ function transformEvent({
   };
 }
 
+function transformPalmEventToOpenAI({ data }: SSETransformationArgs) {
+  throw new Error("PaLM streaming not yet supported.");
+  return { position: -1, event: data };
+}
+
 /** Copy headers, excluding ones we're already setting for the SSE response. */
 function copyHeaders(proxyRes: http.IncomingMessage, res: Response) {
   const toOmit = [
@@ -234,25 +317,61 @@ function copyHeaders(proxyRes: http.IncomingMessage, res: Response) {
  * Events are expected to be in the format they were received from the API.
  */
 function convertEventsToFinalResponse(events: string[], req: Request) {
-  if (req.outboundApi === "openai") {
-    let response: OpenAiChatCompletionResponse = {
-      id: "",
-      object: "",
-      created: 0,
-      model: "",
-      choices: [],
-    };
-    response = events.reduce((acc, event, i) => {
-      if (!event.startsWith("data: ")) {
-        return acc;
-      }
+  switch (req.outboundApi) {
+    case "openai": {
+      let merged: OpenAiChatCompletionResponse = {
+        id: "",
+        object: "",
+        created: 0,
+        model: "",
+        choices: [],
+      };
+      merged = events.reduce((acc, event, i) => {
+        if (!event.startsWith("data: ")) return acc;
+        if (event === "data: [DONE]") return acc;
 
-      if (event === "data: [DONE]") {
-        return acc;
-      }
+        const data = JSON.parse(event.slice("data: ".length));
 
-      const data = JSON.parse(event.slice("data: ".length));
-      if (i === 0) {
+        // The first chat chunk only contains the role assignment and metadata
+        if (i === 0) {
+          return {
+            id: data.id,
+            object: data.object,
+            created: data.created,
+            model: data.model,
+            choices: [
+              {
+                message: { role: data.choices[0].delta.role, content: "" },
+                index: 0,
+                finish_reason: null,
+              },
+            ],
+          };
+        }
+
+        if (data.choices[0].delta.content) {
+          acc.choices[0].message.content += data.choices[0].delta.content;
+        }
+        acc.choices[0].finish_reason = data.choices[0].finish_reason;
+        return acc;
+      }, merged);
+      return merged;
+    }
+    case "openai-text": {
+      let merged: OpenAiTextCompletionResponse = {
+        id: "",
+        object: "",
+        created: 0,
+        model: "",
+        choices: [],
+        // TODO: merge logprobs
+      };
+      merged = events.reduce((acc, event, i) => {
+        if (!event.startsWith("data: ")) return acc;
+        if (event === "data: [DONE]") return acc;
+
+        const data = JSON.parse(event.slice("data: ".length));
+
         return {
           id: data.id,
           object: data.object,
@@ -260,34 +379,32 @@ function convertEventsToFinalResponse(events: string[], req: Request) {
           model: data.model,
           choices: [
             {
-              message: { role: data.choices[0].delta.role, content: "" },
+              text: acc.choices[0]?.text + data.choices[0].text,
               index: 0,
-              finish_reason: null,
+              finish_reason: data.choices[0].finish_reason,
+              logprobs: null,
             },
           ],
         };
-      }
-
-      if (data.choices[0].delta.content) {
-        acc.choices[0].message.content += data.choices[0].delta.content;
-      }
-      acc.choices[0].finish_reason = data.choices[0].finish_reason;
-      return acc;
-    }, response);
-    return response;
+      }, merged);
+      return merged;
+    }
+    case "anthropic": {
+      /*
+       * Full complete responses from Anthropic are conveniently just the same as
+       * the final SSE event before the "DONE" event, so we can reuse that
+       */
+      const lastEvent = events[events.length - 2].toString();
+      const data = JSON.parse(
+        lastEvent.slice(lastEvent.indexOf("data: ") + "data: ".length)
+      );
+      const final: AnthropicCompletionResponse = { ...data, log_id: req.id };
+      return final;
+    }
+    case "google-palm": {
+      throw new Error("PaLM streaming not yet supported.");
+    }
+    default:
+      assertNever(req.outboundApi);
   }
-  if (req.outboundApi === "anthropic") {
-    /*
-     * Full complete responses from Anthropic are conveniently just the same as
-     * the final SSE event before the "DONE" event, so we can reuse that
-     */
-    const lastEvent = events[events.length - 2].toString();
-    const data = JSON.parse(lastEvent.slice(lastEvent.indexOf("data: ") + "data: ".length));
-    const response: AnthropicCompletionResponse = {
-      ...data,
-      log_id: req.id,
-    };
-    return response;
-  }
-  throw new Error("If you get this, something is fucked");
 }

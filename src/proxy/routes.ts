@@ -7,9 +7,9 @@ equivalent OpenAI requests. */
 import * as express from "express";
 import { gatekeeper } from "./gatekeeper";
 import { checkRisuToken } from "./check-risu-token";
-import { kobold } from "./kobold";
 import { openai } from "./openai";
 import { anthropic } from "./anthropic";
+import { googlePalm } from "./palm";
 
 const proxyRouter = express.Router();
 proxyRouter.use(
@@ -23,7 +23,7 @@ proxyRouter.use((req, _res, next) => {
   req.retryCount = 0;
   next();
 });
-proxyRouter.use("/kobold", kobold);
 proxyRouter.use("/openai", openai);
 proxyRouter.use("/anthropic", anthropic);
+proxyRouter.use("/google-palm", googlePalm);
 export { proxyRouter as proxyRouter };

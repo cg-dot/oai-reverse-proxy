@@ -18,6 +18,8 @@ type Config = {
   openaiKey?: string;
   /** Comma-delimited list of Anthropic API keys. */
   anthropicKey?: string;
+  /** Comma-delimited list of Google PaLM API keys. */
+  googlePalmKey?: string;
   /**
    * The proxy key to require for requests. Only applicable if the user
    * management mode is set to 'proxy_key', and required if so.
@@ -139,6 +141,7 @@ export const config: Config = {
   port: getEnvWithDefault("PORT", 7860),
   openaiKey: getEnvWithDefault("OPENAI_KEY", ""),
   anthropicKey: getEnvWithDefault("ANTHROPIC_KEY", ""),
+  googlePalmKey: getEnvWithDefault("GOOGLE_PALM_KEY", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
   adminKey: getEnvWithDefault("ADMIN_KEY", ""),
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
@@ -192,6 +195,7 @@ export const config: Config = {
     gpt4: getEnvWithDefault("TOKEN_QUOTA_GPT4", 0),
     "gpt4-32k": getEnvWithDefault("TOKEN_QUOTA_GPT4_32K", 0),
     claude: getEnvWithDefault("TOKEN_QUOTA_CLAUDE", 0),
+    bison: getEnvWithDefault("TOKEN_QUOTA_BISON", 0),
   },
   quotaRefreshPeriod: getEnvWithDefault("QUOTA_REFRESH_PERIOD", undefined),
   allowNicknameChanges: getEnvWithDefault("ALLOW_NICKNAME_CHANGES", true),
@@ -283,6 +287,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "logLevel",
   "openaiKey",
   "anthropicKey",
+  "googlePalmKey",
   "proxyKey",
   "adminKey",
   "checkKeys",
@@ -338,7 +343,9 @@ function getEnvWithDefault<T>(env: string | string[], defaultValue: T): T {
     return defaultValue;
   }
   try {
-    if (env === "OPENAI_KEY" || env === "ANTHROPIC_KEY") {
+    if (
+      ["OPENAI_KEY", "ANTHROPIC_KEY", "GOOGLE_PALM_KEY"].includes(String(env))
+    ) {
       return value as unknown as T;
     }
 

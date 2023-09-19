@@ -3,6 +3,7 @@ import { config } from "../../../config";
 import { logQueue } from "../../../shared/prompt-logging";
 import { getCompletionForService, isCompletionRequest } from "../common";
 import { ProxyResHandlerWithBody } from ".";
+import { assertNever } from "../../../shared/utils";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */
 export const logPrompt: ProxyResHandlerWithBody = async (
@@ -47,10 +48,17 @@ const getPromptForRequest = (req: Request): string | OaiMessage[] => {
   // Since the prompt logger only runs after the request has been proxied, we
   // can assume the body has already been transformed to the target API's
   // format.
-  if (req.outboundApi === "anthropic") {
-    return req.body.prompt;
-  } else {
-    return req.body.messages;
+  switch (req.outboundApi) {
+    case "openai":
+      return req.body.messages;
+    case "openai-text":
+      return req.body.prompt;
+    case "anthropic":
+      return req.body.prompt;
+    case "google-palm":
+      return req.body.prompt.text;
+    default:
+      assertNever(req.outboundApi);
   }
 };
 

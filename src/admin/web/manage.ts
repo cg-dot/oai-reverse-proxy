@@ -198,9 +198,11 @@ router.post("/maintenance", (req, res) => {
     case "recheck": {
       keyPool.recheck("openai");
       keyPool.recheck("anthropic");
-      const size = keyPool.list().length;
+      const size = keyPool
+        .list()
+        .filter((k) => k.service !== "google-palm").length;
       flash.type = "success";
-      flash.message = `Scheduled recheck of ${size} keys.`;
+      flash.message = `Scheduled recheck of ${size} keys for OpenAI and Anthropic.`;
       break;
     }
     case "resetQuotas": {

@@ -1,5 +1,5 @@
 import { Express } from "express-serve-static-core";
-import { AIService, Key } from "../shared/key-management/index";
+import { APIFormat, Key } from "../shared/key-management/index";
 import { User } from "../shared/users/user-store";
 
 declare global {
@@ -7,9 +7,9 @@ declare global {
     interface Request {
       key?: Key;
       /** Denotes the format of the user's submitted request. */
-      inboundApi: AIService | "kobold";
+      inboundApi: APIFormat;
       /** Denotes the format of the request being proxied to the API. */
-      outboundApi: AIService;
+      outboundApi: APIFormat;
       /** If the request comes from a RisuAI.xyz user, this is their token. */
       risuToken?: string;
       user?: User;

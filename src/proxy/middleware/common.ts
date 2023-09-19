@@ -1,19 +1,24 @@
 import { Request, Response } from "express";
 import httpProxy from "http-proxy";
 import { ZodError } from "zod";
-import { AIService } from "../../shared/key-management";
+import { APIFormat } from "../../shared/key-management";
+import { assertNever } from "../../shared/utils";
 import { QuotaExceededError } from "./request/apply-quota-limits";
 
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";
+const OPENAI_TEXT_COMPLETION_ENDPOINT = "/v1/completions";
 const ANTHROPIC_COMPLETION_ENDPOINT = "/v1/complete";
 
 /** Returns true if we're making a request to a completion endpoint. */
 export function isCompletionRequest(req: Request) {
+  // 99% sure this function is not needed anymore
   return (
     req.method === "POST" &&
-    [OPENAI_CHAT_COMPLETION_ENDPOINT, ANTHROPIC_COMPLETION_ENDPOINT].some(
-      (endpoint) => req.path.startsWith(endpoint)
-    )
+    [
+      OPENAI_CHAT_COMPLETION_ENDPOINT,
+      OPENAI_TEXT_COMPLETION_ENDPOINT,
+      ANTHROPIC_COMPLETION_ENDPOINT,
+    ].some((endpoint) => req.path.startsWith(endpoint))
   );
 }
 
@@ -125,29 +130,47 @@ export function buildFakeSseMessage(
     ? `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`
     : `[${type}: ${string}]`;
 
-  if (req.inboundApi === "anthropic") {
-    fakeEvent = {
-      completion: msgContent,
-      stop_reason: type,
-      truncated: false, // I've never seen this be true
-      stop: null,
-      model: req.body?.model,
-      log_id: "proxy-req-" + req.id,
-    };
-  } else {
-    fakeEvent = {
-      id: "chatcmpl-" + req.id,
-      object: "chat.completion.chunk",
-      created: Date.now(),
-      model: req.body?.model,
-      choices: [
-        {
-          delta: { content: msgContent },
-          index: 0,
-          finish_reason: type,
-        },
-      ],
-    };
+  switch (req.inboundApi) {
+    case "openai":
+      fakeEvent = {
+        id: "chatcmpl-" + req.id,
+        object: "chat.completion.chunk",
+        created: Date.now(),
+        model: req.body?.model,
+        choices: [
+          {
+            delta: { content: msgContent },
+            index: 0,
+            finish_reason: type,
+          },
+        ],
+      };
+      break;
+    case "openai-text":
+      fakeEvent = {
+        id: "cmpl-" + req.id,
+        object: "text_completion",
+        created: Date.now(),
+        choices: [
+          { text: msgContent, index: 0, logprobs: null, finish_reason: type },
+        ],
+        model: req.body?.model,
+      };
+      break;
+    case "anthropic":
+      fakeEvent = {
+        completion: msgContent,
+        stop_reason: type,
+        truncated: false, // I've never seen this be true
+        stop: null,
+        model: req.body?.model,
+        log_id: "proxy-req-" + req.id,
+      };
+      break;
+    case "google-palm":
+      throw new Error("PaLM not supported as an inbound API format");
+    default:
+      assertNever(req.inboundApi);
   }
   return `data: ${JSON.stringify(fakeEvent)}\n\n`;
 }
@@ -155,13 +178,22 @@ export function buildFakeSseMessage(
 export function getCompletionForService({
   service,
   body,
+  req,
 }: {
-  service: AIService;
+  service: APIFormat;
   body: Record<string, any>;
+  req?: Request;
 }): { completion: string; model: string } {
-  if (service === "anthropic") {
-    return { completion: body.completion.trim(), model: body.model };
-  } else {
-    return { completion: body.choices[0].message.content, model: body.model };
+  switch (service) {
+    case "openai":
+      return { completion: body.choices[0].message.content, model: body.model };
+    case "openai-text":
+      return { completion: body.choices[0].text, model: body.model };
+    case "anthropic":
+      return { completion: body.completion.trim(), model: body.model };
+    case "google-palm":
+      return { completion: body.candidates[0].output, model: req?.body.model };
+    default:
+      assertNever(service);
   }
 }

@@ -1,6 +1,7 @@
 import { Key, OpenAIKey, keyPool } from "../../../shared/key-management";
 import { isCompletionRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
+import { assertNever } from "../../../shared/utils";
 
 /** Add a key that can service this request to the request object. */
 export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
@@ -30,20 +31,33 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
     throw new Error("You must specify a model with your request.");
   }
 
-  // This should happen somewhere else but addKey is guaranteed to run first.
+  // TODO: use separate middleware to deal with stream flags
   req.isStreaming = req.body.stream === true || req.body.stream === "true";
   req.body.stream = req.isStreaming;
 
-  // Anthropic support has a special endpoint that accepts OpenAI-formatted
-  // requests and translates them into Anthropic requests.  On this endpoint,
-  // the requested model is an OpenAI one even though we're actually sending
-  // an Anthropic request.
-  // For such cases, ignore the requested model entirely.
-  if (req.inboundApi === "openai" && req.outboundApi === "anthropic") {
-    req.log.debug("Using an Anthropic key for an OpenAI-compatible request");
-    assignedKey = keyPool.get("claude-v1");
-  } else {
+  if (req.inboundApi === req.outboundApi) {
     assignedKey = keyPool.get(req.body.model);
+  } else {
+    switch (req.outboundApi) {
+      // If we are translating between API formats we may need to select a model
+      // for the user, because the provided model is for the inbound API.
+      case "anthropic":
+        assignedKey = keyPool.get("claude-v1");
+        break;
+      case "google-palm":
+        assignedKey = keyPool.get("text-bison-001");
+        delete req.body.stream;
+        break;
+      case "openai-text":
+        assignedKey = keyPool.get("gpt-3.5-turbo-instruct");
+        break;
+      case "openai":
+        throw new Error(
+          "OpenAI Chat as an API translation target is not supported"
+        );
+      default:
+        assertNever(req.outboundApi);
+    }
   }
 
   req.key = assignedKey;
@@ -58,15 +72,26 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
   );
 
   // TODO: KeyProvider should assemble all necessary headers
-  if (assignedKey.service === "anthropic") {
-    proxyReq.setHeader("X-API-Key", assignedKey.key);
-  } else if (assignedKey.service === "openai") {
-    const key: OpenAIKey = assignedKey as OpenAIKey;
-    if (key.organizationId) {
-      proxyReq.setHeader("OpenAI-Organization", key.organizationId);
-    }
-    proxyReq.setHeader("Authorization", `Bearer ${assignedKey.key}`);
-  } else {
-    throw new Error(`Unknown service '${assignedKey.service}'`);
+  switch (assignedKey.service) {
+    case "anthropic":
+      proxyReq.setHeader("X-API-Key", assignedKey.key);
+      break;
+    case "openai":
+    case "openai-text":
+      const key: OpenAIKey = assignedKey as OpenAIKey;
+      if (key.organizationId) {
+        proxyReq.setHeader("OpenAI-Organization", key.organizationId);
+      }
+      proxyReq.setHeader("Authorization", `Bearer ${assignedKey.key}`);
+      break;
+    case "google-palm":
+      const originalPath = proxyReq.path;
+      proxyReq.path = originalPath.replace(
+        /(\?.*)?$/,
+        `?key=${assignedKey.key}`
+      );
+      break;
+    default:
+      assertNever(assignedKey.service);
   }
 };

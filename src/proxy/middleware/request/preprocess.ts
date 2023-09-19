@@ -17,9 +17,9 @@ export const createPreprocessorMiddleware = (
 ): RequestHandler => {
   const preprocessors: RequestPreprocessor[] = [
     setApiFormat(apiFormat),
+    ...(additionalPreprocessors ?? []),
     transformOutboundPayload,
     checkContextSize,
-    ...(additionalPreprocessors ?? []),
   ];
 
   return async function executePreprocessors(req, res, next) {

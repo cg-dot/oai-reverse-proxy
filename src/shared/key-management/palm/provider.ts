@@ -2,21 +2,17 @@ import crypto from "crypto";
 import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
-import type { AnthropicModelFamily } from "../../models";
-import { AnthropicKeyChecker } from "./checker";
+import type { GooglePalmModelFamily } from "../../models";
 
-// https://docs.anthropic.com/claude/reference/selecting-a-model
-export const ANTHROPIC_SUPPORTED_MODELS = [
-  "claude-instant-v1",
-  "claude-instant-v1-100k",
-  "claude-v1",
-  "claude-v1-100k",
-  "claude-2",
+// https://developers.generativeai.google.com/models/language
+export const GOOGLE_PALM_SUPPORTED_MODELS = [
+  "text-bison-001",
+  // "chat-bison-001", no adjustable safety settings, so it's useless
 ] as const;
-export type AnthropicModel = (typeof ANTHROPIC_SUPPORTED_MODELS)[number];
+export type GooglePalmModel = (typeof GOOGLE_PALM_SUPPORTED_MODELS)[number];
 
-export type AnthropicKeyUpdate = Omit<
-  Partial<AnthropicKey>,
+export type GooglePalmKeyUpdate = Omit<
+  Partial<GooglePalmKey>,
   | "key"
   | "hash"
   | "lastUsed"
@@ -25,30 +21,17 @@ export type AnthropicKeyUpdate = Omit<
   | "rateLimitedUntil"
 >;
 
-type AnthropicKeyUsage = {
-  [K in AnthropicModelFamily as `${K}Tokens`]: number;
+type GooglePalmKeyUsage = {
+  [K in GooglePalmModelFamily as `${K}Tokens`]: number;
 };
 
-export interface AnthropicKey extends Key, AnthropicKeyUsage {
-  readonly service: "anthropic";
-  readonly modelFamilies: AnthropicModelFamily[];
+export interface GooglePalmKey extends Key, GooglePalmKeyUsage {
+  readonly service: "google-palm";
+  readonly modelFamilies: GooglePalmModelFamily[];
   /** The time at which this key was last rate limited. */
   rateLimitedAt: number;
   /** The time until which this key is rate limited. */
   rateLimitedUntil: number;
-  /**
-   * Whether this key requires a special preamble.  For unclear reasons, some
-   * Anthropic keys will throw an error if the prompt does not begin with a
-   * message from the user, whereas others can be used without a preamble. This
-   * is despite using the same API endpoint, version, and model.
-   * When a key returns this particular error, we set this flag to true.
-   */
-  requiresPreamble: boolean;
-  /**
-   * Whether this key has been detected as being affected by Anthropic's silent
-   * 'please answer ethically' prompt poisoning.
-   */
-  isPozzed: boolean;
 }
 
 /**
@@ -63,66 +46,56 @@ const RATE_LIMIT_LOCKOUT = 2000;
  */
 const KEY_REUSE_DELAY = 500;
 
-export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
-  readonly service = "anthropic";
+export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
+  readonly service = "google-palm";
 
-  private keys: AnthropicKey[] = [];
-  private checker?: AnthropicKeyChecker;
+  private keys: GooglePalmKey[] = [];
   private log = logger.child({ module: "key-provider", service: this.service });
 
   constructor() {
-    const keyConfig = config.anthropicKey?.trim();
+    const keyConfig = config.googlePalmKey?.trim();
     if (!keyConfig) {
       this.log.warn(
-        "ANTHROPIC_KEY is not set. Anthropic API will not be available."
+        "GOOGLE_PALM_KEY is not set. PaLM API will not be available."
       );
       return;
     }
     let bareKeys: string[];
     bareKeys = [...new Set(keyConfig.split(",").map((k) => k.trim()))];
     for (const key of bareKeys) {
-      const newKey: AnthropicKey = {
+      const newKey: GooglePalmKey = {
         key,
         service: this.service,
-        modelFamilies: ["claude"],
+        modelFamilies: ["bison"],
         isTrial: false,
         isDisabled: false,
-        isPozzed: false,
         promptCount: 0,
         lastUsed: 0,
         rateLimitedAt: 0,
         rateLimitedUntil: 0,
-        requiresPreamble: false,
-        hash: `ant-${crypto
+        hash: `plm-${crypto
           .createHash("sha256")
           .update(key)
           .digest("hex")
           .slice(0, 8)}`,
         lastChecked: 0,
-        claudeTokens: 0,
+        bisonTokens: 0,
       };
       this.keys.push(newKey);
     }
-    this.log.info({ keyCount: this.keys.length }, "Loaded Anthropic keys.");
+    this.log.info({ keyCount: this.keys.length }, "Loaded PaLM keys.");
   }
 
-  public init() {
-    if (config.checkKeys) {
-      this.checker = new AnthropicKeyChecker(this.keys, this.update.bind(this));
-      this.checker.start();
-    }
-  }
+  public init() {}
 
   public list() {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(_model: AnthropicModel) {
-    // Currently, all Anthropic keys have access to all models. This will almost
-    // certainly change when they move out of beta later this year.
+  public get(_model: GooglePalmModel) {
     const availableKeys = this.keys.filter((k) => !k.isDisabled);
     if (availableKeys.length === 0) {
-      throw new Error("No Anthropic keys available.");
+      throw new Error("No Google PaLM keys available");
     }
 
     // (largely copied from the OpenAI provider, without trial key support)
@@ -130,7 +103,6 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     // 1. Keys which are not rate limited
     //    a. If all keys were rate limited recently, select the least-recently
     //       rate limited key.
-    // 2. Keys which are not pozzed
     // 3. Keys which have not been used in the longest time
 
     const now = Date.now();
@@ -145,9 +117,6 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
         return a.rateLimitedAt - b.rateLimitedAt;
       }
 
-      if (a.isPozzed && !b.isPozzed) return 1;
-      if (!a.isPozzed && b.isPozzed) return -1;
-
       return a.lastUsed - b.lastUsed;
     });
 
@@ -161,14 +130,14 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     return { ...selectedKey };
   }
 
-  public disable(key: AnthropicKey) {
+  public disable(key: GooglePalmKey) {
     const keyFromPool = this.keys.find((k) => k.hash === key.hash);
     if (!keyFromPool || keyFromPool.isDisabled) return;
     keyFromPool.isDisabled = true;
     this.log.warn({ key: key.hash }, "Key disabled");
   }
 
-  public update(hash: string, update: Partial<AnthropicKey>) {
+  public update(hash: string, update: Partial<GooglePalmKey>) {
     const keyFromPool = this.keys.find((k) => k.hash === hash)!;
     Object.assign(keyFromPool, { lastChecked: Date.now(), ...update });
   }
@@ -178,17 +147,17 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
   }
 
   public anyUnchecked() {
-    return this.keys.some((k) => k.lastChecked === 0);
+    return false;
   }
 
   public incrementUsage(hash: string, _model: string, tokens: number) {
     const key = this.keys.find((k) => k.hash === hash);
     if (!key) return;
     key.promptCount++;
-    key.claudeTokens += tokens;
+    key.bisonTokens += tokens;
   }
 
-  public getLockoutPeriod(_model: AnthropicModel) {
+  public getLockoutPeriod(_model: GooglePalmModel) {
     const activeKeys = this.keys.filter((k) => !k.isDisabled);
     // Don't lock out if there are no keys available or the queue will stall.
     // Just let it through so the add-key middleware can throw an error.
@@ -223,14 +192,5 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     key.rateLimitedUntil = now + RATE_LIMIT_LOCKOUT;
   }
 
-  public recheck() {
-    this.keys.forEach((key) => {
-      this.update(key.hash, {
-        isPozzed: false,
-        isDisabled: false,
-        lastChecked: 0,
-      });
-    });
-    this.checker?.scheduleNextCheck();
-  }
+  public recheck() {}
 }

@@ -2,18 +2,21 @@
 round-robin access to keys. Keys are stored in the OPENAI_KEY environment
 variable as a comma-separated list of keys. */
 import crypto from "crypto";
-import fs from "fs";
 import http from "http";
-import path from "path";
 import { KeyProvider, Key, Model } from "../index";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { OpenAIKeyChecker } from "./checker";
 import { OpenAIModelFamily, getOpenAIModelFamily } from "../../models";
 
-export type OpenAIModel = "gpt-3.5-turbo" | "gpt-4" | "gpt-4-32k";
+export type OpenAIModel =
+  | "gpt-3.5-turbo"
+  | "gpt-3.5-turbo-instruct"
+  | "gpt-4"
+  | "gpt-4-32k";
 export const OPENAI_SUPPORTED_MODELS: readonly OpenAIModel[] = [
   "gpt-3.5-turbo",
+  "gpt-3.5-turbo-instruct",
   "gpt-4",
 ] as const;
 

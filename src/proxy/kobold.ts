@@ -90,14 +90,6 @@ const koboldOaiProxy = createProxyMiddleware({
 });
 
 const koboldRouter = Router();
-koboldRouter.get("/api/v1/model", handleModelRequest);
-koboldRouter.get("/api/v1/config/soft_prompts_list", handleSoftPromptsRequest);
-koboldRouter.post(
-  "/api/v1/generate",
-  ipLimiter,
-  createPreprocessorMiddleware({ inApi: "kobold", outApi: "openai" }),
-  koboldOaiProxy
-);
 koboldRouter.use((req, res) => {
   logger.warn(`Unhandled kobold request: ${req.method} ${req.path}`);
   res.status(404).json({ error: "Not found" });

@@ -13,6 +13,7 @@ import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
 import {
+  RequestPreprocessor,
   addKey,
   applyQuotaLimits,
   blockZoomerOrigins,
@@ -48,6 +49,8 @@ function getModelsResponse() {
     "gpt-3.5-turbo-0613",
     "gpt-3.5-turbo-16k",
     "gpt-3.5-turbo-16k-0613",
+    "gpt-3.5-turbo-instruct",
+    "gpt-3.5-turbo-instruct-0914",
   ];
 
   let available = new Set<OpenAIModelFamily>();
@@ -91,6 +94,25 @@ const handleModelRequest: RequestHandler = (_req, res) => {
   res.status(200).json(getModelsResponse());
 };
 
+/** Handles some turbo-instruct special cases. */
+const rewriteForTurboInstruct: RequestPreprocessor = (req) => {
+  // /v1/turbo-instruct/v1/chat/completions accepts either prompt or messages.
+  // Depending on whichever is provided, we need to set the inbound format so
+  // it is transformed correctly later.
+  if (req.body.prompt && !req.body.messages) {
+    req.inboundApi = "openai-text";
+  } else if (req.body.messages && !req.body.prompt) {
+    req.inboundApi = "openai";
+    // Set model for user since they're using a client which is not aware of
+    // turbo-instruct.
+    req.body.model = "gpt-3.5-turbo-instruct";
+  } else {
+    throw new Error("`prompt` OR `messages` must be provided");
+  }
+
+  req.url = "/v1/completions";
+};
+
 const rewriteRequest = (
   proxyReq: http.ClientRequest,
   req: Request,
@@ -131,6 +153,11 @@ const openaiResponseHandler: ProxyResHandlerWithBody = async (
     body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
   }
 
+  if (req.outboundApi === "openai-text" && req.inboundApi === "openai") {
+    req.log.info("Transforming Turbo-Instruct response to Chat format");
+    body = transformTurboInstructResponse(body);
+  }
+
   // TODO: Remove once tokenization is stable
   if (req.debug) {
     body.proxy_tokenizer_debug_info = req.debug;
@@ -138,6 +165,24 @@ const openaiResponseHandler: ProxyResHandlerWithBody = async (
 
   res.status(200).json(body);
 };
+
+/** Only used for non-streaming responses. */
+function transformTurboInstructResponse(
+  turboInstructBody: Record<string, any>
+): Record<string, any> {
+  const transformed = { ...turboInstructBody };
+  transformed.choices = [
+    {
+      ...turboInstructBody.choices[0],
+      message: {
+        role: "assistant",
+        content: turboInstructBody.choices[0].text.trim(),
+      },
+    },
+  ];
+  delete transformed.choices[0].text;
+  return transformed;
+}
 
 const openaiProxy = createQueueMiddleware(
   createProxyMiddleware({
@@ -162,6 +207,26 @@ openaiRouter.use((req, _res, next) => {
   next();
 });
 openaiRouter.get("/v1/models", handleModelRequest);
+
+// Native text completion endpoint, only for turbo-instruct.
+openaiRouter.post(
+  "/v1/completions",
+  ipLimiter,
+  createPreprocessorMiddleware({ inApi: "openai-text", outApi: "openai-text" }),
+  openaiProxy
+);
+
+// turbo-instruct compatibility endpoint, accepts either prompt or messages
+openaiRouter.post(
+  /\/v1\/turbo\-instruct\/(v1\/)?chat\/completions/,
+  ipLimiter,
+  createPreprocessorMiddleware({ inApi: "openai", outApi: "openai-text" }, [
+    rewriteForTurboInstruct,
+  ]),
+  openaiProxy
+);
+
+// General chat completion endpoint. Turbo-instruct is not supported here.
 openaiRouter.post(
   "/v1/chat/completions",
   ipLimiter,

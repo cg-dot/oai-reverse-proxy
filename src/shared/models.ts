@@ -2,11 +2,15 @@ import { logger } from "../logger";
 
 export type OpenAIModelFamily = "turbo" | "gpt4" | "gpt4-32k";
 export type AnthropicModelFamily = "claude";
-export type ModelFamily = OpenAIModelFamily | AnthropicModelFamily;
+export type GooglePalmModelFamily = "bison";
+export type ModelFamily =
+  | OpenAIModelFamily
+  | AnthropicModelFamily
+  | GooglePalmModelFamily;
 
 export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   arr: A & ([ModelFamily] extends [A[number]] ? unknown : never)
-) => arr)(["turbo", "gpt4", "gpt4-32k", "claude"] as const);
+) => arr)(["turbo", "gpt4", "gpt4-32k", "claude", "bison"] as const);
 
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^gpt-4-32k-\\d{4}$": "gpt4-32k",
@@ -27,6 +31,13 @@ export function getOpenAIModelFamily(model: string): OpenAIModelFamily {
 
 export function getClaudeModelFamily(_model: string): ModelFamily {
   return "claude";
+}
+
+export function getGooglePalmModelFamily(model: string): ModelFamily {
+  if (model.match(/^\w+-bison-\d{3}$/)) return "bison";
+  const stack = new Error().stack;
+  logger.warn({ model, stack }, "Unmapped PaLM model family");
+  return "bison";
 }
 
 export function assertIsKnownModelFamily(

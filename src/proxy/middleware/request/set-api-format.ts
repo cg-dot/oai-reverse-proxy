@@ -1,10 +1,10 @@
 import { Request } from "express";
-import { AIService } from "../../../shared/key-management";
+import { APIFormat } from "../../../shared/key-management";
 import { RequestPreprocessor } from ".";
 
 export const setApiFormat = (api: {
   inApi: Request["inboundApi"];
-  outApi: AIService;
+  outApi: APIFormat;
 }): RequestPreprocessor => {
   return (req) => {
     req.inboundApi = api.inApi;

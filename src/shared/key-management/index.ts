@@ -3,17 +3,18 @@ import {
   ANTHROPIC_SUPPORTED_MODELS,
   AnthropicModel,
 } from "./anthropic/provider";
+import { GOOGLE_PALM_SUPPORTED_MODELS, GooglePalmModel } from "./palm/provider";
 import { KeyPool } from "./key-pool";
 import type { ModelFamily } from "../models";
 
-export type AIService = "openai" | "anthropic";
-export type Model = OpenAIModel | AnthropicModel;
+export type APIFormat = "openai" | "anthropic" | "google-palm" | "openai-text";
+export type Model = OpenAIModel | AnthropicModel | GooglePalmModel;
 
 export interface Key {
   /** The API key itself. Never log this, use `hash` instead. */
   readonly key: string;
   /** The service that this key is for. */
-  service: AIService;
+  service: APIFormat;
   /** Whether this is a free trial key. These are prioritized over paid keys if they can fulfill the request. */
   isTrial: boolean;
   /** The model families that this key has access to. */
@@ -43,7 +44,7 @@ for service-agnostic functionality.
 */
 
 export interface KeyProvider<T extends Key = Key> {
-  readonly service: AIService;
+  readonly service: APIFormat;
   init(): void;
   get(model: Model): T;
   list(): Omit<T, "key">[];
@@ -63,6 +64,11 @@ export const SUPPORTED_MODELS = [
   ...ANTHROPIC_SUPPORTED_MODELS,
 ] as const;
 export type SupportedModel = (typeof SUPPORTED_MODELS)[number];
-export { OPENAI_SUPPORTED_MODELS, ANTHROPIC_SUPPORTED_MODELS };
+export {
+  OPENAI_SUPPORTED_MODELS,
+  ANTHROPIC_SUPPORTED_MODELS,
+  GOOGLE_PALM_SUPPORTED_MODELS,
+};
 export { AnthropicKey } from "./anthropic/provider";
 export { OpenAIKey } from "./openai/provider";
+export { GooglePalmKey } from "./palm/provider";
