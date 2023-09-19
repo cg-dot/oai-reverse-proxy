@@ -71,6 +71,14 @@
       <th scope="row">IPs</th>
       <td colspan="2"><%- include("partials/shared_user_ip_list", { user, shouldRedact: false }) %></td>
     </tr>
+    <tr>
+      <th scope="row">Admin Note <span title="Unlike nickname, this is not visible to or editable by the user">🔒</span>
+      </th>
+      <td><%- user.adminNote ?? "none" %></td>
+      <td class="actions">
+        <a title="Edit" id="edit-adminNote" href="#" data-field="adminNote" data-token="<%= user.token %>">✏️</a>
+      </td>
+    </tr>
     <% if (user.type === "temporary") { %>
     <tr>
       <th scope="row">Expires At</th>
@@ -79,6 +87,13 @@
     <% } %>
   </tbody>
 </table>
+
+<form style="display:none" id="current-values">
+  <input type="hidden" name="token" value="<%- user.token %>" />
+  <% Object.keys(user).forEach(function (key) { %>
+  <input type="hidden" name="<%- key %>" value="<%- user[key] %>" />
+  <% }); %>
+</form>
 
 <h3>Quota Information</h3>
 <% if (quotasEnabled) { %>
@@ -97,7 +112,8 @@
       e.preventDefault();
       const token = a.dataset.token;
       const field = a.dataset.field;
-      let value = prompt(`Enter new value for '${field}'':`);
+      const existingValue = document.querySelector(`#current-values input[name=${field}]`).value;
+      let value = prompt(`Enter new value for '${field}'':`, existingValue);
       if (value !== null) {
         if (value === "") {
           value = null;

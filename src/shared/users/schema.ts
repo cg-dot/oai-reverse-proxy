@@ -52,6 +52,8 @@ export const UserSchema = z
     expiresAt: z.number().optional(),
     /** The user's maximum number of IP addresses; supercedes global max. */
     maxIps: z.coerce.number().int().min(0).optional(),
+    /** Private note about the user. */
+    adminNote: z.string().optional(),
   })
   .strict();
 
