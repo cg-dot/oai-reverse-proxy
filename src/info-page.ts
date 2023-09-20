@@ -93,6 +93,9 @@ function cacheInfoPageHtml(baseUrl: string) {
     uptime: Math.floor(process.uptime()),
     endpoints: {
       ...(openaiKeys ? { openai: baseUrl + "/proxy/openai" } : {}),
+      ...(openaiKeys
+        ? { ["openai2"]: baseUrl + "/proxy/openai/turbo-instruct" }
+        : {}),
       ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
       ...(palmKeys ? { "google-palm": baseUrl + "/proxy/google-palm" } : {}),
     },
