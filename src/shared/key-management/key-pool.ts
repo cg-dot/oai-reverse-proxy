@@ -1,4 +1,6 @@
+import crypto from "crypto";
 import type * as http from "http";
+import os from "os";
 import schedule from "node-schedule";
 import { config } from "../../config";
 import { logger } from "../../logger";
@@ -29,7 +31,7 @@ export class KeyPool {
         "No keys loaded. Ensure OPENAI_KEY, ANTHROPIC_KEY, or GOOGLE_PALM_KEY are set."
       );
     }
-    this.scheduleMonthlyRecheck();
+    this.scheduleRecheck();
   }
 
   public get(model: Model): Key {
@@ -123,18 +125,27 @@ export class KeyPool {
     return this.keyProviders.find((provider) => provider.service === service)!;
   }
 
-  private scheduleMonthlyRecheck(): void {
-    // On the first of the month, OpenAI resets the token quota for all keys.
-    // This process takes a few hours, so we'll schedule multiple rechecks
-    // throughout that day.
-    const rule = "45 */6 1 * *";
-    const job = schedule.scheduleJob(rule, () => {
-      logger.info("Performing monthly recheck of OpenAI keys");
+  /**
+   * Schedules a periodic recheck of OpenAI keys, which runs every 8 hours on
+   * a schedule offset by the server's hostname.
+   */
+  private scheduleRecheck(): void {
+    const machineHash = crypto
+      .createHash("sha256")
+      .update(os.hostname())
+      .digest("hex");
+    const offset = parseInt(machineHash, 16) % 7;
+    const hour = [0, 8, 16].map((h) => h + offset).join(",");
+    const crontab = `0 ${hour} * * *`;
+
+    const job = schedule.scheduleJob(crontab, () => {
+      const next = job.nextInvocation();
+      logger.info({ next }, "Performing periodic recheck of OpenAI keys");
       this.recheck("openai");
     });
     logger.info(
-      { rule, next: job.nextInvocation() },
-      "Scheduled monthly recheck of OpenAI keys"
+      { rule: crontab, next: job.nextInvocation() },
+      "Scheduled periodic key recheck job"
     );
     this.recheckJobs.openai = job;
   }
