@@ -136,17 +136,17 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
   }
 
   if (req.inboundApi === "openai" && req.outboundApi === "anthropic") {
-    req.body = openaiToAnthropic(req.body, req);
+    req.body = openaiToAnthropic(req);
     return;
   }
 
   if (req.inboundApi === "openai" && req.outboundApi === "google-palm") {
-    req.body = openaiToPalm(req.body, req);
+    req.body = openaiToPalm(req);
     return;
   }
 
   if (req.inboundApi === "openai" && req.outboundApi === "openai-text") {
-    req.body = openaiToOpenaiText(req.body, req);
+    req.body = openaiToOpenaiText(req);
     return;
   }
 
@@ -155,11 +155,12 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
   );
 };
 
-function openaiToAnthropic(body: any, req: Request) {
+function openaiToAnthropic(req: Request) {
+  const { body } = req;
   const result = OpenAIV1ChatCompletionSchema.safeParse(body);
   if (!result.success) {
     req.log.error(
-      { issues: result.error.issues, body: req.body },
+      { issues: result.error.issues, body },
       "Invalid OpenAI-to-Anthropic request"
     );
     throw result.error;
@@ -201,11 +202,12 @@ function openaiToAnthropic(body: any, req: Request) {
   };
 }
 
-function openaiToOpenaiText(body: any, req: Request) {
+function openaiToOpenaiText(req: Request) {
+  const { body } = req;
   const result = OpenAIV1ChatCompletionSchema.safeParse(body);
   if (!result.success) {
     req.log.error(
-      { issues: result.error.issues, body: req.body },
+      { issues: result.error.issues, body },
       "Invalid OpenAI-to-OpenAI-text request"
     );
     throw result.error;
@@ -227,14 +229,15 @@ function openaiToOpenaiText(body: any, req: Request) {
   return validated;
 }
 
-function openaiToPalm(
-  body: any,
-  req: Request
-): z.infer<typeof PalmV1GenerateTextSchema> {
-  const result = OpenAIV1ChatCompletionSchema.safeParse(body);
+function openaiToPalm(req: Request): z.infer<typeof PalmV1GenerateTextSchema> {
+  const { body } = req;
+  const result = OpenAIV1ChatCompletionSchema.safeParse({
+    ...body,
+    model: "text-bison-001",
+  });
   if (!result.success) {
     req.log.error(
-      { issues: result.error.issues, body: req.body },
+      { issues: result.error.issues, body },
       "Invalid OpenAI-to-Palm request"
     );
     throw result.error;
