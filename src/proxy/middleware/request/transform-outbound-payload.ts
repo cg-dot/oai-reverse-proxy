@@ -233,7 +233,7 @@ function openaiToPalm(req: Request): z.infer<typeof PalmV1GenerateTextSchema> {
   const { body } = req;
   const result = OpenAIV1ChatCompletionSchema.safeParse({
     ...body,
-    model: "text-bison-001",
+    model: "gpt-3.5-turbo",
   });
   if (!result.success) {
     req.log.error(
