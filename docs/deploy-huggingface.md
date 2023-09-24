@@ -88,6 +88,12 @@ See `.env.example` for a full list of available settings, or check `config.ts` f
 
 ## Restricting access to the server
 
-If you want to restrict access to the server, you can set a `PROXY_KEY` secret.  This key will need to be passed in the Authentication header of every request to the server, just like an OpenAI API key.
+If you want to restrict access to the server, you can set a `PROXY_KEY` secret.  This key will need to be passed in the Authentication header of every request to the server, just like an OpenAI API key.  Set the `GATEKEEPER` mode to `proxy_key`, and then set the `PROXY_KEY` variable to whatever password you want.
 
 Add this using the same method as the OPENAI_KEY secret above. Don't add this to your `.env` file because that file is public and anyone can see it.
+
+Example:
+```
+GATEKEEPER=proxy_key
+PROXY_KEY=your_secret_password
+```
