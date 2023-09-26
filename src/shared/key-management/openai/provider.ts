@@ -13,7 +13,8 @@ export type OpenAIModel =
   | "gpt-3.5-turbo"
   | "gpt-3.5-turbo-instruct"
   | "gpt-4"
-  | "gpt-4-32k";
+  | "gpt-4-32k"
+  | "text-embedding-ada-002";
 export const OPENAI_SUPPORTED_MODELS: readonly OpenAIModel[] = [
   "gpt-3.5-turbo",
   "gpt-3.5-turbo-instruct",
@@ -146,8 +147,14 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
 
   public get(model: Model) {
     const neededFamily = getOpenAIModelFamily(model);
+    const excludeTrials = model === "text-embedding-ada-002";
+
     const availableKeys = this.keys.filter(
-      (key) => !key.isDisabled && key.modelFamilies.includes(neededFamily)
+      // Allow keys which
+      (key) =>
+        !key.isDisabled && // are not disabled
+        key.modelFamilies.includes(neededFamily) && // have access to the model
+        (!excludeTrials || !key.isTrial) // and are not trials (if applicable)
     );
 
     if (availableKeys.length === 0) {

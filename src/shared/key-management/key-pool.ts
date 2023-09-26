@@ -103,7 +103,7 @@ export class KeyPool {
   }
 
   private getService(model: Model): APIFormat {
-    if (model.startsWith("gpt")) {
+    if (model.startsWith("gpt") || model.startsWith("text-embedding-ada")) {
       // https://platform.openai.com/docs/models/model-endpoint-compatibility
       return "openai";
     } else if (model.startsWith("claude-")) {

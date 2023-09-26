@@ -37,7 +37,6 @@ export const createEmbeddingsPreprocessorMiddleware = (
     (req) => void (req.promptTokens = req.outputTokens = 0),
     ...(additionalPreprocessors ?? []),
   ];
-  console.log(preprocessors);
   return async (...args) => executePreprocessors(preprocessors, args);
 };
 
@@ -49,7 +48,6 @@ async function executePreprocessors(
     for (const preprocessor of preprocessors) {
       await preprocessor(req);
     }
-    console.log("preprocessors done");
     next();
   } catch (error) {
     req.log.error(error, "Error while executing request preprocessor");

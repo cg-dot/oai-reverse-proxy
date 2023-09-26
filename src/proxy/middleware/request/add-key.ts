@@ -119,7 +119,7 @@ export const addKeyForEmbeddingsRequest: ProxyRequestMiddleware = (
 
   req.body.model = "text-embedding-ada-002";
 
-  const key = keyPool.get("gpt-3.5-turbo") as OpenAIKey;
+  const key = keyPool.get("text-embedding-ada-002") as OpenAIKey;
 
   req.key = key;
   req.log.info(
