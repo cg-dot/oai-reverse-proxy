@@ -18,6 +18,7 @@ export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^gpt-4-\\d{4}$": "gpt4",
   "^gpt-4$": "gpt4",
   "^gpt-3.5-turbo": "turbo",
+  "^text-embedding-ada-002$": "turbo",
 };
 
 export function getOpenAIModelFamily(model: string): OpenAIModelFamily {

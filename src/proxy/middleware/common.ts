@@ -7,6 +7,7 @@ import { QuotaExceededError } from "./request/apply-quota-limits";
 
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";
 const OPENAI_TEXT_COMPLETION_ENDPOINT = "/v1/completions";
+const OPENAI_EMBEDDINGS_ENDPOINT = "/v1/embeddings";
 const ANTHROPIC_COMPLETION_ENDPOINT = "/v1/complete";
 
 /** Returns true if we're making a request to a completion endpoint. */
@@ -19,6 +20,12 @@ export function isCompletionRequest(req: Request) {
       OPENAI_TEXT_COMPLETION_ENDPOINT,
       ANTHROPIC_COMPLETION_ENDPOINT,
     ].some((endpoint) => req.path.startsWith(endpoint))
+  );
+}
+
+export function isEmbeddingsRequest(req: Request) {
+  return (
+    req.method === "POST" && req.path.startsWith(OPENAI_EMBEDDINGS_ENDPOINT)
   );
 }
 

@@ -1,5 +1,5 @@
 import { Key, OpenAIKey, keyPool } from "../../../shared/key-management";
-import { isCompletionRequest } from "../common";
+import { isCompletionRequest, isEmbeddingsRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
 import { assertNever } from "../../../shared/utils";
 
@@ -11,8 +11,11 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
     // Horrible, horrible hack to stop the proxy from complaining about clients
     // not sending a model when they are requesting the list of models (which
     // requires a key, but obviously not a model).
-    // TODO: shouldn't even proxy /models to the upstream API, just fake it
-    // using the models our key pool has available.
+
+    // I don't think this is needed anymore since models requests are no longer
+    // proxied to the upstream API. Everything going through this is either a
+    // completion request or a special case like OpenAI embeddings.
+    req.log.warn({ path: req.path }, "addKey called on non-completion request");
     req.body.model = "gpt-3.5-turbo";
   }
 
@@ -93,5 +96,39 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
       break;
     default:
       assertNever(assignedKey.service);
+  }
+};
+
+/**
+ * Special case for embeddings requests which don't go through the normal
+ * request pipeline.
+ */
+export const addKeyForEmbeddingsRequest: ProxyRequestMiddleware = (
+  proxyReq,
+  req
+) => {
+  if (!isEmbeddingsRequest(req)) {
+    throw new Error(
+      "addKeyForEmbeddingsRequest called on non-embeddings request"
+    );
+  }
+
+  if (req.inboundApi !== "openai") {
+    throw new Error("Embeddings requests must be from OpenAI");
+  }
+
+  req.body.model = "text-embedding-ada-002";
+
+  const key = keyPool.get("gpt-3.5-turbo") as OpenAIKey;
+
+  req.key = key;
+  req.log.info(
+    { key: key.hash, toApi: req.outboundApi },
+    "Assigned Turbo key to embeddings request"
+  );
+
+  proxyReq.setHeader("Authorization", `Bearer ${key.key}`);
+  if (key.organizationId) {
+    proxyReq.setHeader("OpenAI-Organization", key.organizationId);
   }
 };

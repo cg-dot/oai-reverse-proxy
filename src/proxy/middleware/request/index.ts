@@ -4,13 +4,16 @@ import type { ProxyReqCallback } from "http-proxy";
 
 // Express middleware (runs before http-proxy-middleware, can be async)
 export { applyQuotaLimits } from "./apply-quota-limits";
-export { createPreprocessorMiddleware } from "./preprocess";
+export {
+  createPreprocessorMiddleware,
+  createEmbeddingsPreprocessorMiddleware,
+} from "./preprocess";
 export { checkContextSize } from "./check-context-size";
 export { setApiFormat } from "./set-api-format";
 export { transformOutboundPayload } from "./transform-outbound-payload";
 
 // HPM middleware (runs on onProxyReq, cannot be async)
-export { addKey } from "./add-key";
+export { addKey, addKeyForEmbeddingsRequest } from "./add-key";
 export { addAnthropicPreamble } from "./add-anthropic-preamble";
 export { blockZoomerOrigins } from "./block-zoomer-origins";
 export { finalizeBody } from "./finalize-body";

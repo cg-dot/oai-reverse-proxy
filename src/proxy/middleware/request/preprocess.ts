@@ -21,16 +21,38 @@ export const createPreprocessorMiddleware = (
     transformOutboundPayload,
     checkContextSize,
   ];
-
-  return async function executePreprocessors(req, res, next) {
-    try {
-      for (const preprocessor of preprocessors) {
-        await preprocessor(req);
-      }
-      next();
-    } catch (error) {
-      req.log.error(error, "Error while executing request preprocessor");
-      handleInternalError(error as Error, req, res);
-    }
-  };
+  return async (...args) => executePreprocessors(preprocessors, args);
 };
+
+/**
+ * Returns a middleware function that specifically prepares requests for
+ * OpenAI's embeddings API. Tokens are not counted because embeddings requests
+ * are basically free.
+ */
+export const createEmbeddingsPreprocessorMiddleware = (
+  additionalPreprocessors?: RequestPreprocessor[]
+): RequestHandler => {
+  const preprocessors: RequestPreprocessor[] = [
+    setApiFormat({ inApi: "openai", outApi: "openai" }),
+    (req) => void (req.promptTokens = req.outputTokens = 0),
+    ...(additionalPreprocessors ?? []),
+  ];
+  console.log(preprocessors);
+  return async (...args) => executePreprocessors(preprocessors, args);
+};
+
+async function executePreprocessors(
+  preprocessors: RequestPreprocessor[],
+  [req, res, next]: Parameters<RequestHandler>
+) {
+  try {
+    for (const preprocessor of preprocessors) {
+      await preprocessor(req);
+    }
+    console.log("preprocessors done");
+    next();
+  } catch (error) {
+    req.log.error(error, "Error while executing request preprocessor");
+    handleInternalError(error as Error, req, res);
+  }
+}

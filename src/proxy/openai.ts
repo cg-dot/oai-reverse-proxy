@@ -15,8 +15,10 @@ import { handleProxyError } from "./middleware/common";
 import {
   RequestPreprocessor,
   addKey,
+  addKeyForEmbeddingsRequest,
   applyQuotaLimits,
   blockZoomerOrigins,
+  createEmbeddingsPreprocessorMiddleware,
   createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
@@ -51,6 +53,7 @@ function getModelsResponse() {
     "gpt-3.5-turbo-16k-0613",
     "gpt-3.5-turbo-instruct",
     "gpt-3.5-turbo-instruct-0914",
+    "text-embedding-ada-002",
   ];
 
   let available = new Set<OpenAIModelFamily>();
@@ -138,6 +141,29 @@ const rewriteRequest = (
   }
 };
 
+const rewriteEmbeddingsRequest = (
+  proxyReq: http.ClientRequest,
+  req: Request,
+  res: http.ServerResponse
+) => {
+  const rewriterPipeline = [
+    addKeyForEmbeddingsRequest,
+    removeOriginHeaders,
+    finalizeBody,
+  ];
+
+  req.body = { input: req.body.input, model: "text-embedding-ada-002" };
+
+  try {
+    for (const rewriter of rewriterPipeline) {
+      rewriter(proxyReq, req, res, {});
+    }
+  } catch (error) {
+    req.log.error(error, "Error while executing proxy embeddings rewriter");
+    proxyReq.destroy(error as Error);
+  }
+};
+
 const openaiResponseHandler: ProxyResHandlerWithBody = async (
   _proxyRes,
   req,
@@ -198,6 +224,14 @@ const openaiProxy = createQueueMiddleware(
   })
 );
 
+const openaiEmbeddingsProxy = createProxyMiddleware({
+  target: "https://api.openai.com",
+  changeOrigin: true,
+  on: { proxyReq: rewriteEmbeddingsRequest, error: handleProxyError },
+  selfHandleResponse: false,
+  logger,
+});
+
 const openaiRouter = Router();
 // Fix paths because clients don't consistently use the /v1 prefix.
 openaiRouter.use((req, _res, next) => {
@@ -233,6 +267,15 @@ openaiRouter.post(
   createPreprocessorMiddleware({ inApi: "openai", outApi: "openai" }),
   openaiProxy
 );
+
+// Embeddings endpoint.
+openaiRouter.post(
+  "/v1/embeddings",
+  ipLimiter,
+  createEmbeddingsPreprocessorMiddleware(),
+  openaiEmbeddingsProxy
+);
+
 // Redirect browser requests to the homepage.
 openaiRouter.get("*", (req, res, next) => {
   const isBrowser = req.headers["user-agent"]?.includes("Mozilla");
