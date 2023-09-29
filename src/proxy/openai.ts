@@ -23,7 +23,7 @@ import {
   finalizeBody,
   languageFilter,
   limitCompletions,
-  removeOriginHeaders,
+  stripHeaders,
 } from "./middleware/request";
 import {
   createOnProxyResHandler,
@@ -127,7 +127,7 @@ const rewriteRequest = (
     languageFilter,
     limitCompletions,
     blockZoomerOrigins,
-    removeOriginHeaders,
+    stripHeaders,
     finalizeBody,
   ];
 
@@ -148,7 +148,7 @@ const rewriteEmbeddingsRequest = (
 ) => {
   const rewriterPipeline = [
     addKeyForEmbeddingsRequest,
-    removeOriginHeaders,
+    stripHeaders,
     finalizeBody,
   ];
 

@@ -13,7 +13,7 @@ import {
   createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
-  removeOriginHeaders,
+  stripHeaders,
 } from "./middleware/request";
 import {
   ProxyResHandlerWithBody,
@@ -83,7 +83,7 @@ const rewritePalmRequest = (
     addKey,
     languageFilter,
     blockZoomerOrigins,
-    removeOriginHeaders,
+    stripHeaders,
     finalizeBody,
   ];
 

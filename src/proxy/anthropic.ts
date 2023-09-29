@@ -14,7 +14,7 @@ import {
   createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
-  removeOriginHeaders,
+  stripHeaders,
 } from "./middleware/request";
 import {
   ProxyResHandlerWithBody,
@@ -78,7 +78,7 @@ const rewriteAnthropicRequest = (
     addAnthropicPreamble,
     languageFilter,
     blockZoomerOrigins,
-    removeOriginHeaders,
+    stripHeaders,
     finalizeBody,
   ];
 

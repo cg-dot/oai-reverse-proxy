@@ -19,7 +19,7 @@ export { blockZoomerOrigins } from "./block-zoomer-origins";
 export { finalizeBody } from "./finalize-body";
 export { languageFilter } from "./language-filter";
 export { limitCompletions } from "./limit-completions";
-export { removeOriginHeaders } from "./remove-origin-headers";
+export { stripHeaders } from "./strip-headers";
 export { transformKoboldPayload } from "./transform-kobold-payload";
 
 /**
