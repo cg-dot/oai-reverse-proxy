@@ -190,7 +190,6 @@ function openaiToAnthropic(req: Request) {
   stops = [...new Set(stops)];
 
   return {
-    ...rest,
     // Model may be overridden in `calculate-context-size.ts` to avoid having
     // a circular dependency (`calculate-context-size.ts` needs an already-
     // transformed request body to count tokens, but this function would like
@@ -199,6 +198,9 @@ function openaiToAnthropic(req: Request) {
     prompt: prompt,
     max_tokens_to_sample: rest.max_tokens,
     stop_sequences: stops,
+    stream: rest.stream,
+    temperature: rest.temperature,
+    top_p: rest.top_p,
   };
 }
 
