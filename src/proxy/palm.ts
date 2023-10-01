@@ -1,6 +1,7 @@
 import { Request, RequestHandler, Router } from "express";
 import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { v4 } from "uuid";
 import { config } from "../config";
 import { logger } from "../logger";
 import { createQueueMiddleware } from "./queue";
@@ -10,6 +11,7 @@ import {
   addKey,
   applyQuotaLimits,
   blockZoomerOrigins,
+  createOnProxyReqHandler,
   createPreprocessorMiddleware,
   finalizeBody,
   forceModel,
@@ -20,7 +22,6 @@ import {
   createOnProxyResHandler,
   ProxyResHandlerWithBody,
 } from "./middleware/response";
-import { v4 } from "uuid";
 
 let modelsCache: any = null;
 let modelsCacheTime = 0;
@@ -52,49 +53,6 @@ const getModelsResponse = () => {
 
 const handleModelRequest: RequestHandler = (_req, res) => {
   res.status(200).json(getModelsResponse());
-};
-
-const rewritePalmRequest = (
-  proxyReq: http.ClientRequest,
-  req: Request,
-  res: http.ServerResponse
-) => {
-  if (req.body.stream) {
-    throw new Error("Google PaLM API doesn't support streaming requests");
-  }
-
-  // PaLM API specifies the model in the URL path, not the request body. This
-  // doesn't work well with our rewriter architecture, so we need to manually
-  // fix it here.
-
-  // POST https://generativelanguage.googleapis.com/v1beta2/{model=models/*}:generateText
-  // POST https://generativelanguage.googleapis.com/v1beta2/{model=models/*}:generateMessage
-
-  // The chat api (generateMessage) is not very useful at this time as it has
-  // few params and no adjustable safety settings.
-
-  proxyReq.path = proxyReq.path.replace(
-    /^\/v1\/chat\/completions/,
-    `/v1beta2/models/${req.body.model}:generateText`
-  );
-
-  const rewriterPipeline = [
-    applyQuotaLimits,
-    addKey,
-    languageFilter,
-    blockZoomerOrigins,
-    stripHeaders,
-    finalizeBody,
-  ];
-
-  try {
-    for (const rewriter of rewriterPipeline) {
-      rewriter(proxyReq, req, res, {});
-    }
-  } catch (error) {
-    req.log.error(error, "Error while executing proxy rewriter");
-    proxyReq.destroy(error as Error);
-  }
 };
 
 /** Only used for non-streaming requests. */
@@ -164,28 +122,52 @@ function transformPalmResponse(
   };
 }
 
+function reassignPathForPalmModel(proxyReq: http.ClientRequest, req: Request) {
+  if (req.body.stream) {
+    throw new Error("Google PaLM API doesn't support streaming requests");
+  }
+
+  // PaLM API specifies the model in the URL path, not the request body. This
+  // doesn't work well with our rewriter architecture, so we need to manually
+  // fix it here.
+
+  // POST https://generativelanguage.googleapis.com/v1beta2/{model=models/*}:generateText
+  // POST https://generativelanguage.googleapis.com/v1beta2/{model=models/*}:generateMessage
+
+  // The chat api (generateMessage) is not very useful at this time as it has
+  // few params and no adjustable safety settings.
+
+  proxyReq.path = proxyReq.path.replace(
+    /^\/v1\/chat\/completions/,
+    `/v1beta2/models/${req.body.model}:generateText`
+  );
+}
+
 const googlePalmProxy = createQueueMiddleware(
   createProxyMiddleware({
     target: "https://generativelanguage.googleapis.com",
     changeOrigin: true,
+    selfHandleResponse: true,
+    logger,
     on: {
-      proxyReq: rewritePalmRequest,
+      proxyReq: createOnProxyReqHandler({
+        beforeRewrite: [reassignPathForPalmModel],
+        pipeline: [
+          applyQuotaLimits,
+          addKey,
+          languageFilter,
+          blockZoomerOrigins,
+          stripHeaders,
+          finalizeBody,
+        ],
+      }),
       proxyRes: createOnProxyResHandler([palmResponseHandler]),
       error: handleProxyError,
     },
-    selfHandleResponse: true,
-    logger,
   })
 );
 
 const palmRouter = Router();
-// Fix paths because clients don't consistently use the /v1 prefix.
-palmRouter.use((req, _res, next) => {
-  if (!req.path.startsWith("/v1/")) {
-    req.url = `/v1${req.url}`;
-  }
-  next();
-});
 palmRouter.get("/v1/models", handleModelRequest);
 // OpenAI-to-Google PaLM compatibility endpoint.
 palmRouter.post(

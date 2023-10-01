@@ -1,6 +1,6 @@
 import { Request, RequestHandler, Router } from "express";
-import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { v4 } from "uuid";
 import { config } from "../config";
 import { logger } from "../logger";
 import { createQueueMiddleware } from "./queue";
@@ -12,12 +12,14 @@ import {
   stripHeaders,
   signAwsRequest,
   finalizeAwsRequest,
+  createOnProxyReqHandler,
+  languageFilter,
+  blockZoomerOrigins,
 } from "./middleware/request";
 import {
   ProxyResHandlerWithBody,
   createOnProxyResHandler,
 } from "./middleware/response";
-import { v4 } from "uuid";
 
 let modelsCache: any = null;
 let modelsCacheTime = 0;
@@ -49,26 +51,6 @@ const getModelsResponse = () => {
 
 const handleModelRequest: RequestHandler = (_req, res) => {
   res.status(200).json(getModelsResponse());
-};
-
-const rewriteAwsRequest = (
-  proxyReq: http.ClientRequest,
-  req: Request,
-  res: http.ServerResponse
-) => {
-  // `addKey` is not used here because AWS requests have to be signed. The
-  // signing is an async operation so we can't do it in an http-proxy-middleware
-  // handler. It is instead done in the `signAwsRequest` preprocessor.
-  const rewriterPipeline = [applyQuotaLimits, stripHeaders, finalizeAwsRequest];
-
-  try {
-    for (const rewriter of rewriterPipeline) {
-      rewriter(proxyReq, req, res, {});
-    }
-  } catch (error) {
-    req.log.error(error, "Error while executing proxy rewriter");
-    proxyReq.destroy(error as Error);
-  }
 };
 
 /** Only used for non-streaming requests. */
@@ -147,25 +129,28 @@ const awsProxy = createQueueMiddleware(
       return `${signedRequest.protocol}//${signedRequest.hostname}`;
     },
     changeOrigin: true,
+    selfHandleResponse: true,
+    logger,
     on: {
-      proxyReq: rewriteAwsRequest,
+      proxyReq: createOnProxyReqHandler({
+        pipeline: [
+          applyQuotaLimits,
+          // Credentials are added by signAwsRequest preprocessor
+          languageFilter,
+          blockZoomerOrigins,
+          stripHeaders,
+          finalizeAwsRequest,
+        ],
+      }),
       proxyRes: createOnProxyResHandler([awsResponseHandler]),
       error: handleProxyError,
     },
-    selfHandleResponse: true,
-    logger,
   })
 );
 
 const awsRouter = Router();
-// Fix paths because clients don't consistently use the /v1 prefix.
-awsRouter.use((req, _res, next) => {
-  if (!req.path.startsWith("/v1/")) {
-    req.url = `/v1${req.url}`;
-  }
-  next();
-});
 awsRouter.get("/v1/models", handleModelRequest);
+// Native(ish) Anthropic chat completion endpoint.
 awsRouter.post(
   "/v1/complete",
   ipLimiter,

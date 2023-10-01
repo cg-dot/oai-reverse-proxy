@@ -2,6 +2,7 @@ import type { Request } from "express";
 import type { ClientRequest } from "http";
 import type { ProxyReqCallback } from "http-proxy";
 
+export { createOnProxyReqHandler } from "./rewrite";
 export {
   createPreprocessorMiddleware,
   createEmbeddingsPreprocessorMiddleware,

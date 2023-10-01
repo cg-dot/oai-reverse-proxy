@@ -1,5 +1,4 @@
 import { Request, RequestHandler, Router } from "express";
-import * as http from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
 import { logger } from "../logger";
@@ -14,7 +13,7 @@ import {
   createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
-  stripHeaders,
+  stripHeaders, createOnProxyReqHandler
 } from "./middleware/request";
 import {
   ProxyResHandlerWithBody,
@@ -65,31 +64,6 @@ const getModelsResponse = () => {
 
 const handleModelRequest: RequestHandler = (_req, res) => {
   res.status(200).json(getModelsResponse());
-};
-
-const rewriteAnthropicRequest = (
-  proxyReq: http.ClientRequest,
-  req: Request,
-  res: http.ServerResponse
-) => {
-  const rewriterPipeline = [
-    applyQuotaLimits,
-    addKey,
-    addAnthropicPreamble,
-    languageFilter,
-    blockZoomerOrigins,
-    stripHeaders,
-    finalizeBody,
-  ];
-
-  try {
-    for (const rewriter of rewriterPipeline) {
-      rewriter(proxyReq, req, res, {});
-    }
-  } catch (error) {
-    req.log.error(error, "Error while executing proxy rewriter");
-    proxyReq.destroy(error as Error);
-  }
 };
 
 /** Only used for non-streaming requests. */
@@ -159,13 +133,23 @@ const anthropicProxy = createQueueMiddleware(
   createProxyMiddleware({
     target: "https://api.anthropic.com",
     changeOrigin: true,
+    selfHandleResponse: true,
+    logger,
     on: {
-      proxyReq: rewriteAnthropicRequest,
+      proxyReq: createOnProxyReqHandler({
+        pipeline: [
+          applyQuotaLimits,
+          addKey,
+          addAnthropicPreamble,
+          languageFilter,
+          blockZoomerOrigins,
+          stripHeaders,
+          finalizeBody,
+        ],
+      }),
       proxyRes: createOnProxyResHandler([anthropicResponseHandler]),
       error: handleProxyError,
     },
-    selfHandleResponse: true,
-    logger,
     pathRewrite: {
       // Send OpenAI-compat requests to the real Anthropic endpoint.
       "^/v1/chat/completions": "/v1/complete",
@@ -174,14 +158,8 @@ const anthropicProxy = createQueueMiddleware(
 );
 
 const anthropicRouter = Router();
-// Fix paths because clients don't consistently use the /v1 prefix.
-anthropicRouter.use((req, _res, next) => {
-  if (!req.path.startsWith("/v1/")) {
-    req.url = `/v1${req.url}`;
-  }
-  next();
-});
 anthropicRouter.get("/v1/models", handleModelRequest);
+// Native Anthropic chat completion endpoint.
 anthropicRouter.post(
   "/v1/complete",
   ipLimiter,

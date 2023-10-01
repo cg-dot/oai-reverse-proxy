@@ -1,5 +1,4 @@
-import { RequestHandler, Request, Router } from "express";
-import * as http from "http";
+import { RequestHandler, Router } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
 import { keyPool } from "../shared/key-management";
@@ -25,6 +24,7 @@ import {
   languageFilter,
   limitCompletions,
   stripHeaders,
+  createOnProxyReqHandler,
 } from "./middleware/request";
 import {
   createOnProxyResHandler,
@@ -117,54 +117,6 @@ const rewriteForTurboInstruct: RequestPreprocessor = (req) => {
   req.url = "/v1/completions";
 };
 
-const rewriteRequest = (
-  proxyReq: http.ClientRequest,
-  req: Request,
-  res: http.ServerResponse
-) => {
-  const rewriterPipeline = [
-    applyQuotaLimits,
-    addKey,
-    languageFilter,
-    limitCompletions,
-    blockZoomerOrigins,
-    stripHeaders,
-    finalizeBody,
-  ];
-
-  try {
-    for (const rewriter of rewriterPipeline) {
-      rewriter(proxyReq, req, res, {});
-    }
-  } catch (error) {
-    req.log.error(error, "Error while executing proxy rewriter");
-    proxyReq.destroy(error as Error);
-  }
-};
-
-const rewriteEmbeddingsRequest = (
-  proxyReq: http.ClientRequest,
-  req: Request,
-  res: http.ServerResponse
-) => {
-  const rewriterPipeline = [
-    addKeyForEmbeddingsRequest,
-    stripHeaders,
-    finalizeBody,
-  ];
-
-  req.body = { input: req.body.input, model: "text-embedding-ada-002" };
-
-  try {
-    for (const rewriter of rewriterPipeline) {
-      rewriter(proxyReq, req, res, {});
-    }
-  } catch (error) {
-    req.log.error(error, "Error while executing proxy embeddings rewriter");
-    proxyReq.destroy(error as Error);
-  }
-};
-
 const openaiResponseHandler: ProxyResHandlerWithBody = async (
   _proxyRes,
   req,
@@ -215,34 +167,41 @@ const openaiProxy = createQueueMiddleware(
   createProxyMiddleware({
     target: "https://api.openai.com",
     changeOrigin: true,
+    selfHandleResponse: true,
+    logger,
     on: {
-      proxyReq: rewriteRequest,
+      proxyReq: createOnProxyReqHandler({
+        pipeline: [
+          applyQuotaLimits,
+          addKey,
+          languageFilter,
+          limitCompletions,
+          blockZoomerOrigins,
+          stripHeaders,
+          finalizeBody,
+        ],
+      }),
       proxyRes: createOnProxyResHandler([openaiResponseHandler]),
       error: handleProxyError,
     },
-    selfHandleResponse: true,
-    logger,
   })
 );
 
 const openaiEmbeddingsProxy = createProxyMiddleware({
   target: "https://api.openai.com",
   changeOrigin: true,
-  on: { proxyReq: rewriteEmbeddingsRequest, error: handleProxyError },
   selfHandleResponse: false,
   logger,
+  on: {
+    proxyReq: createOnProxyReqHandler({
+      pipeline: [addKeyForEmbeddingsRequest, stripHeaders, finalizeBody],
+    }),
+    error: handleProxyError,
+  },
 });
 
 const openaiRouter = Router();
-// Fix paths because clients don't consistently use the /v1 prefix.
-openaiRouter.use((req, _res, next) => {
-  if (!req.path.startsWith("/v1/")) {
-    req.url = `/v1${req.url}`;
-  }
-  next();
-});
 openaiRouter.get("/v1/models", handleModelRequest);
-
 // Native text completion endpoint, only for turbo-instruct.
 openaiRouter.post(
   "/v1/completions",
@@ -254,7 +213,6 @@ openaiRouter.post(
   }),
   openaiProxy
 );
-
 // turbo-instruct compatibility endpoint, accepts either prompt or messages
 openaiRouter.post(
   /\/v1\/turbo-instruct\/(v1\/)?chat\/completions/,
@@ -268,7 +226,6 @@ openaiRouter.post(
   ),
   openaiProxy
 );
-
 // General chat completion endpoint. Turbo-instruct is not supported here.
 openaiRouter.post(
   "/v1/chat/completions",
@@ -280,7 +237,6 @@ openaiRouter.post(
   }),
   openaiProxy
 );
-
 // Embeddings endpoint.
 openaiRouter.post(
   "/v1/embeddings",
