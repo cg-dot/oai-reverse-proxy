@@ -24,7 +24,6 @@ export { finalizeAwsRequest } from "./finalize-aws-request";
 export { languageFilter } from "./language-filter";
 export { limitCompletions } from "./limit-completions";
 export { stripHeaders } from "./strip-headers";
-export { transformKoboldPayload } from "./transform-kobold-payload";
 
 /**
  * Middleware that runs prior to the request being handled by http-proxy-

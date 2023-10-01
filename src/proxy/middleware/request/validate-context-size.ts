@@ -39,7 +39,7 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
   }
   proxyMax ||= Number.MAX_SAFE_INTEGER;
 
-  let modelMax = 0;
+  let modelMax: number;
   if (model.match(/gpt-3.5-turbo-16k/)) {
     modelMax = 16384;
   } else if (model.match(/gpt-3.5-turbo/)) {
@@ -48,7 +48,7 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     modelMax = 32768;
   } else if (model.match(/gpt-4/)) {
     modelMax = 8192;
-  } else if (model.match(/claude-(?:instant-)?v1(?:\.\d)?(?:-100k)/)) {
+  } else if (model.match(/claude-(?:instant-)?v1(?:\.\d)?-100k/)) {
     modelMax = 100000;
   } else if (model.match(/claude-(?:instant-)?v1(?:\.\d)?$/)) {
     modelMax = 9000;
@@ -56,6 +56,9 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     modelMax = 100000;
   } else if (model.match(/^text-bison-\d{3}$/)) {
     modelMax = BISON_MAX_CONTEXT;
+  } else if (model.match(/^anthropic\.claude/)) {
+    // Not sure if AWS Claude has the same context limit as Anthropic Claude.
+    modelMax = 100000;
   } else {
     // Don't really want to throw here because I don't want to have to update
     // this ASAP every time a new model is released.
