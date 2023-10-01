@@ -12,12 +12,13 @@ import {
   blockZoomerOrigins,
   createPreprocessorMiddleware,
   finalizeBody,
+  forceModel,
   languageFilter,
   stripHeaders,
 } from "./middleware/request";
 import {
-  ProxyResHandlerWithBody,
   createOnProxyResHandler,
+  ProxyResHandlerWithBody,
 } from "./middleware/response";
 import { v4 } from "uuid";
 
@@ -72,11 +73,10 @@ const rewritePalmRequest = (
   // The chat api (generateMessage) is not very useful at this time as it has
   // few params and no adjustable safety settings.
 
-  const newProxyReqPath = proxyReq.path.replace(
+  proxyReq.path = proxyReq.path.replace(
     /^\/v1\/chat\/completions/,
     `/v1beta2/models/${req.body.model}:generateText`
   );
-  proxyReq.path = newProxyReqPath;
 
   const rewriterPipeline = [
     applyQuotaLimits,
@@ -191,17 +191,11 @@ palmRouter.get("/v1/models", handleModelRequest);
 palmRouter.post(
   "/v1/chat/completions",
   ipLimiter,
-  createPreprocessorMiddleware({ inApi: "openai", outApi: "google-palm" }),
+  createPreprocessorMiddleware(
+    { inApi: "openai", outApi: "google-palm", service: "google-palm" },
+    { afterTransform: [forceModel("text-bison-001")] }
+  ),
   googlePalmProxy
 );
-// Redirect browser requests to the homepage.
-palmRouter.get("*", (req, res, next) => {
-  const isBrowser = req.headers["user-agent"]?.includes("Mozilla");
-  if (isBrowser) {
-    res.redirect("/");
-  } else {
-    next();
-  }
-});
 
 export const googlePalm = palmRouter;

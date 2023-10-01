@@ -2,14 +2,17 @@ import type { Request } from "express";
 import type { ClientRequest } from "http";
 import type { ProxyReqCallback } from "http-proxy";
 
-// Express middleware (runs before http-proxy-middleware, can be async)
-export { applyQuotaLimits } from "./apply-quota-limits";
 export {
   createPreprocessorMiddleware,
   createEmbeddingsPreprocessorMiddleware,
 } from "./preprocess";
-export { checkContextSize } from "./check-context-size";
+
+// Express middleware (runs before http-proxy-middleware, can be async)
+export { applyQuotaLimits } from "./apply-quota-limits";
+export { validateContextSize } from "./validate-context-size";
+export { countPromptTokens } from "./count-prompt-tokens";
 export { setApiFormat } from "./set-api-format";
+export { signAwsRequest } from "./sign-aws-request";
 export { transformOutboundPayload } from "./transform-outbound-payload";
 
 // HPM middleware (runs on onProxyReq, cannot be async)
@@ -17,6 +20,7 @@ export { addKey, addKeyForEmbeddingsRequest } from "./add-key";
 export { addAnthropicPreamble } from "./add-anthropic-preamble";
 export { blockZoomerOrigins } from "./block-zoomer-origins";
 export { finalizeBody } from "./finalize-body";
+export { finalizeAwsRequest } from "./finalize-aws-request";
 export { languageFilter } from "./language-filter";
 export { limitCompletions } from "./limit-completions";
 export { stripHeaders } from "./strip-headers";
@@ -50,3 +54,6 @@ export type RequestPreprocessor = (req: Request) => void | Promise<void>;
  * request queue middleware.
  */
 export type ProxyRequestMiddleware = ProxyReqCallback<ClientRequest, Request>;
+
+export const forceModel = (model: string) => (req: Request) =>
+  void (req.body.model = model);

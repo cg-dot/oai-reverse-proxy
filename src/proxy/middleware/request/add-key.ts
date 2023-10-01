@@ -80,7 +80,6 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
       proxyReq.setHeader("X-API-Key", assignedKey.key);
       break;
     case "openai":
-    case "openai-text":
       const key: OpenAIKey = assignedKey as OpenAIKey;
       if (key.organizationId) {
         proxyReq.setHeader("OpenAI-Organization", key.organizationId);
@@ -94,6 +93,10 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
         `?key=${assignedKey.key}`
       );
       break;
+    case "aws":
+      throw new Error(
+        "add-key should not be used for AWS security credentials. Use sign-aws-request instead."
+      );
     default:
       assertNever(assignedKey.service);
   }

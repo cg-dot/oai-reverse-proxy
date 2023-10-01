@@ -3,14 +3,23 @@ import { logger } from "../logger";
 export type OpenAIModelFamily = "turbo" | "gpt4" | "gpt4-32k";
 export type AnthropicModelFamily = "claude";
 export type GooglePalmModelFamily = "bison";
+export type AwsBedrockModelFamily = "aws-claude";
 export type ModelFamily =
   | OpenAIModelFamily
   | AnthropicModelFamily
-  | GooglePalmModelFamily;
+  | GooglePalmModelFamily
+  | AwsBedrockModelFamily;
 
 export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   arr: A & ([ModelFamily] extends [A[number]] ? unknown : never)
-) => arr)(["turbo", "gpt4", "gpt4-32k", "claude", "bison"] as const);
+) => arr)([
+  "turbo",
+  "gpt4",
+  "gpt4-32k",
+  "claude",
+  "bison",
+  "aws-claude",
+] as const);
 
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^gpt-4-32k-\\d{4}$": "gpt4-32k",
@@ -39,6 +48,10 @@ export function getGooglePalmModelFamily(model: string): ModelFamily {
   const stack = new Error().stack;
   logger.warn({ model, stack }, "Unmapped PaLM model family");
   return "bison";
+}
+
+export function getAwsBedrockModelFamily(_model: string): ModelFamily {
+  return "aws-claude";
 }
 
 export function assertIsKnownModelFamily(

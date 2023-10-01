@@ -21,6 +21,12 @@ type Config = {
   /** Comma-delimited list of Google PaLM API keys. */
   googlePalmKey?: string;
   /**
+   * Comma-delimited list of AWS credentials. Each credential item should be a
+   * colon-delimited list of access key, secret key, and AWS region.
+   * Example: `AWS_CREDENTIALS=access_key_1:secret_key_1:us-east-1,access_key_2:secret_key_2:us-west-2`
+   */
+  awsCredentials?: string;
+  /**
    * The proxy key to require for requests. Only applicable if the user
    * management mode is set to 'proxy_key', and required if so.
    */
@@ -110,7 +116,7 @@ type Config = {
   blockedOrigins?: string;
   /** Message to return when rejecting requests from blocked origins. */
   blockMessage?: string;
-  /** Desination URL to redirect blocked requests to, for non-JSON requests. */
+  /** Destination URL to redirect blocked requests to, for non-JSON requests. */
   blockRedirect?: string;
   /** Which model families to allow requests for. Applies only to OpenAI. */
   allowedModelFamilies: ModelFamily[];
@@ -142,6 +148,7 @@ export const config: Config = {
   openaiKey: getEnvWithDefault("OPENAI_KEY", ""),
   anthropicKey: getEnvWithDefault("ANTHROPIC_KEY", ""),
   googlePalmKey: getEnvWithDefault("GOOGLE_PALM_KEY", ""),
+  awsCredentials: getEnvWithDefault("AWS_CREDENTIALS", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
   adminKey: getEnvWithDefault("ADMIN_KEY", ""),
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
@@ -168,6 +175,8 @@ export const config: Config = {
     "gpt4",
     "gpt4-32k",
     "claude",
+    "bison",
+    "aws-claude",
   ]),
   rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
   rejectMessage: getEnvWithDefault(
@@ -196,6 +205,7 @@ export const config: Config = {
     "gpt4-32k": getEnvWithDefault("TOKEN_QUOTA_GPT4_32K", 0),
     claude: getEnvWithDefault("TOKEN_QUOTA_CLAUDE", 0),
     bison: getEnvWithDefault("TOKEN_QUOTA_BISON", 0),
+    "aws-claude": getEnvWithDefault("TOKEN_QUOTA_AWS_CLAUDE", 0),
   },
   quotaRefreshPeriod: getEnvWithDefault("QUOTA_REFRESH_PERIOD", undefined),
   allowNicknameChanges: getEnvWithDefault("ALLOW_NICKNAME_CHANGES", true),
@@ -288,6 +298,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "openaiKey",
   "anthropicKey",
   "googlePalmKey",
+  "awsCredentials",
   "proxyKey",
   "adminKey",
   "checkKeys",
@@ -344,7 +355,12 @@ function getEnvWithDefault<T>(env: string | string[], defaultValue: T): T {
   }
   try {
     if (
-      ["OPENAI_KEY", "ANTHROPIC_KEY", "GOOGLE_PALM_KEY"].includes(String(env))
+      [
+        "OPENAI_KEY",
+        "ANTHROPIC_KEY",
+        "GOOGLE_PALM_KEY",
+        "AWS_CREDENTIALS",
+      ].includes(String(env))
     ) {
       return value as unknown as T;
     }

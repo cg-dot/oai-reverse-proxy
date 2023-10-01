@@ -21,6 +21,7 @@ import {
   createEmbeddingsPreprocessorMiddleware,
   createPreprocessorMiddleware,
   finalizeBody,
+  forceModel,
   languageFilter,
   limitCompletions,
   stripHeaders,
@@ -246,17 +247,25 @@ openaiRouter.get("/v1/models", handleModelRequest);
 openaiRouter.post(
   "/v1/completions",
   ipLimiter,
-  createPreprocessorMiddleware({ inApi: "openai-text", outApi: "openai-text" }),
+  createPreprocessorMiddleware({
+    inApi: "openai-text",
+    outApi: "openai-text",
+    service: "openai",
+  }),
   openaiProxy
 );
 
 // turbo-instruct compatibility endpoint, accepts either prompt or messages
 openaiRouter.post(
-  /\/v1\/turbo\-instruct\/(v1\/)?chat\/completions/,
+  /\/v1\/turbo-instruct\/(v1\/)?chat\/completions/,
   ipLimiter,
-  createPreprocessorMiddleware({ inApi: "openai", outApi: "openai-text" }, [
-    rewriteForTurboInstruct,
-  ]),
+  createPreprocessorMiddleware(
+    { inApi: "openai", outApi: "openai-text", service: "openai" },
+    {
+      beforeTransform: [rewriteForTurboInstruct],
+      afterTransform: [forceModel("gpt-3.5-turbo-instruct")],
+    }
+  ),
   openaiProxy
 );
 
@@ -264,7 +273,11 @@ openaiRouter.post(
 openaiRouter.post(
   "/v1/chat/completions",
   ipLimiter,
-  createPreprocessorMiddleware({ inApi: "openai", outApi: "openai" }),
+  createPreprocessorMiddleware({
+    inApi: "openai",
+    outApi: "openai",
+    service: "openai",
+  }),
   openaiProxy
 );
 
@@ -275,19 +288,5 @@ openaiRouter.post(
   createEmbeddingsPreprocessorMiddleware(),
   openaiEmbeddingsProxy
 );
-
-// Redirect browser requests to the homepage.
-openaiRouter.get("*", (req, res, next) => {
-  const isBrowser = req.headers["user-agent"]?.includes("Mozilla");
-  if (isBrowser) {
-    res.redirect("/");
-  } else {
-    next();
-  }
-});
-openaiRouter.use((req, res) => {
-  req.log.warn(`Blocked openai proxy request: ${req.method} ${req.path}`);
-  res.status(404).json({ error: "Not found" });
-});
 
 export const openai = openaiRouter;

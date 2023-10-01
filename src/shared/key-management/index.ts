@@ -4,17 +4,25 @@ import {
   AnthropicModel,
 } from "./anthropic/provider";
 import { GOOGLE_PALM_SUPPORTED_MODELS, GooglePalmModel } from "./palm/provider";
+import { AWS_BEDROCK_SUPPORTED_MODELS, AwsBedrockModel } from "./aws/provider";
 import { KeyPool } from "./key-pool";
 import type { ModelFamily } from "../models";
 
+/** The request and response format used by a model's API. */
 export type APIFormat = "openai" | "anthropic" | "google-palm" | "openai-text";
-export type Model = OpenAIModel | AnthropicModel | GooglePalmModel;
+/** The service that a model is hosted on; distinct because services like AWS provide multiple APIs, but have their own endpoints and authentication. */
+export type LLMService = "openai" | "anthropic" | "google-palm" | "aws";
+export type Model =
+  | OpenAIModel
+  | AnthropicModel
+  | GooglePalmModel
+  | AwsBedrockModel;
 
 export interface Key {
   /** The API key itself. Never log this, use `hash` instead. */
   readonly key: string;
   /** The service that this key is for. */
-  service: APIFormat;
+  service: LLMService;
   /** Whether this is a free trial key. These are prioritized over paid keys if they can fulfill the request. */
   isTrial: boolean;
   /** The model families that this key has access to. */
@@ -44,14 +52,13 @@ for service-agnostic functionality.
 */
 
 export interface KeyProvider<T extends Key = Key> {
-  readonly service: APIFormat;
+  readonly service: LLMService;
   init(): void;
   get(model: Model): T;
   list(): Omit<T, "key">[];
   disable(key: T): void;
   update(hash: string, update: Partial<T>): void;
   available(): number;
-  anyUnchecked(): boolean;
   incrementUsage(hash: string, model: string, tokens: number): void;
   getLockoutPeriod(model: Model): number;
   markRateLimited(hash: string): void;
@@ -68,7 +75,9 @@ export {
   OPENAI_SUPPORTED_MODELS,
   ANTHROPIC_SUPPORTED_MODELS,
   GOOGLE_PALM_SUPPORTED_MODELS,
+  AWS_BEDROCK_SUPPORTED_MODELS,
 };
 export { AnthropicKey } from "./anthropic/provider";
 export { OpenAIKey } from "./openai/provider";
 export { GooglePalmKey } from "./palm/provider";
+export { AwsBedrockKey } from "./aws/provider";

@@ -10,6 +10,7 @@ import { checkRisuToken } from "./check-risu-token";
 import { openai } from "./openai";
 import { anthropic } from "./anthropic";
 import { googlePalm } from "./palm";
+import { aws } from "./aws";
 
 const proxyRouter = express.Router();
 proxyRouter.use(
@@ -26,4 +27,14 @@ proxyRouter.use((req, _res, next) => {
 proxyRouter.use("/openai", openai);
 proxyRouter.use("/anthropic", anthropic);
 proxyRouter.use("/google-palm", googlePalm);
+proxyRouter.use("/aws/claude", aws);
+// Redirect browser requests to the homepage.
+proxyRouter.get("*", (req, res, next) => {
+  const isBrowser = req.headers["user-agent"]?.includes("Mozilla");
+  if (isBrowser) {
+    res.redirect("/");
+  } else {
+    next();
+  }
+});
 export { proxyRouter as proxyRouter };

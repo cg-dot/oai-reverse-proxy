@@ -1,5 +1,4 @@
 import { Request } from "express";
-import { config } from "../../config";
 import { assertNever } from "../utils";
 import {
   init as initClaude,
@@ -13,12 +12,8 @@ import {
 import { APIFormat } from "../key-management";
 
 export async function init() {
-  if (config.anthropicKey) {
-    initClaude();
-  }
-  if (config.openaiKey || config.googlePalmKey) {
-    initOpenAi();
-  }
+  initClaude();
+  initOpenAi();
 }
 
 /** Tagged union via `service` field of the different types of requests that can

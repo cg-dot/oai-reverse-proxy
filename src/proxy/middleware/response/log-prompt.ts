@@ -1,7 +1,11 @@
 import { Request } from "express";
 import { config } from "../../../config";
 import { logQueue } from "../../../shared/prompt-logging";
-import { getCompletionForService, isCompletionRequest } from "../common";
+import {
+  getCompletionFromBody,
+  getModelFromBody,
+  isCompletionRequest,
+} from "../common";
 import { ProxyResHandlerWithBody } from ".";
 import { assertNever } from "../../../shared/utils";
 
@@ -25,17 +29,15 @@ export const logPrompt: ProxyResHandlerWithBody = async (
 
   const promptPayload = getPromptForRequest(req);
   const promptFlattened = flattenMessages(promptPayload);
-  const response = getCompletionForService({
-    service: req.outboundApi,
-    body: responseBody,
-  });
+  const response = getCompletionFromBody(req, responseBody);
+  const model = getModelFromBody(req, responseBody);
 
   logQueue.enqueue({
     endpoint: req.inboundApi,
     promptRaw: JSON.stringify(promptPayload),
     promptFlattened,
-    model: response.model, // may differ from the requested model
-    response: response.completion,
+    model,
+    response,
   });
 };
 

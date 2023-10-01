@@ -3,6 +3,7 @@ import * as http from "http";
 import { buildFakeSseMessage } from "../common";
 import { RawResponseBodyHandler, decodeResponseBody } from ".";
 import { assertNever } from "../../../shared/utils";
+import { ServerSentEventStreamAdapter } from "./sse-stream-adapter";
 
 type OpenAiChatCompletionResponse = {
   id: string;
@@ -82,6 +83,11 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     return decodeResponseBody(proxyRes, req, res);
   }
 
+  req.log.debug(
+    { headers: proxyRes.headers, key: key.hash },
+    `Received SSE headers.`
+  );
+
   return new Promise((resolve, reject) => {
     req.log.info({ key: key.hash }, `Starting to proxy SSE stream.`);
 
@@ -97,75 +103,50 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
       res.flushHeaders();
     }
 
-    const originalEvents: string[] = [];
-    let partialMessage = "";
+    const adapter = new ServerSentEventStreamAdapter({
+      isAwsStream:
+        proxyRes.headers["content-type"] ===
+        "application/vnd.amazon.eventstream",
+    });
+
+    const events: string[] = [];
     let lastPosition = 0;
     let eventCount = 0;
 
-    type ProxyResHandler<T extends unknown> = (...args: T[]) => void;
-    function withErrorHandling<T extends unknown>(fn: ProxyResHandler<T>) {
-      return (...args: T[]) => {
-        try {
-          fn(...args);
-        } catch (error) {
-          proxyRes.emit("error", error);
-        }
-      };
-    }
+    proxyRes.pipe(adapter);
 
-    proxyRes.on(
-      "data",
-      withErrorHandling((chunk: Buffer) => {
-        // We may receive multiple (or partial) SSE messages in a single chunk,
-        // so we need to buffer and emit seperate stream events for full
-        // messages so we can parse/transform them properly.
-        const str = chunk.toString();
-
-        // Anthropic uses CRLF line endings (out-of-spec btw)
-        const fullMessages = (partialMessage + str).split(/\r?\n\r?\n/);
-        partialMessage = fullMessages.pop() || "";
-
-        for (const message of fullMessages) {
-          proxyRes.emit("full-sse-event", message);
-        }
-      })
-    );
-
-    proxyRes.on(
-      "full-sse-event",
-      withErrorHandling((data) => {
-        originalEvents.push(data);
+    adapter.on("data", (chunk: any) => {
+      try {
         const { event, position } = transformEvent({
-          data,
+          data: chunk.toString(),
           requestApi: req.inboundApi,
           responseApi: req.outboundApi,
           lastPosition,
           index: eventCount++,
         });
+        events.push(event);
         lastPosition = position;
         res.write(event + "\n\n");
-      })
-    );
+      } catch (err) {
+        adapter.emit("error", err);
+      }
+    });
 
-    proxyRes.on(
-      "end",
-      withErrorHandling(() => {
-        let finalBody = convertEventsToFinalResponse(originalEvents, req);
+    adapter.on("end", () => {
+      try {
         req.log.info({ key: key.hash }, `Finished proxying SSE stream.`);
+        const finalBody = convertEventsToFinalResponse(events, req);
         res.end();
         resolve(finalBody);
-      })
-    );
+      } catch (err) {
+        adapter.emit("error", err);
+      }
+    });
 
-    proxyRes.on("error", (err) => {
+    adapter.on("error", (err) => {
       req.log.error({ error: err, key: key.hash }, `Mid-stream error.`);
-      const fakeErrorEvent = buildFakeSseMessage(
-        "mid-stream-error",
-        err.message,
-        req
-      );
-      res.write(`data: ${JSON.stringify(fakeErrorEvent)}\n\n`);
-      res.write("data: [DONE]\n\n");
+      const errorEvent = buildFakeSseMessage("stream-error", err.message, req);
+      res.write(`data: ${JSON.stringify(errorEvent)}\n\ndata: [DONE]\n\n`);
       res.end();
       reject(err);
     });
@@ -197,8 +178,6 @@ function transformEvent(params: SSETransformationArgs) {
     case "openai->anthropic":
       // TODO: handle new anthropic streaming format
       return transformV1AnthropicEventToOpenAI(params);
-    case "openai->google-palm":
-      return transformPalmEventToOpenAI(params);
     default:
       throw new Error(`Unsupported streaming API transformation. ${trans}`);
   }
@@ -288,11 +267,6 @@ function transformV1AnthropicEventToOpenAI(params: SSETransformationArgs) {
   };
 }
 
-function transformPalmEventToOpenAI({ data }: SSETransformationArgs) {
-  throw new Error("PaLM streaming not yet supported.");
-  return { position: -1, event: data };
-}
-
 /** Copy headers, excluding ones we're already setting for the SSE response. */
 function copyHeaders(proxyRes: http.IncomingMessage, res: Response) {
   const toOmit = [
@@ -366,7 +340,7 @@ function convertEventsToFinalResponse(events: string[], req: Request) {
         choices: [],
         // TODO: merge logprobs
       };
-      merged = events.reduce((acc, event, i) => {
+      merged = events.reduce((acc, event) => {
         if (!event.startsWith("data: ")) return acc;
         if (event === "data: [DONE]") return acc;
 
@@ -390,16 +364,37 @@ function convertEventsToFinalResponse(events: string[], req: Request) {
       return merged;
     }
     case "anthropic": {
-      /*
-       * Full complete responses from Anthropic are conveniently just the same as
-       * the final SSE event before the "DONE" event, so we can reuse that
-       */
-      const lastEvent = events[events.length - 2].toString();
-      const data = JSON.parse(
-        lastEvent.slice(lastEvent.indexOf("data: ") + "data: ".length)
-      );
-      const final: AnthropicCompletionResponse = { ...data, log_id: req.id };
-      return final;
+      if (req.headers["anthropic-version"] === "2023-01-01") {
+        return convertAnthropicV1(events, req);
+      }
+
+      let merged: AnthropicCompletionResponse = {
+        completion: "",
+        stop_reason: "",
+        truncated: false,
+        stop: null,
+        model: req.body.model,
+        log_id: "",
+        exception: null,
+      }
+
+      merged = events.reduce((acc, event) => {
+        if (!event.startsWith("data: ")) return acc;
+        if (event === "data: [DONE]") return acc;
+
+        const data = JSON.parse(event.slice("data: ".length));
+
+        return {
+          completion: acc.completion + data.completion,
+          stop_reason: data.stop_reason,
+          truncated: data.truncated,
+          stop: data.stop,
+          log_id: data.log_id,
+          exception: data.exception,
+          model: acc.model,
+        };
+      }, merged);
+      return merged;
     }
     case "google-palm": {
       throw new Error("PaLM streaming not yet supported.");
@@ -407,4 +402,17 @@ function convertEventsToFinalResponse(events: string[], req: Request) {
     default:
       assertNever(req.outboundApi);
   }
+}
+
+/** Older Anthropic streaming format which sent full completion each time. */
+function convertAnthropicV1(
+  events: string[],
+  req: Request
+) {
+  const lastEvent = events[events.length - 2].toString();
+  const data = JSON.parse(
+    lastEvent.slice(lastEvent.indexOf("data: ") + "data: ".length)
+  );
+  const final: AnthropicCompletionResponse = { ...data, log_id: req.id };
+  return final;
 }

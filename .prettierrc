@@ -9,5 +9,6 @@
         "bracketSameLine": true
       }
     }
-  ]
+  ],
+  "trailingComma": "es5"
 }

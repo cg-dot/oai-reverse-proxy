@@ -2,32 +2,23 @@ import crypto from "crypto";
 import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
-import type { GooglePalmModelFamily } from "../../models";
+import type { AwsBedrockModelFamily } from "../../models";
 
-// https://developers.generativeai.google.com/models/language
-export const GOOGLE_PALM_SUPPORTED_MODELS = [
-  "text-bison-001",
-  // "chat-bison-001", no adjustable safety settings, so it's useless
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html
+export const AWS_BEDROCK_SUPPORTED_MODELS = [
+  "anthropic.claude-v1",
+  "anthropic.claude-v2",
+  "anthropic.claude-instant-v1",
 ] as const;
-export type GooglePalmModel = (typeof GOOGLE_PALM_SUPPORTED_MODELS)[number];
+export type AwsBedrockModel = (typeof AWS_BEDROCK_SUPPORTED_MODELS)[number];
 
-export type GooglePalmKeyUpdate = Omit<
-  Partial<GooglePalmKey>,
-  | "key"
-  | "hash"
-  | "lastUsed"
-  | "promptCount"
-  | "rateLimitedAt"
-  | "rateLimitedUntil"
->;
-
-type GooglePalmKeyUsage = {
-  [K in GooglePalmModelFamily as `${K}Tokens`]: number;
+type AwsBedrockKeyUsage = {
+  [K in AwsBedrockModelFamily as `${K}Tokens`]: number;
 };
 
-export interface GooglePalmKey extends Key, GooglePalmKeyUsage {
-  readonly service: "google-palm";
-  readonly modelFamilies: GooglePalmModelFamily[];
+export interface AwsBedrockKey extends Key, AwsBedrockKeyUsage {
+  readonly service: "aws";
+  readonly modelFamilies: AwsBedrockModelFamily[];
   /** The time at which this key was last rate limited. */
   rateLimitedAt: number;
   /** The time until which this key is rate limited. */
@@ -38,7 +29,7 @@ export interface GooglePalmKey extends Key, GooglePalmKeyUsage {
  * Upon being rate limited, a key will be locked out for this many milliseconds
  * while we wait for other concurrent requests to finish.
  */
-const RATE_LIMIT_LOCKOUT = 2000;
+const RATE_LIMIT_LOCKOUT = 300;
 /**
  * Upon assigning a key, we will wait this many milliseconds before allowing it
  * to be used again. This is to prevent the queue from flooding a key with too
@@ -46,44 +37,44 @@ const RATE_LIMIT_LOCKOUT = 2000;
  */
 const KEY_REUSE_DELAY = 500;
 
-export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
-  readonly service = "google-palm";
+export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
+  readonly service = "aws";
 
-  private keys: GooglePalmKey[] = [];
+  private keys: AwsBedrockKey[] = [];
   private log = logger.child({ module: "key-provider", service: this.service });
 
   constructor() {
-    const keyConfig = config.googlePalmKey?.trim();
+    const keyConfig = config.awsCredentials?.trim();
     if (!keyConfig) {
       this.log.warn(
-        "GOOGLE_PALM_KEY is not set. PaLM API will not be available."
+        "AWS_CREDENTIALS is not set. AWS Bedrock API will not be available."
       );
       return;
     }
     let bareKeys: string[];
     bareKeys = [...new Set(keyConfig.split(",").map((k) => k.trim()))];
     for (const key of bareKeys) {
-      const newKey: GooglePalmKey = {
+      const newKey: AwsBedrockKey = {
         key,
         service: this.service,
-        modelFamilies: ["bison"],
+        modelFamilies: ["aws-claude"],
         isTrial: false,
         isDisabled: false,
         promptCount: 0,
         lastUsed: 0,
         rateLimitedAt: 0,
         rateLimitedUntil: 0,
-        hash: `plm-${crypto
+        hash: `aws-${crypto
           .createHash("sha256")
           .update(key)
           .digest("hex")
           .slice(0, 8)}`,
         lastChecked: 0,
-        bisonTokens: 0,
+        ["aws-claudeTokens"]: 0,
       };
       this.keys.push(newKey);
     }
-    this.log.info({ keyCount: this.keys.length }, "Loaded PaLM keys.");
+    this.log.info({ keyCount: this.keys.length }, "Loaded AWS Bedrock keys.");
   }
 
   public init() {}
@@ -92,10 +83,10 @@ export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(_model: GooglePalmModel) {
+  public get(_model: AwsBedrockModel) {
     const availableKeys = this.keys.filter((k) => !k.isDisabled);
     if (availableKeys.length === 0) {
-      throw new Error("No Google PaLM keys available");
+      throw new Error("No AWS Bedrock keys available");
     }
 
     // (largely copied from the OpenAI provider, without trial key support)
@@ -130,14 +121,14 @@ export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
     return { ...selectedKey };
   }
 
-  public disable(key: GooglePalmKey) {
+  public disable(key: AwsBedrockKey) {
     const keyFromPool = this.keys.find((k) => k.hash === key.hash);
     if (!keyFromPool || keyFromPool.isDisabled) return;
     keyFromPool.isDisabled = true;
     this.log.warn({ key: key.hash }, "Key disabled");
   }
 
-  public update(hash: string, update: Partial<GooglePalmKey>) {
+  public update(hash: string, update: Partial<AwsBedrockKey>) {
     const keyFromPool = this.keys.find((k) => k.hash === hash)!;
     Object.assign(keyFromPool, { lastChecked: Date.now(), ...update });
   }
@@ -150,10 +141,11 @@ export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
     const key = this.keys.find((k) => k.hash === hash);
     if (!key) return;
     key.promptCount++;
-    key.bisonTokens += tokens;
+    key["aws-claudeTokens"] += tokens;
   }
 
-  public getLockoutPeriod(_model: GooglePalmModel) {
+  public getLockoutPeriod(_model: AwsBedrockModel) {
+    // TODO: same exact behavior for three providers, should be refactored
     const activeKeys = this.keys.filter((k) => !k.isDisabled);
     // Don't lock out if there are no keys available or the queue will stall.
     // Just let it through so the add-key middleware can throw an error.
@@ -165,8 +157,7 @@ export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
 
     if (anyNotRateLimited) return 0;
 
-    // If all keys are rate-limited, return the time until the first key is
-    // ready.
+    // If all keys are rate-limited, return time until the first key is ready.
     return Math.min(...activeKeys.map((k) => k.rateLimitedUntil - now));
   }
 

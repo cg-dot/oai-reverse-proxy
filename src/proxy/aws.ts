@@ -7,19 +7,17 @@ import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
 import {
-  addKey,
   applyQuotaLimits,
-  addAnthropicPreamble,
-  blockZoomerOrigins,
   createPreprocessorMiddleware,
-  finalizeBody,
-  languageFilter,
   stripHeaders,
+  signAwsRequest,
+  finalizeAwsRequest,
 } from "./middleware/request";
 import {
   ProxyResHandlerWithBody,
   createOnProxyResHandler,
 } from "./middleware/response";
+import { v4 } from "uuid";
 
 let modelsCache: any = null;
 let modelsCacheTime = 0;
@@ -29,25 +27,11 @@ const getModelsResponse = () => {
     return modelsCache;
   }
 
-  if (!config.anthropicKey) return { object: "list", data: [] };
+  if (!config.awsCredentials) return { object: "list", data: [] };
 
-  const claudeVariants = [
-    "claude-v1",
-    "claude-v1-100k",
-    "claude-instant-v1",
-    "claude-instant-v1-100k",
-    "claude-v1.3",
-    "claude-v1.3-100k",
-    "claude-v1.2",
-    "claude-v1.0",
-    "claude-instant-v1.1",
-    "claude-instant-v1.1-100k",
-    "claude-instant-v1.0",
-    "claude-2", // claude-2 is 100k by default it seems
-    "claude-2.0",
-  ];
+  const variants = ["anthropic.claude-v1", "anthropic.claude-v2"];
 
-  const models = claudeVariants.map((id) => ({
+  const models = variants.map((id) => ({
     id,
     object: "model",
     created: new Date().getTime(),
@@ -67,20 +51,15 @@ const handleModelRequest: RequestHandler = (_req, res) => {
   res.status(200).json(getModelsResponse());
 };
 
-const rewriteAnthropicRequest = (
+const rewriteAwsRequest = (
   proxyReq: http.ClientRequest,
   req: Request,
   res: http.ServerResponse
 ) => {
-  const rewriterPipeline = [
-    applyQuotaLimits,
-    addKey,
-    addAnthropicPreamble,
-    languageFilter,
-    blockZoomerOrigins,
-    stripHeaders,
-    finalizeBody,
-  ];
+  // `addKey` is not used here because AWS requests have to be signed. The
+  // signing is an async operation so we can't do it in an http-proxy-middleware
+  // handler. It is instead done in the `signAwsRequest` preprocessor.
+  const rewriterPipeline = [applyQuotaLimits, stripHeaders, finalizeAwsRequest];
 
   try {
     for (const rewriter of rewriterPipeline) {
@@ -93,7 +72,7 @@ const rewriteAnthropicRequest = (
 };
 
 /** Only used for non-streaming requests. */
-const anthropicResponseHandler: ProxyResHandlerWithBody = async (
+const awsResponseHandler: ProxyResHandlerWithBody = async (
   _proxyRes,
   req,
   res,
@@ -109,14 +88,17 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
   }
 
   if (req.inboundApi === "openai") {
-    req.log.info("Transforming Anthropic response to OpenAI format");
-    body = transformAnthropicResponse(body, req);
+    req.log.info("Transforming AWS Claude response to OpenAI format");
+    body = transformAwsResponse(body, req);
   }
 
   // TODO: Remove once tokenization is stable
   if (req.debug) {
     body.proxy_tokenizer_debug_info = req.debug;
   }
+
+  // AWS does not confirm the model in the response, so we have to add it
+  body.model = req.body.model;
 
   res.status(200).json(body);
 };
@@ -127,16 +109,16 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
  * is only used for non-streaming requests as streaming requests are handled
  * on-the-fly.
  */
-function transformAnthropicResponse(
-  anthropicBody: Record<string, any>,
+function transformAwsResponse(
+  awsBody: Record<string, any>,
   req: Request
 ): Record<string, any> {
   const totalTokens = (req.promptTokens ?? 0) + (req.outputTokens ?? 0);
   return {
-    id: "ant-" + anthropicBody.log_id,
+    id: "aws-" + v4(),
     object: "chat.completion",
     created: Date.now(),
-    model: anthropicBody.model,
+    model: req.body.model,
     usage: {
       prompt_tokens: req.promptTokens,
       completion_tokens: req.outputTokens,
@@ -146,76 +128,84 @@ function transformAnthropicResponse(
       {
         message: {
           role: "assistant",
-          content: anthropicBody.completion?.trim(),
+          content: awsBody.completion?.trim(),
         },
-        finish_reason: anthropicBody.stop_reason,
+        finish_reason: awsBody.stop_reason,
         index: 0,
       },
     ],
   };
 }
 
-const anthropicProxy = createQueueMiddleware(
+const awsProxy = createQueueMiddleware(
   createProxyMiddleware({
-    target: "https://api.anthropic.com",
+    target: "bad-target-will-be-rewritten",
+    router: ({ signedRequest }) => {
+      if (!signedRequest) {
+        throw new Error("AWS requests must go through signAwsRequest first");
+      }
+      return `${signedRequest.protocol}//${signedRequest.hostname}`;
+    },
     changeOrigin: true,
     on: {
-      proxyReq: rewriteAnthropicRequest,
-      proxyRes: createOnProxyResHandler([anthropicResponseHandler]),
+      proxyReq: rewriteAwsRequest,
+      proxyRes: createOnProxyResHandler([awsResponseHandler]),
       error: handleProxyError,
     },
     selfHandleResponse: true,
     logger,
-    pathRewrite: {
-      // Send OpenAI-compat requests to the real Anthropic endpoint.
-      "^/v1/chat/completions": "/v1/complete",
-    },
   })
 );
 
-const anthropicRouter = Router();
+const awsRouter = Router();
 // Fix paths because clients don't consistently use the /v1 prefix.
-anthropicRouter.use((req, _res, next) => {
+awsRouter.use((req, _res, next) => {
   if (!req.path.startsWith("/v1/")) {
     req.url = `/v1${req.url}`;
   }
   next();
 });
-anthropicRouter.get("/v1/models", handleModelRequest);
-anthropicRouter.post(
+awsRouter.get("/v1/models", handleModelRequest);
+awsRouter.post(
   "/v1/complete",
   ipLimiter,
-  createPreprocessorMiddleware({
-    inApi: "anthropic",
-    outApi: "anthropic",
-    service: "anthropic",
-  }),
-  anthropicProxy
+  createPreprocessorMiddleware(
+    { inApi: "anthropic", outApi: "anthropic", service: "aws" },
+    { afterTransform: [maybeReassignModel, signAwsRequest] }
+  ),
+  awsProxy
 );
-// OpenAI-to-Anthropic compatibility endpoint.
-anthropicRouter.post(
+// OpenAI-to-AWS Anthropic compatibility endpoint.
+awsRouter.post(
   "/v1/chat/completions",
   ipLimiter,
   createPreprocessorMiddleware(
-    { inApi: "openai", outApi: "anthropic", service: "anthropic" },
-    { afterTransform: [maybeReassignModel] }
+    { inApi: "openai", outApi: "anthropic", service: "aws" },
+    { afterTransform: [maybeReassignModel, signAwsRequest] }
   ),
-  anthropicProxy
+  awsProxy
 );
 
+/**
+ * Tries to deal with:
+ * - frontends sending AWS model names even when they want to use the OpenAI-
+ *   compatible endpoint
+ * - frontends sending Anthropic model names that AWS doesn't recognize
+ * - frontends sending OpenAI model names because they expect the proxy to
+ *   translate them
+ */
 function maybeReassignModel(req: Request) {
   const model = req.body.model;
-  if (!model.startsWith("gpt-")) return;
-
-  const bigModel = process.env.CLAUDE_BIG_MODEL || "claude-v1-100k";
-  const contextSize = req.promptTokens! + req.outputTokens!;
-  if (contextSize > 8500) {
-    req.log.debug(
-      { model: bigModel, contextSize },
-      "Using Claude 100k model for OpenAI-to-Anthropic request"
-    );
-    req.body.model = bigModel;
+  // User's client sent an AWS model already
+  if (model.includes("anthropic.claude")) return;
+  // User's client is sending Anthropic-style model names, check for v1
+  if (model.match(/^claude-v?1/)) {
+    req.body.model = "anthropic.claude-v1";
+  } else {
+    // User's client requested v2 or possibly some OpenAI model, default to v2
+    req.body.model = "anthropic.claude-v2";
   }
+  // TODO: Handle claude-instant
 }
 
-export const anthropic = anthropicRouter;
+export const aws = awsRouter;

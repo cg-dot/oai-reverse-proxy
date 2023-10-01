@@ -1,9 +1,8 @@
 import { Request } from "express";
 import { z } from "zod";
 import { config } from "../../../config";
-import { OpenAIPromptMessage, countTokens } from "../../../shared/tokenization";
-import { RequestPreprocessor } from ".";
 import { assertNever } from "../../../shared/utils";
+import { RequestPreprocessor } from ".";
 
 const CLAUDE_MAX_CONTEXT = config.maxContextTokensAnthropic;
 const OPENAI_MAX_CONTEXT = config.maxContextTokensOpenAI;
@@ -16,51 +15,7 @@ const BISON_MAX_CONTEXT = 8100;
  * This preprocessor should run after any preprocessor that transforms the
  * request body.
  */
-export const checkContextSize: RequestPreprocessor = async (req) => {
-  const service = req.outboundApi;
-  let result;
-
-  switch (service) {
-    case "openai": {
-      req.outputTokens = req.body.max_tokens;
-      const prompt: OpenAIPromptMessage[] = req.body.messages;
-      result = await countTokens({ req, prompt, service });
-      break;
-    }
-    case "openai-text": {
-      req.outputTokens = req.body.max_tokens;
-      const prompt: string = req.body.prompt;
-      result = await countTokens({ req, prompt, service });
-      break;
-    }
-    case "anthropic": {
-      req.outputTokens = req.body.max_tokens_to_sample;
-      const prompt: string = req.body.prompt;
-      result = await countTokens({ req, prompt, service });
-      break;
-    }
-    case "google-palm": {
-      req.outputTokens = req.body.maxOutputTokens;
-      const prompt: string = req.body.prompt.text;
-      result = await countTokens({ req, prompt, service });
-      break;
-    }
-    default:
-      assertNever(service);
-  }
-
-  req.promptTokens = result.token_count;
-
-  // TODO: Remove once token counting is stable
-  req.log.debug({ result: result }, "Counted prompt tokens.");
-  req.debug = req.debug ?? {};
-  req.debug = { ...req.debug, ...result };
-
-  maybeTranslateOpenAIModel(req);
-  validateContextSize(req);
-};
-
-function validateContextSize(req: Request) {
+export const validateContextSize: RequestPreprocessor = async (req) => {
   assertRequestHasTokenCounts(req);
   const promptTokens = req.promptTokens;
   const outputTokens = req.outputTokens;
@@ -125,7 +80,7 @@ function validateContextSize(req: Request) {
   req.debug.completion_tokens = outputTokens;
   req.debug.max_model_tokens = modelMax;
   req.debug.max_proxy_tokens = proxyMax;
-}
+};
 
 function assertRequestHasTokenCounts(
   req: Request
@@ -136,28 +91,4 @@ function assertRequestHasTokenCounts(
   })
     .nonstrict()
     .parse({ promptTokens: req.promptTokens, outputTokens: req.outputTokens });
-}
-
-/**
- * For OpenAI-to-Anthropic requests, users can't specify the model, so we need
- * to pick one based on the final context size. Ideally this would happen in
- * the `transformOutboundPayload` preprocessor, but we don't have the context
- * size at that point (and need a transformed body to calculate it).
- */
-function maybeTranslateOpenAIModel(req: Request) {
-  if (req.inboundApi !== "openai" || req.outboundApi !== "anthropic") {
-    return;
-  }
-
-  const bigModel = process.env.CLAUDE_BIG_MODEL || "claude-v1-100k";
-  const contextSize = req.promptTokens! + req.outputTokens!;
-
-  if (contextSize > 8500) {
-    req.log.debug(
-      { model: bigModel, contextSize },
-      "Using Claude 100k model for OpenAI-to-Anthropic request"
-    );
-    req.body.model = bigModel;
-  }
-  // Small model is the default already set in `transformOutboundPayload`
 }

@@ -177,10 +177,6 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     return this.keys.filter((k) => !k.isDisabled).length;
   }
 
-  public anyUnchecked() {
-    return this.keys.some((k) => k.lastChecked === 0);
-  }
-
   public incrementUsage(hash: string, _model: string, tokens: number) {
     const key = this.keys.find((k) => k.hash === hash);
     if (!key) return;
@@ -202,10 +198,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
 
     // If all keys are rate-limited, return the time until the first key is
     // ready.
-    const timeUntilFirstReady = Math.min(
-      ...activeKeys.map((k) => k.rateLimitedUntil - now)
-    );
-    return timeUntilFirstReady;
+    return Math.min(...activeKeys.map((k) => k.rateLimitedUntil - now));
   }
 
   /**
@@ -216,7 +209,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
    * retrying in order to give the other requests a chance to finish.
    */
   public markRateLimited(keyHash: string) {
-    this.log.warn({ key: keyHash }, "Key rate limited");
+    this.log.debug({ key: keyHash }, "Key rate limited");
     const key = this.keys.find((k) => k.hash === keyHash)!;
     const now = Date.now();
     key.rateLimitedAt = now;

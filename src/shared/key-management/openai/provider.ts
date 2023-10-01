@@ -3,11 +3,11 @@ round-robin access to keys. Keys are stored in the OPENAI_KEY environment
 variable as a comma-separated list of keys. */
 import crypto from "crypto";
 import http from "http";
-import { KeyProvider, Key, Model } from "../index";
+import { Key, KeyProvider, Model } from "../index";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { OpenAIKeyChecker } from "./checker";
-import { OpenAIModelFamily, getOpenAIModelFamily } from "../../models";
+import { getOpenAIModelFamily, OpenAIModelFamily } from "../../models";
 
 export type OpenAIModel =
   | "gpt-3.5-turbo"
@@ -276,10 +276,6 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     return this.keys.filter((k) => !k.isDisabled).length;
   }
 
-  public anyUnchecked() {
-    return !!config.checkKeys && this.keys.some((key) => !key.lastChecked);
-  }
-
   /**
    * Given a model, returns the period until a key will be available to service
    * the request, or returns 0 if a key is ready immediately.
@@ -318,7 +314,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
 
     // If all keys are rate-limited, return the time until the first key is
     // ready.
-    const timeUntilFirstReady = Math.min(
+    return Math.min(
       ...activeKeys.map((key) => {
         const resetTime = Math.max(
           key.rateLimitRequestsReset,
@@ -327,11 +323,10 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         return key.rateLimitedAt + resetTime - now;
       })
     );
-    return timeUntilFirstReady;
   }
 
   public markRateLimited(keyHash: string) {
-    this.log.warn({ key: keyHash }, "Key rate limited");
+    this.log.debug({ key: keyHash }, "Key rate limited");
     const key = this.keys.find((k) => k.hash === keyHash)!;
     key.rateLimitedAt = Date.now();
   }

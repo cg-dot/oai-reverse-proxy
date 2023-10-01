@@ -2,10 +2,26 @@ import { RequestHandler } from "express";
 import { handleInternalError } from "../common";
 import {
   RequestPreprocessor,
-  checkContextSize,
+  validateContextSize,
+  countPromptTokens,
   setApiFormat,
   transformOutboundPayload,
 } from ".";
+
+type RequestPreprocessorOptions = {
+  /**
+   * Functions to run before the request body is transformed between API
+   * formats. Use this to change the behavior of the transformation, such as for
+   * endpoints which can accept multiple API formats.
+   */
+  beforeTransform?: RequestPreprocessor[];
+  /**
+   * Functions to run after the request body is transformed and token counts are
+   * assigned. Use this to perform validation or other actions that depend on
+   * the request body being in the final API format.
+   */
+  afterTransform?: RequestPreprocessor[];
+};
 
 /**
  * Returns a middleware function that processes the request body into the given
@@ -13,13 +29,15 @@ import {
  */
 export const createPreprocessorMiddleware = (
   apiFormat: Parameters<typeof setApiFormat>[0],
-  additionalPreprocessors?: RequestPreprocessor[]
+  { beforeTransform, afterTransform }: RequestPreprocessorOptions = {}
 ): RequestHandler => {
   const preprocessors: RequestPreprocessor[] = [
     setApiFormat(apiFormat),
-    ...(additionalPreprocessors ?? []),
+    ...(beforeTransform ?? []),
     transformOutboundPayload,
-    checkContextSize,
+    countPromptTokens,
+    ...(afterTransform ?? []),
+    validateContextSize,
   ];
   return async (...args) => executePreprocessors(preprocessors, args);
 };
@@ -29,13 +47,10 @@ export const createPreprocessorMiddleware = (
  * OpenAI's embeddings API. Tokens are not counted because embeddings requests
  * are basically free.
  */
-export const createEmbeddingsPreprocessorMiddleware = (
-  additionalPreprocessors?: RequestPreprocessor[]
-): RequestHandler => {
+export const createEmbeddingsPreprocessorMiddleware = (): RequestHandler => {
   const preprocessors: RequestPreprocessor[] = [
-    setApiFormat({ inApi: "openai", outApi: "openai" }),
+    setApiFormat({ inApi: "openai", outApi: "openai", service: "openai" }),
     (req) => void (req.promptTokens = req.outputTokens = 0),
-    ...(additionalPreprocessors ?? []),
   ];
   return async (...args) => executePreprocessors(preprocessors, args);
 };

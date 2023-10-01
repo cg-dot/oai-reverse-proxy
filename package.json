@@ -4,12 +4,12 @@
   "description": "Reverse proxy for the OpenAI API",
   "scripts": {
     "build": "tsc && copyfiles -u 1 src/**/*.ejs build",
-    "start:dev": "nodemon --watch src --exec ts-node --transpile-only src/server.ts",
-    "start:watch": "nodemon --require source-map-support/register build/server.js",
-    "start:replit": "tsc && node build/server.js",
+    "prepare": "husky install",
     "start": "node build/server.js",
-    "type-check": "tsc --noEmit",
-    "prepare": "husky install"
+    "start:dev": "nodemon --watch src --exec ts-node --transpile-only src/server.ts",
+    "start:replit": "tsc && node build/server.js",
+    "start:watch": "nodemon --require source-map-support/register build/server.js",
+    "type-check": "tsc --noEmit"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -18,6 +18,10 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
+    "@aws-crypto/sha256-js": "^5.1.0",
+    "@smithy/protocol-http": "^3.0.6",
+    "@smithy/signature-v4": "^2.0.10",
+    "@smithy/types": "^2.3.4",
     "axios": "^1.3.5",
     "cookie-parser": "^1.4.6",
     "copyfiles": "^2.4.1",
@@ -30,6 +34,7 @@
     "firebase-admin": "^11.10.1",
     "googleapis": "^122.0.0",
     "http-proxy-middleware": "^3.0.0-beta.1",
+    "lifion-aws-event-stream": "^1.0.7",
     "memorystore": "^1.6.7",
     "multer": "^1.4.5-lts.1",
     "node-schedule": "^2.1.1",
@@ -57,9 +62,10 @@
     "esbuild-register": "^3.4.2",
     "husky": "^8.0.3",
     "nodemon": "^3.0.1",
+    "prettier": "^3.0.3",
     "source-map-support": "^0.5.21",
     "ts-node": "^10.9.1",
-    "typescript": "^5.0.4"
+    "typescript": "^5.1.3"
   },
   "overrides": {
     "google-gax": "^3.6.1"

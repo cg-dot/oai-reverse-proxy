@@ -8,6 +8,7 @@ export const tokenCountsSchema: ZodType<UserTokenCounts> = z.object({
   "gpt4-32k": z.number().optional().default(0),
   claude: z.number().optional().default(0),
   bison: z.number().optional().default(0),
+  "aws-claude": z.number().optional().default(0),
 });
 
 export const UserSchema = z

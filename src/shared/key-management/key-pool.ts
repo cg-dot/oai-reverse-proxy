@@ -4,16 +4,17 @@ import os from "os";
 import schedule from "node-schedule";
 import { config } from "../../config";
 import { logger } from "../../logger";
-import { Key, Model, KeyProvider, APIFormat } from "./index";
+import { Key, Model, KeyProvider, LLMService } from "./index";
 import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
 import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
 import { GooglePalmKeyProvider } from "./palm/provider";
+import { AwsBedrockKeyProvider } from "./aws/provider";
 
 type AllowedPartial = OpenAIKeyUpdate | AnthropicKeyUpdate;
 
 export class KeyPool {
   private keyProviders: KeyProvider[] = [];
-  private recheckJobs: Partial<Record<APIFormat, schedule.Job | null>> = {
+  private recheckJobs: Partial<Record<LLMService, schedule.Job | null>> = {
     openai: null,
   };
 
@@ -21,6 +22,7 @@ export class KeyPool {
     this.keyProviders.push(new OpenAIKeyProvider());
     this.keyProviders.push(new AnthropicKeyProvider());
     this.keyProviders.push(new GooglePalmKeyProvider());
+    this.keyProviders.push(new AwsBedrockKeyProvider());
   }
 
   public init() {
@@ -28,7 +30,7 @@ export class KeyPool {
     const availableKeys = this.available("all");
     if (availableKeys === 0) {
       throw new Error(
-        "No keys loaded. Ensure OPENAI_KEY, ANTHROPIC_KEY, or GOOGLE_PALM_KEY are set."
+        "No keys loaded. Ensure that at least one key is configured."
       );
     }
     this.scheduleRecheck();
@@ -43,6 +45,11 @@ export class KeyPool {
     return this.keyProviders.flatMap((provider) => provider.list());
   }
 
+  /**
+   * Marks a key as disabled for a specific reason. `revoked` should be used
+   * to indicate a key that can never be used again, while `quota` should be
+   * used to indicate a key that is still valid but has exceeded its quota.
+   */
   public disable(key: Key, reason: "quota" | "revoked"): void {
     const service = this.getKeyProvider(key.service);
     service.disable(key);
@@ -59,15 +66,12 @@ export class KeyPool {
     service.update(key.hash, props);
   }
 
-  public available(service: APIFormat | "all" = "all"): number {
+  public available(model: Model | "all" = "all"): number {
     return this.keyProviders.reduce((sum, provider) => {
-      const includeProvider = service === "all" || service === provider.service;
+      const includeProvider =
+        model === "all" || this.getService(model) === provider.service;
       return sum + (includeProvider ? provider.available() : 0);
     }, 0);
-  }
-
-  public anyUnchecked(): boolean {
-    return this.keyProviders.some((provider) => provider.anyUnchecked());
   }
 
   public incrementUsage(key: Key, model: string, tokens: number): void {
@@ -92,7 +96,7 @@ export class KeyPool {
     }
   }
 
-  public recheck(service: APIFormat): void {
+  public recheck(service: LLMService): void {
     if (!config.checkKeys) {
       logger.info("Skipping key recheck because key checking is disabled");
       return;
@@ -102,7 +106,7 @@ export class KeyPool {
     provider.recheck();
   }
 
-  private getService(model: Model): APIFormat {
+  private getService(model: Model): LLMService {
     if (model.startsWith("gpt") || model.startsWith("text-embedding-ada")) {
       // https://platform.openai.com/docs/models/model-endpoint-compatibility
       return "openai";
@@ -112,16 +116,15 @@ export class KeyPool {
     } else if (model.includes("bison")) {
       // https://developers.generativeai.google.com/models/language
       return "google-palm";
+    } else if (model.startsWith("anthropic.claude")) {
+      // AWS offers models from a few providers
+      // https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html
+      return "aws";
     }
     throw new Error(`Unknown service for model '${model}'`);
   }
 
-  private getKeyProvider(service: APIFormat): KeyProvider {
-    // The "openai-text" service is a special case handled by OpenAIKeyProvider.
-    if (service === "openai-text") {
-      service = "openai";
-    }
-
+  private getKeyProvider(service: LLMService): KeyProvider {
     return this.keyProviders.find((provider) => provider.service === service)!;
   }
 

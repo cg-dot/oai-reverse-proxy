@@ -11,7 +11,7 @@ import admin from "firebase-admin";
 import schedule from "node-schedule";
 import { v4 as uuid } from "uuid";
 import { config, getFirebaseApp } from "../../config";
-import { ModelFamily } from "../models";
+import { MODEL_FAMILIES, ModelFamily } from "../models";
 import { logger } from "../../logger";
 import { User, UserTokenCounts, UserUpdate } from "./schema";
 
@@ -23,6 +23,7 @@ const INITIAL_TOKENS: Required<UserTokenCounts> = {
   "gpt4-32k": 0,
   claude: 0,
   bison: 0,
+  "aws-claude": 0,
 };
 
 const users: Map<string, User> = new Map();
@@ -131,12 +132,14 @@ export function upsertUser(user: UserUpdate) {
 
   // TODO: Write firebase migration to backfill new fields
   if (updates.tokenCounts) {
-    updates.tokenCounts["gpt4-32k"] ??= 0;
-    updates.tokenCounts["bison"] ??= 0;
+    for (const family of MODEL_FAMILIES) {
+      updates.tokenCounts[family] ??= 0;
+    }
   }
   if (updates.tokenLimits) {
-    updates.tokenLimits["gpt4-32k"] ??= 0;
-    updates.tokenLimits["bison"] ??= 0;
+    for (const family of MODEL_FAMILIES) {
+      updates.tokenLimits[family] ??= 0;
+    }
   }
 
   users.set(user.token, Object.assign(existing, updates));
@@ -360,8 +363,11 @@ function getModelFamilyForQuotaUsage(model: string): ModelFamily {
   if (model.includes("bison")) {
     return "bison";
   }
-  if (model.includes("claude")) {
+  if (model.startsWith("claude")) {
     return "claude";
+  }
+  if(model.startsWith("anthropic.claude")) {
+    return "aws-claude";
   }
   throw new Error(`Unknown quota model family for model ${model}`);
 }

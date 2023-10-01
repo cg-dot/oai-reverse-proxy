@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import httpProxy from "http-proxy";
 import { ZodError } from "zod";
-import { APIFormat } from "../../shared/key-management";
 import { assertNever } from "../../shared/utils";
 import { QuotaExceededError } from "./request/apply-quota-limits";
 
@@ -59,7 +58,7 @@ export function writeErrorResponse(
     res.write(`data: [DONE]\n\n`);
     res.end();
   } else {
-    if (req.debug) {
+    if (req.debug && errorPayload.error) {
       errorPayload.error.proxy_tokenizer_debug_info = req.debug;
     }
     res.status(statusCode).json(errorPayload);
@@ -132,10 +131,7 @@ export function buildFakeSseMessage(
   req: Request
 ) {
   let fakeEvent;
-  const useBackticks = !type.includes("403");
-  const msgContent = useBackticks
-    ? `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`
-    : `[${type}: ${string}]`;
+  const content = `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`;
 
   switch (req.inboundApi) {
     case "openai":
@@ -144,13 +140,7 @@ export function buildFakeSseMessage(
         object: "chat.completion.chunk",
         created: Date.now(),
         model: req.body?.model,
-        choices: [
-          {
-            delta: { content: msgContent },
-            index: 0,
-            finish_reason: type,
-          },
-        ],
+        choices: [{ delta: { content }, index: 0, finish_reason: type }],
       };
       break;
     case "openai-text":
@@ -159,14 +149,14 @@ export function buildFakeSseMessage(
         object: "text_completion",
         created: Date.now(),
         choices: [
-          { text: msgContent, index: 0, logprobs: null, finish_reason: type },
+          { text: content, index: 0, logprobs: null, finish_reason: type },
         ],
         model: req.body?.model,
       };
       break;
     case "anthropic":
       fakeEvent = {
-        completion: msgContent,
+        completion: content,
         stop_reason: type,
         truncated: false, // I've never seen this be true
         stop: null,
@@ -182,25 +172,42 @@ export function buildFakeSseMessage(
   return `data: ${JSON.stringify(fakeEvent)}\n\n`;
 }
 
-export function getCompletionForService({
-  service,
-  body,
-  req,
-}: {
-  service: APIFormat;
-  body: Record<string, any>;
-  req?: Request;
-}): { completion: string; model: string } {
-  switch (service) {
+export function getCompletionFromBody(req: Request, body: Record<string, any>) {
+  const format = req.outboundApi;
+  switch (format) {
     case "openai":
-      return { completion: body.choices[0].message.content, model: body.model };
+      return body.choices[0].message.content;
     case "openai-text":
-      return { completion: body.choices[0].text, model: body.model };
+      return body.choices[0].text;
     case "anthropic":
-      return { completion: body.completion.trim(), model: body.model };
+      if (!body.completion) {
+        req.log.error(
+          { body: JSON.stringify(body) },
+          "Received empty Anthropic completion"
+        );
+        return "";
+      }
+      return body.completion.trim();
     case "google-palm":
-      return { completion: body.candidates[0].output, model: req?.body.model };
+      return body.candidates[0].output;
     default:
-      assertNever(service);
+      assertNever(format);
+  }
+}
+
+export function getModelFromBody(req: Request, body: Record<string, any>) {
+  const format = req.outboundApi;
+  switch (format) {
+    case "openai":
+    case "openai-text":
+      return body.model;
+    case "anthropic":
+      // Anthropic confirms the model in the response, but AWS Claude doesn't.
+      return body.model || req.body.model;
+    case "google-palm":
+      // Google doesn't confirm the model in the response.
+      return req.body.model;
+    default:
+      assertNever(format);
   }
 }

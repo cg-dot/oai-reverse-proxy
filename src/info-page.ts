@@ -6,6 +6,7 @@ import {
   AnthropicKey,
   GooglePalmKey,
   OpenAIKey,
+  AwsBedrockKey,
   keyPool,
 } from "./shared/key-management";
 import { ModelFamily, OpenAIModelFamily } from "./shared/models";
@@ -25,6 +26,8 @@ const keyIsAnthropicKey = (k: KeyPoolKey): k is AnthropicKey =>
   k.service === "anthropic";
 const keyIsGooglePalmKey = (k: KeyPoolKey): k is GooglePalmKey =>
   k.service === "google-palm";
+const keyIsAwsKey = (k: KeyPoolKey): k is AwsBedrockKey =>
+  k.service === "aws";
 
 type ModelAggregates = {
   active: number;
@@ -43,6 +46,7 @@ type ServiceAggregates = {
   openaiOrgs?: number;
   anthropicKeys?: number;
   palmKeys?: number;
+  awsKeys?: number;
   proompts: number;
   tokens: number;
   tokenCost: number;
@@ -85,6 +89,7 @@ function cacheInfoPageHtml(baseUrl: string) {
   const openaiKeys = serviceStats.get("openaiKeys") || 0;
   const anthropicKeys = serviceStats.get("anthropicKeys") || 0;
   const palmKeys = serviceStats.get("palmKeys") || 0;
+  const awsKeys = serviceStats.get("awsKeys") || 0;
   const proompts = serviceStats.get("proompts") || 0;
   const tokens = serviceStats.get("tokens") || 0;
   const tokenCost = serviceStats.get("tokenCost") || 0;
@@ -98,6 +103,7 @@ function cacheInfoPageHtml(baseUrl: string) {
         : {}),
       ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
       ...(palmKeys ? { "google-palm": baseUrl + "/proxy/google-palm" } : {}),
+      ...(awsKeys ? { aws: baseUrl + "/proxy/aws/claude" } : {}),
     },
     proompts,
     tookens: `${prettyTokens(tokens)}${getCostString(tokenCost)}`,
@@ -105,9 +111,11 @@ function cacheInfoPageHtml(baseUrl: string) {
     openaiKeys,
     anthropicKeys,
     palmKeys,
+    awsKeys,
     ...(openaiKeys ? getOpenAIInfo() : {}),
     ...(anthropicKeys ? getAnthropicInfo() : {}),
     ...(palmKeys ? { "palm-bison": getPalmInfo() } : {}),
+    ...(awsKeys ? { "aws-claude": getAwsInfo() } : {}),
     config: listConfig(),
     build: process.env.BUILD_INFO || "dev",
   };
@@ -157,6 +165,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
   increment(serviceStats, "openaiKeys", k.service === "openai" ? 1 : 0);
   increment(serviceStats, "anthropicKeys", k.service === "anthropic" ? 1 : 0);
   increment(serviceStats, "palmKeys", k.service === "google-palm" ? 1 : 0);
+  increment(serviceStats, "awsKeys", k.service === "aws" ? 1 : 0);
 
   let sumTokens = 0;
   let sumCost = 0;
@@ -167,7 +176,6 @@ function addKeyToAggregates(k: KeyPoolKey) {
 
   switch (k.service) {
     case "openai":
-    case "openai-text":
       if (!keyIsOpenAIKey(k)) throw new Error("Invalid key type");
       increment(
         serviceStats,
@@ -211,6 +219,13 @@ function addKeyToAggregates(k: KeyPoolKey) {
       sumTokens += k.bisonTokens;
       sumCost += getTokenCostUsd(family, k.bisonTokens);
       increment(modelStats, `${family}__tokens`, k.bisonTokens);
+      break;
+    case "aws":
+      if (!keyIsAwsKey(k)) throw new Error("Invalid key type");
+      family = "aws-claude";
+      sumTokens += k["aws-claudeTokens"];
+      sumCost += getTokenCostUsd(family, k["aws-claudeTokens"]);
+      increment(modelStats, `${family}__tokens`, k["aws-claudeTokens"]);
       break;
     default:
       assertNever(k.service);
@@ -339,6 +354,26 @@ function getPalmInfo() {
   };
 }
 
+function getAwsInfo() {
+  const awsInfo: Partial<ModelAggregates> = {
+    active: modelStats.get("aws-claude__active") || 0,
+  }
+
+  const queue = getQueueInformation("aws-claude");
+  awsInfo.queued = queue.proomptersInQueue;
+  awsInfo.queueTime = queue.estimatedQueueTime;
+
+  const tokens = modelStats.get("aws-claude__tokens") || 0;
+  const cost = getTokenCostUsd("aws-claude", tokens);
+
+  return {
+    usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
+    activeKeys: awsInfo.active,
+    proomptersInQueue: awsInfo.queued,
+    estimatedQueueTime: awsInfo.queueTime,
+  }
+}
+
 const customGreeting = fs.existsSync("greeting.md")
   ? fs.readFileSync("greeting.md", "utf8")
   : null;
@@ -389,6 +424,12 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
     const claudeWait = getQueueInformation("claude").estimatedQueueTime;
     waits.push(`**Claude:** ${claudeWait}`);
   }
+
+  if (config.awsCredentials) {
+    const awsClaudeWait = getQueueInformation("aws-claude").estimatedQueueTime;
+    waits.push(`**Claude (AWS):** ${awsClaudeWait}`);
+  }
+
   infoBody += "\n\n" + waits.join(" / ");
 
   if (customGreeting) {
