@@ -48,11 +48,11 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     modelMax = 32768;
   } else if (model.match(/gpt-4/)) {
     modelMax = 8192;
-  } else if (model.match(/claude-(?:instant-)?v1(?:\.\d)?-100k/)) {
+  } else if (model.match(/^claude-(?:instant-)?v1(?:\.\d)?-100k/)) {
     modelMax = 100000;
-  } else if (model.match(/claude-(?:instant-)?v1(?:\.\d)?$/)) {
+  } else if (model.match(/^claude-(?:instant-)?v1(?:\.\d)?$/)) {
     modelMax = 9000;
-  } else if (model.match(/claude-2/)) {
+  } else if (model.match(/^claude-2/)) {
     modelMax = 100000;
   } else if (model.match(/^text-bison-\d{3}$/)) {
     modelMax = BISON_MAX_CONTEXT;
