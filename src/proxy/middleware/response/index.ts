@@ -306,6 +306,11 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         errorPayload.proxy_note = `API key is invalid or revoked. ${tryAgainMessage}`;
         break;
       case "AccessDeniedException":
+        req.log.error(
+          { key: req.key?.hash, model: req.body?.model },
+          "Disabling key due to AccessDeniedException when invoking model. If credentials are valid, check IAM permissions."
+        );
+        keyPool.disable(req.key!, "revoked");
         errorPayload.proxy_note = `API key doesn't have access to the requested resource.`;
         break;
       default:
