@@ -277,7 +277,7 @@ function cleanupExpiredTokens() {
       deleted++;
     }
   }
-  log.debug({ disabled, deleted }, "Expired tokens cleaned up.");
+  log.trace({ disabled, deleted }, "Expired tokens cleaned up.");
 }
 
 function refreshAllQuotas() {

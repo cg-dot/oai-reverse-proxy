@@ -7,6 +7,14 @@ import { googlePalm } from "./palm";
 import { aws } from "./aws";
 
 const proxyRouter = express.Router();
+proxyRouter.use((req, _res, next) => {
+  if (req.headers.expect) {
+    // node-http-proxy does not like it when clients send `expect: 100-continue`
+    // and will stall. none of the upstream APIs use this header anyway.
+    delete req.headers.expect;
+  }
+  next();
+});
 proxyRouter.use(
   express.json({ limit: "1536kb" }),
   express.urlencoded({ extended: true, limit: "1536kb" })

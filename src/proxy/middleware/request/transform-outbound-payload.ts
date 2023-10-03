@@ -166,12 +166,7 @@ function openaiToAnthropic(req: Request) {
     throw result.error;
   }
 
-  // Anthropic has started versioning their API, indicated by an HTTP header
-  // `anthropic-version`. The new June 2023 version is not backwards compatible
-  // with our OpenAI-to-Anthropic transformations so we need to explicitly
-  // request the older version for now. 2023-01-01 will be removed in September.
-  // https://docs.anthropic.com/claude/reference/versioning
-  req.headers["anthropic-version"] = "2023-01-01";
+  req.headers["anthropic-version"] = "2023-06-01";
 
   const { messages, ...rest } = result.data;
   const prompt = openAIMessagesToClaudePrompt(messages);

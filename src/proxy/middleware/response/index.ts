@@ -4,13 +4,16 @@ import * as http from "http";
 import util from "util";
 import zlib from "zlib";
 import { logger } from "../../../logger";
+import { enqueue, trackWaitTime } from "../../queue";
+import { HttpError } from "../../../shared/errors";
 import { keyPool } from "../../../shared/key-management";
 import { getOpenAIModelFamily } from "../../../shared/models";
-import { enqueue, trackWaitTime } from "../../queue";
+import { countTokens } from "../../../shared/tokenization";
 import {
   incrementPromptCount,
   incrementTokenCount,
 } from "../../../shared/users/user-store";
+import { assertNever } from "../../../shared/utils";
 import {
   getCompletionFromBody,
   isCompletionRequest,
@@ -18,8 +21,6 @@ import {
 } from "../common";
 import { handleStreamedResponse } from "./handle-streamed-response";
 import { logPrompt } from "./log-prompt";
-import { countTokens } from "../../../shared/tokenization";
-import { assertNever } from "../../../shared/utils";
 
 const DECODER_MAP = {
   gzip: util.promisify(zlib.gunzip),
@@ -83,7 +84,7 @@ export const createOnProxyResHandler = (apiMiddleware: ProxyResMiddleware) => {
       ? handleStreamedResponse
       : decodeResponseBody;
 
-    let lastMiddlewareName = initialHandler.name;
+    let lastMiddleware = initialHandler.name;
 
     try {
       const body = await initialHandler(proxyRes, req, res);
@@ -112,37 +113,38 @@ export const createOnProxyResHandler = (apiMiddleware: ProxyResMiddleware) => {
       }
 
       for (const middleware of middlewareStack) {
-        lastMiddlewareName = middleware.name;
+        lastMiddleware = middleware.name;
         await middleware(proxyRes, req, res, body);
       }
 
       trackWaitTime(req);
-    } catch (error: any) {
+    } catch (error) {
       // Hack: if the error is a retryable rate-limit error, the request has
       // been re-enqueued and we can just return without doing anything else.
       if (error instanceof RetryableError) {
         return;
       }
 
-      const errorData = {
-        error: error.stack,
-        thrownBy: lastMiddlewareName,
-        key: req.key?.hash,
-      };
-      const message = `Error while executing proxy response middleware: ${lastMiddlewareName} (${error.message})`;
-      if (res.headersSent) {
-        req.log.error(errorData, message);
-        // This should have already been handled by the error handler, but
-        // just in case...
-        if (!res.writableEnded) {
-          res.end();
-        }
+      // Already logged and responded to the client by handleUpstreamErrors
+      if (error instanceof HttpError) {
+        if (!res.writableEnded) res.end();
         return;
       }
-      logger.error(errorData, message);
-      res
-        .status(500)
-        .json({ error: "Internal server error", proxy_note: message });
+
+      const { stack, message } = error;
+      const info = { stack, lastMiddleware, key: req.key?.hash };
+      const description = `Error while executing proxy response middleware: ${lastMiddleware} (${message})`;
+
+      if (res.headersSent) {
+        req.log.error(info, description);
+        if (!res.writableEnded) res.end();
+        return;
+      } else {
+        req.log.error(info, description);
+        res
+          .status(500)
+          .json({ error: "Internal server error", proxy_note: description });
+      }
     }
   };
 };
@@ -203,7 +205,7 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
         return resolve(body.toString());
       } catch (error: any) {
         const errorMessage = `Proxy received response with invalid JSON: ${error.message}`;
-        logger.warn({ error, key: req.key?.hash }, errorMessage);
+        logger.warn({ error: error.stack, key: req.key?.hash }, errorMessage);
         writeErrorResponse(req, res, 500, { error: errorMessage });
         return reject(errorMessage);
       }
@@ -223,7 +225,7 @@ type ProxiedErrorPayload = {
  * an error to stop the middleware stack.
  * On 429 errors, if request queueing is enabled, the request will be silently
  * re-enqueued.  Otherwise, the request will be rejected with an error payload.
- * @throws {Error} On HTTP error status code from upstream service
+ * @throws {HttpError} On HTTP error status code from upstream service
  */
 const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   proxyRes,
@@ -258,7 +260,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
       proxy_note: `This is likely a temporary error with the upstream service.`,
     };
     writeErrorResponse(req, res, statusCode, errorObject);
-    throw new Error(parseError.message);
+    throw new HttpError(statusCode, parseError.message);
   }
 
   const errorType =
@@ -371,7 +373,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   }
 
   writeErrorResponse(req, res, statusCode, errorPayload);
-  throw new Error(errorPayload.error?.message);
+  throw new HttpError(statusCode, errorPayload.error?.message);
 };
 
 /**

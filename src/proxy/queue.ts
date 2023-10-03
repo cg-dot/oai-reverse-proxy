@@ -23,10 +23,11 @@ import {
   getOpenAIModelFamily,
   ModelFamily,
 } from "../shared/models";
+import { initializeSseStream } from "../shared/streaming";
+import { assertNever } from "../shared/utils";
 import { logger } from "../logger";
 import { AGNAI_DOT_CHAT_IP } from "./rate-limit";
 import { buildFakeSseMessage } from "./middleware/common";
-import { assertNever } from "../shared/utils";
 
 const queue: Request[] = [];
 const log = logger.child({ module: "request-queue" });
@@ -352,14 +353,8 @@ function killQueuedRequest(req: Request) {
 }
 
 function initStreaming(req: Request) {
-  req.log.info(`Initiating streaming for new queued request.`);
   const res = req.res!;
-  res.statusCode = 200;
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no"); // nginx-specific fix
-  res.flushHeaders();
+  initializeSseStream(res);
 
   if (req.query.badSseParser) {
     // Some clients have a broken SSE parser that doesn't handle comments
@@ -368,7 +363,6 @@ function initStreaming(req: Request) {
     return;
   }
 
-  res.write("\n");
   res.write(": joining queue\n\n");
 }
 
