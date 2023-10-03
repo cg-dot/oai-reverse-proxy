@@ -239,7 +239,6 @@ export class AnthropicKeyChecker {
   }
 
   static getHeaders(key: AnthropicKey) {
-    const headers = { "X-API-Key": key.key };
-    return headers;
+    return { "X-API-Key": key.key, "anthropic-version": "2023-06-01" };
   }
 }
