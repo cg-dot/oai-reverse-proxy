@@ -4,12 +4,8 @@ import pino from "pino";
 import type { ModelFamily } from "./shared/models";
 dotenv.config();
 
-// Can't import the usual logger here because it itself needs the config.
 const startupLogger = pino({ level: "debug" }).child({ module: "startup" });
-
 const isDev = process.env.NODE_ENV !== "production";
-
-type PromptLoggingBackend = "google_sheets";
 
 type Config = {
   /** The port the proxy server will listen on. */
@@ -23,7 +19,13 @@ type Config = {
   /**
    * Comma-delimited list of AWS credentials. Each credential item should be a
    * colon-delimited list of access key, secret key, and AWS region.
-   * Example: `AWS_CREDENTIALS=access_key_1:secret_key_1:us-east-1,access_key_2:secret_key_2:us-west-2`
+   *
+   * The credentials must have access to the actions `bedrock:InvokeModel` and
+   * `bedrock:InvokeModelWithResponseStream`. You must also have already
+   * provisioned the necessary models in your AWS account, on the specific
+   * regions specified for each credential. Models are region-specific.
+   *
+   * @example `AWS_CREDENTIALS=access_key_1:secret_key_1:us-east-1,access_key_2:secret_key_2:us-west-2`
    */
   awsCredentials?: string;
   /**
@@ -97,7 +99,7 @@ type Config = {
   /** Whether prompts and responses should be logged to persistent storage. */
   promptLogging?: boolean;
   /** Which prompt logging backend to use. */
-  promptLoggingBackend?: PromptLoggingBackend;
+  promptLoggingBackend?: "google_sheets";
   /** Base64-encoded Google Sheets API key. */
   googleSheetsKey?: string;
   /** Google Sheets spreadsheet ID. */
