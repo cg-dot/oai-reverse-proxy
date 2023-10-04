@@ -32,7 +32,7 @@ const queue: Request[] = [];
 const log = logger.child({ module: "request-queue" });
 
 /** Maximum number of queue slots for Agnai.chat requests. */
-const AGNAI_CONCURRENCY_LIMIT = 15;
+const AGNAI_CONCURRENCY_LIMIT = 5;
 /** Maximum number of queue slots for individual users. */
 const USER_CONCURRENCY_LIMIT = 1;
 
@@ -68,12 +68,11 @@ export function enqueue(req: Request) {
   // more spots in the queue. Can't make it unlimited because people will
   // intentionally abuse it.
   // Authenticated users always get a single spot in the queue.
+  const isAgnai = AGNAI_DOT_CHAT_IP.includes(req.ip);
   const maxConcurrentQueuedRequests =
-    isGuest && req.ip === AGNAI_DOT_CHAT_IP
-      ? AGNAI_CONCURRENCY_LIMIT
-      : USER_CONCURRENCY_LIMIT;
+    isGuest && isAgnai ? AGNAI_CONCURRENCY_LIMIT : USER_CONCURRENCY_LIMIT;
   if (enqueuedRequestCount >= maxConcurrentQueuedRequests) {
-    if (req.ip === AGNAI_DOT_CHAT_IP) {
+    if (isAgnai) {
       // Re-enqueued requests are not counted towards the limit since they
       // already made it through the queue once.
       if (req.retryCount === 0) {
@@ -336,11 +335,7 @@ function killQueuedRequest(req: Request) {
   try {
     const message = `Your request has been terminated by the proxy because it has been in the queue for more than 5 minutes. The queue is currently ${queue.length} requests long.`;
     if (res.headersSent) {
-      const fakeErrorEvent = buildFakeSse(
-        "proxy queue error",
-        message,
-        req
-      );
+      const fakeErrorEvent = buildFakeSse("proxy queue error", message, req);
       res.write(fakeErrorEvent);
       res.end();
     } else {

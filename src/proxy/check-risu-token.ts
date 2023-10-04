@@ -21,7 +21,7 @@ kYuIJbnAGw5Oq0L6dXFW2DFwlcLz51kPVOmDc159FsQjyuPnta7NiZAANS8KM1CJ
 pwIDAQAB`;
 let IMPORTED_RISU_KEY: CryptoKey | null = null;
 
-type RisuToken = { id: Uint8Array; expiresIn: number };
+type RisuToken = { id: string; expiresIn: number };
 type SignedToken = { data: RisuToken; sig: string };
 
 (async () => {
@@ -54,14 +54,14 @@ export async function checkRisuToken(
   try {
     const { valid, data } = await validCheck(header);
 
-    if (!valid) {
+    if (!valid || !data) {
       req.log.warn(
         { token: header, data },
         "Invalid RisuAI token; using IP instead"
       );
     } else {
       req.log.info("RisuAI token validated");
-      req.risuToken = header;
+      req.risuToken = String(data.id);
     }
   } catch (err) {
     req.log.warn(
@@ -81,12 +81,13 @@ async function validCheck(header: string) {
     );
   } catch (err) {
     log.warn({ error: err.message }, "Provided unparseable RisuAI token");
-    return { valid: false, data: "[unparseable]" };
+    return { valid: false };
   }
   const data: RisuToken = tk.data;
   const sig = Buffer.from(tk.sig, "base64");
 
   if (data.expiresIn < Math.floor(Date.now() / 1000)) {
+    log.warn({ token: header }, "Provided expired RisuAI token");
     return { valid: false };
   }
 
@@ -96,6 +97,10 @@ async function validCheck(header: string) {
     sig,
     Buffer.from(JSON.stringify(data))
   );
+
+  if (!valid) {
+    log.warn({ token: header }, "RisuAI token failed signature check");
+  }
 
   return { valid, data };
 }

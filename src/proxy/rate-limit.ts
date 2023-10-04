@@ -1,7 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config";
 
-export const AGNAI_DOT_CHAT_IP = "157.230.249.32";
+export const AGNAI_DOT_CHAT_IP = [
+  "157.230.249.32", // old
+  "157.245.148.56",
+  "174.138.29.50",
+  "209.97.162.44",
+];
 
 const RATE_LIMIT_ENABLED = Boolean(config.modelRateLimit);
 const RATE_LIMIT = Math.max(1, config.modelRateLimit);
@@ -66,7 +71,8 @@ export const ipLimiter = async (
   // Exempt Agnai.chat from rate limiting since it's shared between a lot of
   // users. Dunno how to prevent this from being abused without some sort of
   // identifier sent from Agnaistic to identify specific users.
-  if (req.ip === AGNAI_DOT_CHAT_IP) {
+  if (AGNAI_DOT_CHAT_IP.includes(req.ip)) {
+    req.log.info("Exempting Agnai request from rate limiting.");
     next();
     return;
   }
