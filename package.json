@@ -45,7 +45,8 @@
     "tiktoken": "^1.0.10",
     "uuid": "^9.0.0",
     "zlib": "^1.0.5",
-    "zod": "^3.21.4"
+    "zod": "^3.22.3",
+    "zod-error": "^1.5.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.3",
@@ -68,6 +69,7 @@
     "typescript": "^5.1.3"
   },
   "overrides": {
-    "google-gax": "^3.6.1"
+    "google-gax": "^3.6.1",
+    "postcss": "^8.4.31"
   }
 }
