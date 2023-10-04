@@ -67,12 +67,14 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
   }
 
   const finalMax = Math.min(proxyMax, modelMax);
-  z.number()
-    .int()
-    .max(finalMax, {
-      message: `Your request exceeds the context size limit for this model or proxy. (max: ${finalMax} tokens, requested: ${promptTokens} prompt + ${outputTokens} output = ${contextTokens} context tokens)`,
-    })
-    .parse(contextTokens);
+  z.object({
+    tokens: z
+      .number()
+      .int()
+      .max(finalMax, {
+        message: `Your request exceeds the context size limit. (max: ${finalMax} tokens, requested: ${promptTokens} prompt + ${outputTokens} output = ${contextTokens} context tokens)`,
+      }),
+  }).parse({ tokens: contextTokens });
 
   req.log.debug(
     { promptTokens, outputTokens, contextTokens, modelMax, proxyMax },

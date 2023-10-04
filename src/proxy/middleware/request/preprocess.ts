@@ -1,5 +1,6 @@
 import { RequestHandler } from "express";
-import { handleInternalError } from "../common";
+import { initializeSseStream } from "../../../shared/streaming";
+import { classifyErrorAndSend } from "../common";
 import {
   RequestPreprocessor,
   validateContextSize,
@@ -66,6 +67,13 @@ async function executePreprocessors(
     next();
   } catch (error) {
     req.log.error(error, "Error while executing request preprocessor");
-    handleInternalError(error as Error, req, res);
+
+    // If the requested has opted into streaming, the client probably won't
+    // handle a non-eventstream response, but we haven't initialized the SSE
+    // stream yet as that is typically done later by the request queue. We'll
+    // do that here and then call classifyErrorAndSend to use the streaming
+    // error handler.
+    initializeSseStream(res)
+    classifyErrorAndSend(error as Error, req, res);
   }
 }

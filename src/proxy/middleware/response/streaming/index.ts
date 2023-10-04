@@ -28,4 +28,3 @@ export { anthropicV2ToOpenAI } from "./transformers/anthropic-v2-to-openai";
 export { mergeEventsForOpenAIChat } from "./aggregators/openai-chat";
 export { mergeEventsForOpenAIText } from "./aggregators/openai-text";
 export { mergeEventsForAnthropic } from "./aggregators/anthropic";
-

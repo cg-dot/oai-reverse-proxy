@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import httpProxy from "http-proxy";
 import { ZodError } from "zod";
+import { generateErrorMessage } from "zod-error";
+import { buildFakeSse } from "../../shared/streaming";
 import { assertNever } from "../../shared/utils";
 import { QuotaExceededError } from "./request/apply-quota-limits";
 
@@ -44,16 +46,9 @@ export function writeErrorResponse(
     res.headersSent ||
     String(res.getHeader("content-type")).startsWith("text/event-stream")
   ) {
-    const errorContent =
-      statusCode === 403
-        ? JSON.stringify(errorPayload)
-        : JSON.stringify(errorPayload, null, 2);
-
-    const msg = buildFakeSseMessage(
-      `${errorSource} error (${statusCode})`,
-      errorContent,
-      req
-    );
+    const errorTitle = `${errorSource} error (${statusCode})`;
+    const errorContent = JSON.stringify(errorPayload, null, 2);
+    const msg = buildFakeSse(errorTitle, errorContent, req);
     res.write(msg);
     res.write(`data: [DONE]\n\n`);
     res.end();
@@ -66,110 +61,98 @@ export function writeErrorResponse(
 }
 
 export const handleProxyError: httpProxy.ErrorCallback = (err, req, res) => {
-  req.log.error({ err }, `Error during proxy request middleware`);
-  handleInternalError(err, req as Request, res as Response);
+  req.log.error(err, `Error during http-proxy-middleware request`);
+  classifyErrorAndSend(err, req as Request, res as Response);
 };
 
-export const handleInternalError = (
+export const classifyErrorAndSend = (
   err: Error,
   req: Request,
   res: Response
 ) => {
   try {
-    if (err instanceof ZodError) {
-      writeErrorResponse(req, res, 400, {
-        error: {
-          type: "proxy_validation_error",
-          proxy_note: `Reverse proxy couldn't validate your request when trying to transform it. Your client may be sending invalid data.`,
-          issues: err.issues,
-          stack: err.stack,
-          message: err.message,
-        },
-      });
-    } else if (err.name === "ForbiddenError") {
-      // Spoofs a vaguely threatening OpenAI error message. Only invoked by the
-      // block-zoomers rewriter to scare off tiktokers.
-      writeErrorResponse(req, res, 403, {
-        error: {
-          type: "organization_account_disabled",
-          code: "policy_violation",
-          param: null,
-          message: err.message,
-        },
-      });
-    } else if (err instanceof QuotaExceededError) {
-      writeErrorResponse(req, res, 429, {
-        error: {
-          type: "proxy_quota_exceeded",
-          code: "quota_exceeded",
-          message: `You've exceeded your token quota for this model type.`,
-          info: err.quotaInfo,
-          stack: err.stack,
-        },
-      });
-    } else {
-      writeErrorResponse(req, res, 500, {
-        error: {
-          type: "proxy_internal_error",
-          proxy_note: `Reverse proxy encountered an error before it could reach the upstream API.`,
-          message: err.message,
-          stack: err.stack,
-        },
-      });
-    }
-  } catch (e) {
-    req.log.error(
-      { error: e },
-      `Error writing error response headers, giving up.`
-    );
+    const { status, userMessage, ...errorDetails } = classifyError(err);
+    writeErrorResponse(req, res, status, {
+      error: { message: userMessage, ...errorDetails },
+    });
+  } catch (error) {
+    req.log.error(error, `Error writing error response headers, giving up.`);
   }
 };
 
-export function buildFakeSseMessage(
-  type: string,
-  string: string,
-  req: Request
-) {
-  let fakeEvent;
-  const content = `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`;
+function classifyError(err: Error): {
+  /** HTTP status code returned to the client. */
+  status: number;
+  /** Message displayed to the user. */
+  userMessage: string;
+  /** Short error type, e.g. "proxy_validation_error". */
+  type: string;
+} & Record<string, any> {
+  const defaultError = {
+    status: 500,
+    userMessage: `Reverse proxy encountered an unexpected error. (${err.message})`,
+    type: "proxy_internal_error",
+    stack: err.stack,
+  };
 
-  switch (req.inboundApi) {
-    case "openai":
-      fakeEvent = {
-        id: "chatcmpl-" + req.id,
-        object: "chat.completion.chunk",
-        created: Date.now(),
-        model: req.body?.model,
-        choices: [{ delta: { content }, index: 0, finish_reason: type }],
+  switch (err.constructor.name) {
+    case "ZodError":
+      const userMessage = generateErrorMessage((err as ZodError).issues, {
+        prefix: "Request validation failed. ",
+        path: { enabled: true, label: null, type: "breadcrumbs" },
+        code: { enabled: false },
+        maxErrors: 3,
+        transform: ({ issue, ...rest }) => {
+          return `At '${rest.pathComponent}', ${issue.message}`;
+        },
+      });
+      return { status: 400, userMessage, type: "proxy_validation_error" };
+    case "ForbiddenError":
+      // Mimics a ban notice from OpenAI, thrown when blockZoomerOrigins blocks
+      // a request.
+      return {
+        status: 403,
+        userMessage: `Your account has been disabled for violating our terms of service.`,
+        type: "organization_account_disabled",
+        code: "policy_violation",
       };
-      break;
-    case "openai-text":
-      fakeEvent = {
-        id: "cmpl-" + req.id,
-        object: "text_completion",
-        created: Date.now(),
-        choices: [
-          { text: content, index: 0, logprobs: null, finish_reason: type },
-        ],
-        model: req.body?.model,
+    case "QuotaExceededError":
+      return {
+        status: 429,
+        userMessage: `You've exceeded your token quota for this model type.`,
+        type: "proxy_quota_exceeded",
+        info: (err as QuotaExceededError).quotaInfo,
       };
-      break;
-    case "anthropic":
-      fakeEvent = {
-        completion: content,
-        stop_reason: type,
-        truncated: false, // I've never seen this be true
-        stop: null,
-        model: req.body?.model,
-        log_id: "proxy-req-" + req.id,
-      };
-      break;
-    case "google-palm":
-      throw new Error("PaLM not supported as an inbound API format");
+    case "Error":
+      if ("code" in err) {
+        switch (err.code) {
+          case "ENOTFOUND":
+            return {
+              status: 502,
+              userMessage: `Reverse proxy encountered a DNS error while trying to connect to the upstream service.`,
+              type: "proxy_network_error",
+              code: err.code,
+            };
+          case "ECONNREFUSED":
+            return {
+              status: 502,
+              userMessage: `Reverse proxy couldn't connect to the upstream service.`,
+              type: "proxy_network_error",
+              code: err.code,
+            };
+          case "ECONNRESET":
+            return {
+              status: 504,
+              userMessage: `Reverse proxy timed out while waiting for the upstream service to respond.`,
+              type: "proxy_network_error",
+              code: err.code,
+            };
+        }
+      }
+      return defaultError;
     default:
-      assertNever(req.inboundApi);
+      return defaultError;
   }
-  return `data: ${JSON.stringify(fakeEvent)}\n\n`;
 }
 
 export function getCompletionFromBody(req: Request, body: Record<string, any>) {

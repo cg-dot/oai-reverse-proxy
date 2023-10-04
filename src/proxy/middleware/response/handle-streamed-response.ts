@@ -1,14 +1,14 @@
 import { pipeline } from "stream";
 import { promisify } from "util";
-import { buildFakeSseMessage } from "../common";
+import {
+  buildFakeSse,
+  copySseResponseHeaders,
+  initializeSseStream
+} from "../../../shared/streaming";
 import { decodeResponseBody, RawResponseBodyHandler } from ".";
 import { SSEStreamAdapter } from "./streaming/sse-stream-adapter";
 import { SSEMessageTransformer } from "./streaming/sse-message-transformer";
 import { EventAggregator } from "./streaming/event-aggregator";
-import {
-  copySseResponseHeaders,
-  initializeSseStream,
-} from "../../../shared/streaming";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -79,7 +79,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     res.end();
     return aggregator.getFinalResponse();
   } catch (err) {
-    const errorEvent = buildFakeSseMessage("stream-error", err.message, req);
+    const errorEvent = buildFakeSse("stream-error", err.message, req);
     res.write(`${errorEvent}data: [DONE]\n\n`);
     res.end();
     throw err;

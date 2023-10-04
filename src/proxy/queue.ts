@@ -23,11 +23,10 @@ import {
   getOpenAIModelFamily,
   ModelFamily,
 } from "../shared/models";
-import { initializeSseStream } from "../shared/streaming";
+import { buildFakeSse, initializeSseStream } from "../shared/streaming";
 import { assertNever } from "../shared/utils";
 import { logger } from "../logger";
 import { AGNAI_DOT_CHAT_IP } from "./rate-limit";
-import { buildFakeSseMessage } from "./middleware/common";
 
 const queue: Request[] = [];
 const log = logger.child({ module: "request-queue" });
@@ -109,7 +108,7 @@ export function enqueue(req: Request) {
         const avgWait = Math.round(getEstimatedWaitTime(partition) / 1000);
         const currentDuration = Math.round((Date.now() - req.startTime) / 1000);
         const debugMsg = `queue length: ${queue.length}; elapsed time: ${currentDuration}s; avg wait: ${avgWait}s`;
-        req.res!.write(buildFakeSseMessage("heartbeat", debugMsg, req));
+        req.res!.write(buildFakeSse("heartbeat", debugMsg, req));
       }
     }, 10000);
   }
@@ -337,7 +336,7 @@ function killQueuedRequest(req: Request) {
   try {
     const message = `Your request has been terminated by the proxy because it has been in the queue for more than 5 minutes. The queue is currently ${queue.length} requests long.`;
     if (res.headersSent) {
-      const fakeErrorEvent = buildFakeSseMessage(
+      const fakeErrorEvent = buildFakeSse(
         "proxy queue error",
         message,
         req
@@ -363,7 +362,7 @@ function initStreaming(req: Request) {
     return;
   }
 
-  res.write(": joining queue\n\n");
+  res.write(`: joining queue at position ${queue.length}\n\n`);
 }
 
 /**
