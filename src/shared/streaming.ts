@@ -1,5 +1,6 @@
-import { Response } from "express";
+import { Request, Response } from "express";
 import { IncomingMessage } from "http";
+import { assertNever } from "./utils";
 
 export function initializeSseStream(res: Response) {
   res.statusCode = 200;
@@ -31,4 +32,64 @@ export function copySseResponseHeaders(
       res.setHeader(key, value);
     }
   }
+}
+
+/**
+ * Returns an SSE message that looks like a completion event for the service
+ * that the request is being proxied to. Used to send error messages to the
+ * client in the middle of a streaming request.
+ */
+export function buildFakeSse(
+  type: string,
+  string: string,
+  req: Request
+) {
+  let fakeEvent;
+  const content = `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`;
+
+  switch (req.inboundApi) {
+    case "openai":
+      fakeEvent = {
+        id: "chatcmpl-" + req.id,
+        object: "chat.completion.chunk",
+        created: Date.now(),
+        model: req.body?.model,
+        choices: [{ delta: { content }, index: 0, finish_reason: type }]
+      };
+      break;
+    case "openai-text":
+      fakeEvent = {
+        id: "cmpl-" + req.id,
+        object: "text_completion",
+        created: Date.now(),
+        choices: [
+          { text: content, index: 0, logprobs: null, finish_reason: type }
+        ],
+        model: req.body?.model
+      };
+      break;
+    case "anthropic":
+      fakeEvent = {
+        completion: content,
+        stop_reason: type,
+        truncated: false, // I've never seen this be true
+        stop: null,
+        model: req.body?.model,
+        log_id: "proxy-req-" + req.id
+      };
+      break;
+    case "google-palm":
+      throw new Error("PaLM not supported as an inbound API format");
+    default:
+      assertNever(req.inboundApi);
+  }
+
+  if (req.inboundApi === "anthropic") {
+    return [
+      "event: completion",
+      `data: ${JSON.stringify(fakeEvent)}`,
+    ].join("\n") + "\n\n";
+  }
+
+  return `data: ${JSON.stringify(fakeEvent)}\n\n`;
 }
