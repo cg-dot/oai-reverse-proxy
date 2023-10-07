@@ -7,7 +7,7 @@ export const setApiFormat = (api: {
   outApi: APIFormat;
   service: LLMService,
 }): RequestPreprocessor => {
-  return (req) => {
+  return function configureRequestApiFormat (req) {
     req.inboundApi = api.inApi;
     req.outboundApi = api.outApi;
     req.service = api.service;

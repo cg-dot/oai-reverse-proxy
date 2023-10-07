@@ -1,7 +1,7 @@
 import type { HttpRequest } from "@smithy/types";
 import { Express } from "express-serve-static-core";
 import { APIFormat, Key, LLMService } from "../shared/key-management";
-import { User } from "../shared/users/user-store";
+import { User } from "../shared/users/schema";
 
 declare global {
   namespace Express {

@@ -63,10 +63,8 @@ export const ipLimiter = async (
   res: Response,
   next: NextFunction
 ) => {
-  if (!RATE_LIMIT_ENABLED) {
-    next();
-    return;
-  }
+  if (!RATE_LIMIT_ENABLED) return next();
+  if (req.user?.type === "special") return next();
 
   // Exempt Agnai.chat from rate limiting since it's shared between a lot of
   // users. Dunno how to prevent this from being abused without some sort of
