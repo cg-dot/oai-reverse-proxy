@@ -1,17 +1,10 @@
 import axios, { AxiosError } from "axios";
-import { logger } from "../../../logger";
-import type { OpenAIKey, OpenAIKeyProvider } from "./provider";
 import type { OpenAIModelFamily } from "../../models";
+import { KeyCheckerBase } from "../key-checker-base";
+import type { OpenAIKey, OpenAIKeyProvider } from "./provider";
 
-/** Minimum time in between any two key checks. */
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
-/**
- * Minimum time in between checks for a given key. Because we can no longer
- * read quota usage, there is little reason to check a single key more often
- * than this.
- **/
 const KEY_CHECK_PERIOD = 60 * 60 * 1000; // 1 hour
-
 const POST_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
 const GET_MODELS_URL = "https://api.openai.com/v1/models";
 const GET_ORGANIZATIONS_URL = "https://api.openai.com/v1/organizations";
@@ -31,104 +24,21 @@ type OpenAIError = {
 type CloneFn = typeof OpenAIKeyProvider.prototype.clone;
 type UpdateFn = typeof OpenAIKeyProvider.prototype.update;
 
-export class OpenAIKeyChecker {
-  private readonly keys: OpenAIKey[];
-  private cloneKey: CloneFn;
-  private updateKey: UpdateFn;
-  private log = logger.child({ module: "key-checker", service: "openai" });
-  private timeout?: NodeJS.Timeout;
-  private lastCheck = 0;
+export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
+  private readonly cloneKey: CloneFn;
+  private readonly updateKey: UpdateFn;
 
   constructor(keys: OpenAIKey[], cloneFn: CloneFn, updateKey: UpdateFn) {
-    this.keys = keys;
+    super(keys, {
+      service: "openai",
+      keyCheckPeriod: KEY_CHECK_PERIOD,
+      minCheckInterval: MIN_CHECK_INTERVAL,
+    });
     this.cloneKey = cloneFn;
     this.updateKey = updateKey;
   }
 
-  public start() {
-    this.log.info("Starting key checker...");
-    this.timeout = setTimeout(() => this.scheduleNextCheck(), 0);
-  }
-
-  public stop() {
-    if (this.timeout) {
-      this.log.debug("Stopping key checker...");
-      clearTimeout(this.timeout);
-    }
-  }
-
-  /**
-   * Schedules the next check. If there are still keys yet to be checked, it
-   * will schedule a check immediately for the next unchecked key. Otherwise,
-   * it will schedule a check for the least recently checked key, respecting
-   * the minimum check interval.
-   **/
-  public scheduleNextCheck() {
-    const callId = Math.random().toString(36).slice(2, 8);
-    const timeoutId = this.timeout?.[Symbol.toPrimitive]?.();
-    const checkLog = this.log.child({ callId, timeoutId });
-
-    const enabledKeys = this.keys.filter((key) => !key.isDisabled);
-    checkLog.debug({ enabled: enabledKeys.length }, "Scheduling next check...");
-
-    //
-    clearTimeout(this.timeout);
-
-    if (enabledKeys.length === 0) {
-      checkLog.warn("All keys are disabled. Key checker stopping.");
-      return;
-    }
-
-    // Perform startup checks for any keys that haven't been checked yet.
-    const uncheckedKeys = enabledKeys.filter((key) => !key.lastChecked);
-    checkLog.debug({ unchecked: uncheckedKeys.length }, "# of unchecked keys");
-    if (uncheckedKeys.length > 0) {
-      const keysToCheck = uncheckedKeys.slice(0, 12);
-
-      this.timeout = setTimeout(async () => {
-        try {
-          await Promise.all(keysToCheck.map((key) => this.checkKey(key)));
-        } catch (error) {
-          this.log.error({ error }, "Error checking one or more keys.");
-        }
-        checkLog.info("Batch complete.");
-        this.scheduleNextCheck();
-      }, 250);
-
-      checkLog.info(
-        {
-          batch: keysToCheck.map((k) => k.hash),
-          remaining: uncheckedKeys.length - keysToCheck.length,
-          newTimeoutId: this.timeout?.[Symbol.toPrimitive]?.(),
-        },
-        "Scheduled batch check."
-      );
-      return;
-    }
-
-    // Schedule the next check for the oldest key.
-    const oldestKey = enabledKeys.reduce((oldest, key) =>
-      key.lastChecked < oldest.lastChecked ? key : oldest
-    );
-
-    // Don't check any individual key too often.
-    // Don't check anything at all at a rate faster than once per 3 seconds.
-    const nextCheck = Math.max(
-      oldestKey.lastChecked + KEY_CHECK_PERIOD,
-      this.lastCheck + MIN_CHECK_INTERVAL
-    );
-
-    const delay = nextCheck - Date.now();
-    this.timeout = setTimeout(() => this.checkKey(oldestKey), delay);
-    checkLog.debug(
-      { key: oldestKey.hash, nextCheck: new Date(nextCheck), delay },
-      "Scheduled single key check."
-    );
-  }
-
-  private async checkKey(key: OpenAIKey) {
-    // It's possible this key might have been disabled while we were waiting
-    // for the next check.
+  protected async checkKey(key: OpenAIKey) {
     if (key.isDisabled) {
       this.log.warn({ key: key.hash }, "Skipping check for disabled key.");
       this.scheduleNextCheck();
@@ -232,7 +142,7 @@ export class OpenAIKeyChecker {
     this.cloneKey(key.hash, ids);
   }
 
-  private handleAxiosError(key: OpenAIKey, error: AxiosError) {
+  protected handleAxiosError(key: OpenAIKey, error: AxiosError) {
     if (error.response && OpenAIKeyChecker.errorIsOpenAIError(error)) {
       const { status, data } = error.response;
       if (status === 401) {

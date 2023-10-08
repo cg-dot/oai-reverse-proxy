@@ -96,6 +96,17 @@ type Config = {
   rejectMessage?: string;
   /** Verbosity level of diagnostic logging. */
   logLevel: "trace" | "debug" | "info" | "warn" | "error";
+  /**
+   * Whether to allow the usage of AWS credentials which could be logging users'
+   * model invocations. By default, such keys are treated as if they were
+   * disabled because users may not be aware that their usage is being logged.
+   *
+   * Some credentials do not have the policy attached that allows the proxy to
+   * confirm logging status, in which case the proxy assumes that logging could
+   * be enabled and will refuse to use the key. If you still want to use such a
+   * key and can't attach the policy, you can set this to true.
+   */
+  allowAwsLogging?: boolean;
   /** Whether prompts and responses should be logged to persistent storage. */
   promptLogging?: boolean;
   /** Which prompt logging backend to use. */
@@ -188,6 +199,7 @@ export const config: Config = {
   logLevel: getEnvWithDefault("LOG_LEVEL", "info"),
   checkKeys: getEnvWithDefault("CHECK_KEYS", !isDev),
   showTokenCosts: getEnvWithDefault("SHOW_TOKEN_COSTS", false),
+  allowAwsLogging: getEnvWithDefault("ALLOW_AWS_LOGGING", false),
   promptLogging: getEnvWithDefault("PROMPT_LOGGING", false),
   promptLoggingBackend: getEnvWithDefault("PROMPT_LOGGING_BACKEND", undefined),
   googleSheetsKey: getEnvWithDefault("GOOGLE_SHEETS_KEY", undefined),

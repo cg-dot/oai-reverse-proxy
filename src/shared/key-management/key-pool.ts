@@ -53,11 +53,9 @@ export class KeyPool {
   public disable(key: Key, reason: "quota" | "revoked"): void {
     const service = this.getKeyProvider(key.service);
     service.disable(key);
+    service.update(key.hash, { isRevoked: reason === "revoked" });
     if (service instanceof OpenAIKeyProvider) {
-      service.update(key.hash, {
-        isRevoked: reason === "revoked",
-        isOverQuota: reason === "quota",
-      });
+      service.update(key.hash, { isOverQuota: reason === "quota" });
     }
   }
 

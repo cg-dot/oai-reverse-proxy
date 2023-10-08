@@ -36,8 +36,8 @@ export interface OpenAIKey extends Key, OpenAIKeyUsage {
    * status separately.
    */
   organizationId?: string;
-  /** Set when key check returns a 401. */
-  isRevoked: boolean;
+  /** Whether this is a free trial key. These are prioritized over paid keys if they can fulfill the request. */
+  isTrial: boolean;
   /** Set when key check returns a non-transient 429. */
   isOverQuota: boolean;
   /** The time at which this key was last rate limited. */

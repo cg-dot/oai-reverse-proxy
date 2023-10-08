@@ -3,6 +3,7 @@ import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
 import type { AwsBedrockModelFamily } from "../../models";
+import { AwsKeyChecker } from "./checker";
 
 // https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html
 export const AWS_BEDROCK_SUPPORTED_MODELS = [
@@ -23,6 +24,13 @@ export interface AwsBedrockKey extends Key, AwsBedrockKeyUsage {
   rateLimitedAt: number;
   /** The time until which this key is rate limited. */
   rateLimitedUntil: number;
+  /**
+   * The confirmed logging status of this key. This is "unknown" until we
+   * receive a response from the AWS API. Keys which are logged, or not
+   * confirmed as not being logged, won't be used unless ALLOW_AWS_LOGGING is
+   * set.
+   */
+  awsLoggingStatus: "unknown" | "disabled" | "enabled";
 }
 
 /**
@@ -41,6 +49,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
   readonly service = "aws";
 
   private keys: AwsBedrockKey[] = [];
+  private checker?: AwsKeyChecker;
   private log = logger.child({ module: "key-provider", service: this.service });
 
   constructor() {
@@ -58,12 +67,13 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
         key,
         service: this.service,
         modelFamilies: ["aws-claude"],
-        isTrial: false,
         isDisabled: false,
+        isRevoked: false,
         promptCount: 0,
         lastUsed: 0,
         rateLimitedAt: 0,
         rateLimitedUntil: 0,
+        awsLoggingStatus: "unknown",
         hash: `aws-${crypto
           .createHash("sha256")
           .update(key)
@@ -77,14 +87,22 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     this.log.info({ keyCount: this.keys.length }, "Loaded AWS Bedrock keys.");
   }
 
-  public init() {}
+  public init() {
+    if (config.checkKeys) {
+      this.checker = new AwsKeyChecker(this.keys, this.update.bind(this));
+      this.checker.start();
+    }
+  }
 
   public list() {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
   public get(_model: AwsBedrockModel) {
-    const availableKeys = this.keys.filter((k) => !k.isDisabled);
+    const availableKeys = this.keys.filter((k) => {
+      const isNotLogged = k.awsLoggingStatus === "disabled";
+      return !k.isDisabled && (isNotLogged || config.allowAwsLogging);
+    });
     if (availableKeys.length === 0) {
       throw new Error("No AWS Bedrock keys available");
     }
@@ -176,5 +194,9 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     key.rateLimitedUntil = now + RATE_LIMIT_LOCKOUT;
   }
 
-  public recheck() {}
+  public recheck() {
+    this.keys.forEach(({ hash }) =>
+      this.update(hash, { lastChecked: 0, isDisabled: false })
+    );
+  }
 }

@@ -23,12 +23,12 @@ export interface Key {
   readonly key: string;
   /** The service that this key is for. */
   service: LLMService;
-  /** Whether this is a free trial key. These are prioritized over paid keys if they can fulfill the request. */
-  isTrial: boolean;
   /** The model families that this key has access to. */
   modelFamilies: ModelFamily[];
   /** Whether this key is currently disabled, meaning its quota has been exceeded or it has been revoked. */
   isDisabled: boolean;
+  /** Whether this key specifically has been revoked. */
+  isRevoked: boolean;
   /** The number of prompts that have been sent with this key. */
   promptCount: number;
   /** The time at which this key was last used. */
