@@ -34,12 +34,21 @@ Use the IAM console or the AWS CLI to attach these policies to the principal ass
 
 AWS does not automatically provide accounts with access to every model. You will need to provision the models you want to use, in the regions you want to use them in. You can do this from the AWS console.
 
-The account must have access to _all_ of the following models or the proxy can't use those credentials.
+⚠️ **Models are region-specific.** Currently AWS only offers Claude in a small number of regions. Switch to the AWS region you want to use, then go to the models page and request access to **Anthropic / Claude**.
 
-- `anthropic.claude-v1`
-- `anthropic.claude-v2`
+![](./assets/aws-request-model-access.png)
 
-⚠️ **Models are region-specific.** Currently AWS only offers Claude in a small number of regions.
+Access is generally granted more or less instantly. Once your account has access, you can enable the model by checking the box next to it.
+
+You can also request Claude Instant, but support for this isn't fully implemented yet.
+
+### Supported model IDs
+Users can send these model IDs to the proxy to invoke the corresponding models.
+- **Claude**
+  - `anthropic.claude-v1` (~18k context)
+  - `anthropic.claude-v2` (~100k context)
+- **Claude Instant**
+  - `anthropic.claude-instant-v1`
 
 ## Note regarding logging
 
