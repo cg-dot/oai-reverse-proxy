@@ -45,4 +45,4 @@ The account must have access to _all_ of the following models or the proxy can't
 
 By default, the proxy will refuse to use keys if it finds that logging is enabled, or if it doesn't have permission to check logging status.
 
-If you can't attach the `bedrock:GetModelInvocationLoggingConfiguration` policy to the principal, you can set the `AWS_ASSUME_LOGGING_DISABLED` environment variable to `true` to force the proxy to use the keys anyway. A warning will appear on the info page when this is enabled.
+If you can't attach the `bedrock:GetModelInvocationLoggingConfiguration` policy to the principal, you can set the `ALLOW_AWS_LOGGING` environment variable to `true` to force the proxy to use the keys anyway. A warning will appear on the info page when this is enabled.
