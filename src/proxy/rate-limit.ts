@@ -1,26 +1,31 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config";
 
-export const AGNAI_DOT_CHAT_IP = [
+export const SHARED_IP_ADDRESSES = new Set([
+  // Agnai.chat
   "157.230.249.32", // old
   "157.245.148.56",
   "174.138.29.50",
   "209.97.162.44",
-];
+]);
 
 const RATE_LIMIT_ENABLED = Boolean(config.modelRateLimit);
 const RATE_LIMIT = Math.max(1, config.modelRateLimit);
 const ONE_MINUTE_MS = 60 * 1000;
 
-const lastAttempts = new Map<string, number[]>();
+type Timestamp = number;
+/** Tracks time of last attempts from each IP address or token. */
+const lastAttempts = new Map<string, Timestamp[]>();
+/** Tracks time of exempted attempts from shared IPs like Agnai.chat. */
+const exemptedRequests: Timestamp[] = [];
 
-const expireOldAttempts = (now: number) => (attempt: number) =>
+const isRecentAttempt = (now: Timestamp) => (attempt: Timestamp) =>
   attempt > now - ONE_MINUTE_MS;
 
 const getTryAgainInMs = (ip: string) => {
   const now = Date.now();
   const attempts = lastAttempts.get(ip) || [];
-  const validAttempts = attempts.filter(expireOldAttempts(now));
+  const validAttempts = attempts.filter(isRecentAttempt(now));
 
   if (validAttempts.length >= RATE_LIMIT) {
     return validAttempts[0] - now + ONE_MINUTE_MS;
@@ -33,18 +38,18 @@ const getTryAgainInMs = (ip: string) => {
 const getStatus = (ip: string) => {
   const now = Date.now();
   const attempts = lastAttempts.get(ip) || [];
-  const validAttempts = attempts.filter(expireOldAttempts(now));
+  const validAttempts = attempts.filter(isRecentAttempt(now));
   return {
     remaining: Math.max(0, RATE_LIMIT - validAttempts.length),
     reset: validAttempts.length > 0 ? validAttempts[0] + ONE_MINUTE_MS : now,
   };
 };
 
-/** Prunes attempts and IPs that are no longer relevant after one minutes. */
+/** Prunes attempts and IPs that are no longer relevant after one minute. */
 const clearOldAttempts = () => {
   const now = Date.now();
   for (const [ip, attempts] of lastAttempts.entries()) {
-    const validAttempts = attempts.filter(expireOldAttempts(now));
+    const validAttempts = attempts.filter(isRecentAttempt(now));
     if (validAttempts.length === 0) {
       lastAttempts.delete(ip);
     } else {
@@ -54,9 +59,15 @@ const clearOldAttempts = () => {
 };
 setInterval(clearOldAttempts, 10 * 1000);
 
-export const getUniqueIps = () => {
-  return lastAttempts.size;
+/** Prunes exempted requests which are older than one minute. */
+const clearOldExemptions = () => {
+  const now = Date.now();
+  const validExemptions = exemptedRequests.filter(isRecentAttempt(now));
+  exemptedRequests.splice(0, exemptedRequests.length, ...validExemptions);
 };
+setInterval(clearOldExemptions, 10 * 1000);
+
+export const getUniqueIps = () => lastAttempts.size;
 
 export const ipLimiter = async (
   req: Request,
@@ -66,13 +77,17 @@ export const ipLimiter = async (
   if (!RATE_LIMIT_ENABLED) return next();
   if (req.user?.type === "special") return next();
 
-  // Exempt Agnai.chat from rate limiting since it's shared between a lot of
-  // users. Dunno how to prevent this from being abused without some sort of
-  // identifier sent from Agnaistic to identify specific users.
-  if (AGNAI_DOT_CHAT_IP.includes(req.ip)) {
-    req.log.info("Exempting Agnai request from rate limiting.");
-    next();
-    return;
+  // Exempts Agnai.chat from IP-based rate limiting because its IPs are shared
+  // by many users. Instead, the request queue will limit the number of such
+  // requests that may wait in the queue at a time, and sorts them to the end to
+  // let individual users go first.
+  if (SHARED_IP_ADDRESSES.has(req.ip)) {
+    exemptedRequests.push(Date.now());
+    req.log.info(
+      { ip: req.ip, recentExemptions: exemptedRequests.length },
+      "Exempting Agnai request from rate limiting."
+    );
+    return next();
   }
 
   // If user is authenticated, key rate limiting by their token. Otherwise, key

@@ -4,10 +4,6 @@
  * a given key has generated, so our queue will simply retry requests that fail
  * with a non-billing related 429 over and over again until they succeed.
  *
- * Dequeueing can operate in one of two modes:
- * - 'fair': requests are dequeued in the order they were enqueued.
- * - 'random': requests are dequeued randomly, not really a queue at all.
- *
  * When a request to a proxied endpoint is received, we create a closure around
  * the call to http-proxy-middleware and attach it to the request. This allows
  * us to pause the request until we have a key available. Further, if the
@@ -26,7 +22,7 @@ import {
 import { buildFakeSse, initializeSseStream } from "../shared/streaming";
 import { assertNever } from "../shared/utils";
 import { logger } from "../logger";
-import { AGNAI_DOT_CHAT_IP } from "./rate-limit";
+import { SHARED_IP_ADDRESSES } from "./rate-limit";
 
 const queue: Request[] = [];
 const log = logger.child({ module: "request-queue" });
@@ -37,42 +33,39 @@ const AGNAI_CONCURRENCY_LIMIT = 5;
 const USER_CONCURRENCY_LIMIT = 1;
 
 /**
- * Returns a unique identifier for a request. This is used to determine if a
+ * Returns an identifier for a request. This is used to determine if a
  * request is already in the queue.
+ *
  * This can be (in order of preference):
  * - user token assigned by the proxy operator
  * - x-risu-tk header, if the request is from RisuAI.xyz
+ * - 'shared-ip' if the request is from a shared IP address like Agnai.chat
  * - IP address
  */
 function getIdentifier(req: Request) {
-  if (req.user) {
-    return req.user.token;
-  }
-  if (req.risuToken) {
-    return req.risuToken;
-  }
+  if (req.user) return req.user.token;
+  if (req.risuToken) return req.risuToken;
+  if (isFromSharedIp(req)) return "shared-ip";
   return req.ip;
 }
 
-const sameUserPredicate = (incoming: Request) => (queued: Request) => {
-  const queuedId = getIdentifier(queued);
-  const incomingId = getIdentifier(incoming);
-  return queuedId === incomingId;
-};
+const sharesIdentifierWith = (incoming: Request) => (queued: Request) =>
+  getIdentifier(queued) === getIdentifier(incoming);
+
+const isFromSharedIp = (req: Request) => SHARED_IP_ADDRESSES.has(req.ip)
 
 export function enqueue(req: Request) {
-  const enqueuedRequestCount = queue.filter(sameUserPredicate(req)).length;
+  const enqueuedRequestCount = queue.filter(sharesIdentifierWith(req)).length;
   let isGuest = req.user?.token === undefined;
 
-  // All Agnai.chat requests come from the same IP, so we allow them to have
-  // more spots in the queue. Can't make it unlimited because people will
-  // intentionally abuse it.
-  // Authenticated users always get a single spot in the queue.
-  const isAgnai = AGNAI_DOT_CHAT_IP.includes(req.ip);
+  // Requests from shared IP addresses such as Agnai.chat are exempt from IP-
+  // based rate limiting but can only occupy a certain number of slots in the
+  // queue. Authenticated users always get a single spot in the queue.
+  const isSharedIp = isFromSharedIp(req);
   const maxConcurrentQueuedRequests =
-    isGuest && isAgnai ? AGNAI_CONCURRENCY_LIMIT : USER_CONCURRENCY_LIMIT;
+    isGuest && isSharedIp ? AGNAI_CONCURRENCY_LIMIT : USER_CONCURRENCY_LIMIT;
   if (enqueuedRequestCount >= maxConcurrentQueuedRequests) {
-    if (isAgnai) {
+    if (isSharedIp) {
       // Re-enqueued requests are not counted towards the limit since they
       // already made it through the queue once.
       if (req.retryCount === 0) {
@@ -160,7 +153,19 @@ function getPartitionForRequest(req: Request): ModelFamily {
 }
 
 function getQueueForPartition(partition: ModelFamily): Request[] {
-  return queue.filter((req) => getPartitionForRequest(req) === partition);
+  return queue
+    .filter((req) => getPartitionForRequest(req) === partition)
+    .sort((a, b) => {
+      // Certain requests are exempted from IP-based rate limiting because they
+      // come from a shared IP address. To prevent these requests from starving
+      // out other requests during periods of high traffic, we sort them to the
+      // end of the queue.
+      const aIsExempted = isFromSharedIp(a);
+      const bIsExempted = isFromSharedIp(b);
+      if (aIsExempted && !bIsExempted) return 1;
+      if (!aIsExempted && bIsExempted) return -1;
+      return 0;
+    });
 }
 
 export function dequeue(partition: ModelFamily): Request | undefined {
@@ -272,7 +277,12 @@ export function start() {
   log.info(`Started request queue.`);
 }
 
-let waitTimes: { partition: ModelFamily; start: number; end: number }[] = [];
+let waitTimes: {
+  partition: ModelFamily;
+  start: number;
+  end: number;
+  isDeprioritized: boolean;
+}[] = [];
 
 /** Adds a successful request to the list of wait times. */
 export function trackWaitTime(req: Request) {
@@ -280,21 +290,29 @@ export function trackWaitTime(req: Request) {
     partition: getPartitionForRequest(req),
     start: req.startTime!,
     end: req.queueOutTime ?? Date.now(),
+    isDeprioritized: isFromSharedIp(req),
   });
 }
 
-/** Returns average wait time in milliseconds. */
+/**
+ * Returns average wait time for the given queue partition in milliseconds.
+ * Requests which are deprioritized are not included in the calculation as they
+ * would skew the results due to their longer wait times.
+ */
 export function getEstimatedWaitTime(partition: ModelFamily) {
   const now = Date.now();
-  const recentWaits = waitTimes.filter(
-    (wt) => wt.partition === partition && now - wt.end < 300 * 1000
-  );
+  const recentWaits = waitTimes.filter((wait) => {
+    const isSamePartition = wait.partition === partition;
+    const isRecent = now - wait.end < 300 * 1000;
+    const isNormalPriority = !wait.isDeprioritized;
+    return isSamePartition && isRecent && isNormalPriority;
+  });
   if (recentWaits.length === 0) {
     return 0;
   }
 
   return (
-    recentWaits.reduce((sum, wt) => sum + wt.end - wt.start, 0) /
+    recentWaits.reduce((sum, wait) => sum + wait.end - wait.start, 0) /
     recentWaits.length
   );
 }
