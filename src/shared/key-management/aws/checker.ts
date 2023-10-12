@@ -8,11 +8,13 @@ import type { AwsBedrockKey, AwsBedrockKeyProvider } from "./provider";
 
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
 const KEY_CHECK_PERIOD = 3 * 60 * 1000; // 3 minutes
+const AMZ_HOST =
+  process.env.AMZ_HOST || "bedrock-runtime.%REGION%.amazonaws.com";
 const GET_CALLER_IDENTITY_URL = `https://sts.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15`;
 const GET_INVOCATION_LOGGING_CONFIG_URL = (region: string) =>
   `https://bedrock.${region}.amazonaws.com/logging/modelinvocations`;
 const POST_INVOKE_MODEL_URL = (region: string, model: string) =>
-  `https://invoke-bedrock.${region}.amazonaws.com/model/${model}/invoke`;
+  `https://${AMZ_HOST.replace("%REGION%", region)}/model/${model}/invoke`;
 const TEST_PROMPT = "\n\nHuman:\n\nAssistant:";
 
 type AwsError = { error: {} };

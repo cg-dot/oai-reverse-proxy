@@ -7,7 +7,7 @@ import { RequestPreprocessor } from ".";
 import { AnthropicV1CompleteSchema } from "./transform-outbound-payload";
 
 const AMZ_HOST =
-  process.env.AMZ_HOST || "invoke-bedrock.%REGION%.amazonaws.com";
+  process.env.AMZ_HOST || "bedrock-runtime.%REGION%.amazonaws.com";
 
 /**
  * Signs an outgoing AWS request with the appropriate headers modifies the
