@@ -34,7 +34,7 @@ const isSupportedContentEncoding = (
   return contentEncoding in DECODER_MAP;
 };
 
-class RetryableError extends Error {
+export class RetryableError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "RetryableError";

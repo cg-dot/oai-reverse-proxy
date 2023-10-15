@@ -37,7 +37,7 @@ export interface AwsBedrockKey extends Key, AwsBedrockKeyUsage {
  * Upon being rate limited, a key will be locked out for this many milliseconds
  * while we wait for other concurrent requests to finish.
  */
-const RATE_LIMIT_LOCKOUT = 300;
+const RATE_LIMIT_LOCKOUT = 1000;
 /**
  * Upon assigning a key, we will wait this many milliseconds before allowing it
  * to be used again. This is to prevent the queue from flooding a key with too
