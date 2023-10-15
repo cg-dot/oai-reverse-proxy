@@ -2,12 +2,16 @@ import { Transform, TransformOptions } from "stream";
 // @ts-ignore
 import { Parser } from "lifion-aws-event-stream";
 import { logger } from "../../../../logger";
+import { RetryableError } from "../index";
 
 const log = logger.child({ module: "sse-stream-adapter" });
 
 type SSEStreamAdapterOptions = TransformOptions & { contentType?: string };
 type AwsEventStreamMessage = {
-  headers: { ":message-type": "event" | "exception" };
+  headers: {
+    ":message-type": "event" | "exception";
+    ":exception-type"?: string;
+  };
   payload: { message?: string /** base64 encoded */; bytes?: string };
 };
 
@@ -36,6 +40,19 @@ export class SSEStreamAdapter extends Transform {
   protected processAwsEvent(event: AwsEventStreamMessage): string | null {
     const { payload, headers } = event;
     if (headers[":message-type"] === "exception" || !payload.bytes) {
+      // Under high load, AWS can rugpull us by returning a 200 and starting the
+      // stream but then immediately sending a rate limit error as the first
+      // event. My guess is some race condition in their rate limiting check
+      // that occurs if two requests arrive at the same time when only one
+      // concurrency slot is available.
+      if (headers[":exception-type"] === "throttlingException") {
+        log.warn(
+          { event: JSON.stringify(event) },
+          "AWS request throttled after streaming has already started; retrying"
+        );
+        throw new RetryableError("AWS request throttled mid-stream");
+      }
+
       log.error(
         { event: JSON.stringify(event) },
         "Received bad streaming event from AWS"

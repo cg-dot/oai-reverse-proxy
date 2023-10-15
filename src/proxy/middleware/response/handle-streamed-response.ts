@@ -1,3 +1,4 @@
+import express from "express";
 import { pipeline } from "stream";
 import { promisify } from "util";
 import {
@@ -5,7 +6,8 @@ import {
   copySseResponseHeaders,
   initializeSseStream
 } from "../../../shared/streaming";
-import { decodeResponseBody, RawResponseBodyHandler } from ".";
+import { enqueue } from "../../queue";
+import { decodeResponseBody, RawResponseBodyHandler, RetryableError } from ".";
 import { SSEStreamAdapter } from "./streaming/sse-stream-adapter";
 import { SSEMessageTransformer } from "./streaming/sse-message-transformer";
 import { EventAggregator } from "./streaming/event-aggregator";
@@ -33,7 +35,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
   }
 
   if (proxyRes.statusCode! > 201) {
-    req.isStreaming = false; // Forces non-streaming response handler to execute
+    req.isStreaming = false;
     req.log.warn(
       { statusCode: proxyRes.statusCode, key: hash },
       `Streaming request returned error status code. Falling back to non-streaming response handler.`
@@ -79,9 +81,18 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     res.end();
     return aggregator.getFinalResponse();
   } catch (err) {
-    const errorEvent = buildFakeSse("stream-error", err.message, req);
-    res.write(`${errorEvent}data: [DONE]\n\n`);
-    res.end();
+    if (err instanceof RetryableError) {
+      req.log.info(
+        { key: req.key!.hash, retryCount: req.retryCount },
+        `Re-enqueueing request due to retryable error during streaming response.`
+      );
+      req.retryCount++;
+      enqueue(req);
+    } else {
+      const errorEvent = buildFakeSse("stream-error", err.message, req);
+      res.write(`${errorEvent}data: [DONE]\n\n`);
+      res.end();
+    }
     throw err;
   }
 };
