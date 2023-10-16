@@ -167,12 +167,10 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     const errorType = (headers["x-amzn-errortype"] as string).split(":")[0];
     const errorMessage = data?.message;
 
-    // We're looking for a specific error type and message here:
+    // We're looking for a specific error type and message here
     // "ValidationException"
-    // "Malformed input request: -1 is not greater or equal to 0, please reformat your input and try again."
-    // "Malformed input request: 2 schema violations found, please reformat your input and try again." (if there are multiple issues)
     const correctErrorType = errorType === "ValidationException";
-    const correctErrorMessage = errorMessage?.match(/malformed input request/i);
+    const correctErrorMessage = errorMessage?.match(/max_tokens_to_sample/);
     if (!correctErrorType || !correctErrorMessage) {
       throw new AxiosError(
         `Unexpected error when invoking model ${model}: ${errorMessage}`,
