@@ -377,7 +377,7 @@ function getAwsInfo() {
   const logged = modelStats.get("aws-claude__awsLogged") || 0;
   const logMsg = config.allowAwsLogging
     ? `${logged} active keys are potentially logged.`
-    : `${logged} active keys are potentially logged and can't be used.`;
+    : `${logged} active keys are potentially logged and can't be used. Set ALLOW_AWS_LOGGING=true to override.`;
 
   return {
     usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
