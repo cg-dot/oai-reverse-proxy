@@ -143,8 +143,8 @@ function reassignPathForPalmModel(proxyReq: http.ClientRequest, req: Request) {
   );
 }
 
-const googlePalmProxy = createQueueMiddleware(
-  createProxyMiddleware({
+const googlePalmProxy = createQueueMiddleware({
+  proxyMiddleware: createProxyMiddleware({
     target: "https://generativelanguage.googleapis.com",
     changeOrigin: true,
     selfHandleResponse: true,
@@ -164,8 +164,8 @@ const googlePalmProxy = createQueueMiddleware(
       proxyRes: createOnProxyResHandler([palmResponseHandler]),
       error: handleProxyError,
     },
-  })
-);
+  }),
+});
 
 const palmRouter = Router();
 palmRouter.get("/v1/models", handleModelRequest);

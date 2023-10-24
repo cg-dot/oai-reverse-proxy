@@ -23,6 +23,7 @@ import { buildFakeSse, initializeSseStream } from "../shared/streaming";
 import { assertNever } from "../shared/utils";
 import { logger } from "../logger";
 import { SHARED_IP_ADDRESSES } from "./rate-limit";
+import { RequestPreprocessor } from "./middleware/request";
 
 const queue: Request[] = [];
 const log = logger.child({ module: "request-queue" });
@@ -52,7 +53,7 @@ function getIdentifier(req: Request) {
 const sharesIdentifierWith = (incoming: Request) => (queued: Request) =>
   getIdentifier(queued) === getIdentifier(incoming);
 
-const isFromSharedIp = (req: Request) => SHARED_IP_ADDRESSES.has(req.ip)
+const isFromSharedIp = (req: Request) => SHARED_IP_ADDRESSES.has(req.ip);
 
 export function enqueue(req: Request) {
   const enqueuedRequestCount = queue.filter(sharesIdentifierWith(req)).length;
@@ -325,9 +326,23 @@ export function getQueueLength(partition: ModelFamily | "all" = "all") {
   return modelQueue.length;
 }
 
-export function createQueueMiddleware(proxyMiddleware: Handler): Handler {
+export function createQueueMiddleware({
+  beforeProxy,
+  proxyMiddleware,
+}: {
+  beforeProxy?: RequestPreprocessor;
+  proxyMiddleware: Handler;
+}): Handler {
   return (req, res, next) => {
-    req.proceed = () => {
+    req.proceed = async () => {
+      if (beforeProxy) {
+        // Hack to let us run asynchronous middleware before the
+        // http-proxy-middleware handler. This is used to sign AWS requests
+        // before they are proxied, as the signing is asynchronous.
+        // Unlike RequestPreprocessors, this runs every time the request is
+        // dequeued, not just the first time.
+        await beforeProxy(req);
+      }
       proxyMiddleware(req, res, next);
     };
 

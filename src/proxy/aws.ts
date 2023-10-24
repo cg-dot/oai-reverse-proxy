@@ -3,7 +3,6 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import { v4 } from "uuid";
 import { config } from "../config";
 import { logger } from "../logger";
-import { keyPool } from "../shared/key-management";
 import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
@@ -120,13 +119,12 @@ function transformAwsResponse(
   };
 }
 
-const awsProxy = createQueueMiddleware(
-  createProxyMiddleware({
+const awsProxy = createQueueMiddleware({
+  beforeProxy: signAwsRequest,
+  proxyMiddleware: createProxyMiddleware({
     target: "bad-target-will-be-rewritten",
     router: ({ signedRequest }) => {
-      if (!signedRequest) {
-        throw new Error("AWS requests must go through signAwsRequest first");
-      }
+      if (!signedRequest) throw new Error("Must sign request before proxying");
       return `${signedRequest.protocol}//${signedRequest.hostname}`;
     },
     changeOrigin: true,
@@ -135,9 +133,7 @@ const awsProxy = createQueueMiddleware(
     on: {
       proxyReq: createOnProxyReqHandler({
         pipeline: [
-          (_, req) => keyPool.throttle(req.key!),
           applyQuotaLimits,
-          // Credentials are added by signAwsRequest preprocessor
           languageFilter,
           blockZoomerOrigins,
           stripHeaders,
@@ -147,8 +143,8 @@ const awsProxy = createQueueMiddleware(
       proxyRes: createOnProxyResHandler([awsResponseHandler]),
       error: handleProxyError,
     },
-  })
-);
+  }),
+});
 
 const awsRouter = Router();
 awsRouter.get("/v1/models", handleModelRequest);
@@ -158,7 +154,7 @@ awsRouter.post(
   ipLimiter,
   createPreprocessorMiddleware(
     { inApi: "anthropic", outApi: "anthropic", service: "aws" },
-    { afterTransform: [maybeReassignModel, signAwsRequest] }
+    { afterTransform: [maybeReassignModel] }
   ),
   awsProxy
 );
@@ -168,7 +164,7 @@ awsRouter.post(
   ipLimiter,
   createPreprocessorMiddleware(
     { inApi: "openai", outApi: "anthropic", service: "aws" },
-    { afterTransform: [maybeReassignModel, signAwsRequest] }
+    { afterTransform: [maybeReassignModel] }
   ),
   awsProxy
 );

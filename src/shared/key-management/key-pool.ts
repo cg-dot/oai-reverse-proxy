@@ -72,11 +72,6 @@ export class KeyPool {
     }, 0);
   }
 
-  public throttle(key: Key) {
-    const provider = this.getKeyProvider(key.service);
-    provider.throttle(key.hash);
-  }
-
   public incrementUsage(key: Key, model: string, tokens: number): void {
     const provider = this.getKeyProvider(key.service);
     provider.incrementUsage(key.hash, model, tokens);

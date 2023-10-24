@@ -59,7 +59,6 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
     }
   }
 
-  keyPool.throttle(assignedKey);
   req.key = assignedKey;
   req.log.info(
     {
@@ -117,7 +116,7 @@ export const addKeyForEmbeddingsRequest: ProxyRequestMiddleware = (
     throw new Error("Embeddings requests must be from OpenAI");
   }
 
-  req.body = { input: req.body.input, model: "text-embedding-ada-002" }
+  req.body = { input: req.body.input, model: "text-embedding-ada-002" };
 
   const key = keyPool.get("text-embedding-ada-002") as OpenAIKey;
 

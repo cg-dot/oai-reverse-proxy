@@ -13,7 +13,8 @@ import {
   createPreprocessorMiddleware,
   finalizeBody,
   languageFilter,
-  stripHeaders, createOnProxyReqHandler
+  stripHeaders,
+  createOnProxyReqHandler,
 } from "./middleware/request";
 import {
   ProxyResHandlerWithBody,
@@ -129,8 +130,8 @@ function transformAnthropicResponse(
   };
 }
 
-const anthropicProxy = createQueueMiddleware(
-  createProxyMiddleware({
+const anthropicProxy = createQueueMiddleware({
+  proxyMiddleware: createProxyMiddleware({
     target: "https://api.anthropic.com",
     changeOrigin: true,
     selfHandleResponse: true,
@@ -154,8 +155,8 @@ const anthropicProxy = createQueueMiddleware(
       // Send OpenAI-compat requests to the real Anthropic endpoint.
       "^/v1/chat/completions": "/v1/complete",
     },
-  })
-);
+  }),
+});
 
 const anthropicRouter = Router();
 anthropicRouter.get("/v1/models", handleModelRequest);

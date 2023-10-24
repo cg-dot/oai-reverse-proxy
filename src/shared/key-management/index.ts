@@ -63,7 +63,6 @@ export interface KeyProvider<T extends Key = Key> {
   getLockoutPeriod(model: Model): number;
   markRateLimited(hash: string): void;
   recheck(): void;
-  throttle(hash: string): void;
 }
 
 export const keyPool = new KeyPool();

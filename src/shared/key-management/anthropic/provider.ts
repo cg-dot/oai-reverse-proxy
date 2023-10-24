@@ -153,6 +153,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
 
     const selectedKey = keysByPriority[0];
     selectedKey.lastUsed = now;
+    this.throttle(selectedKey.hash);
     return { ...selectedKey };
   }
 
@@ -222,10 +223,19 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     this.checker?.scheduleNextCheck();
   }
 
-  public throttle(hash: string) {
-    const key = this.keys.find((k) => k.hash === hash)!;
+  /**
+   * Applies a short artificial delay to the key upon dequeueing, in order to
+   * prevent it from being immediately assigned to another request before the
+   * current one can be dispatched.
+   **/
+  private throttle(hash: string) {
     const now = Date.now();
+    const key = this.keys.find((k) => k.hash === hash)!;
+
+    const currentRateLimit = key.rateLimitedUntil;
+    const nextRateLimit = now + KEY_REUSE_DELAY;
+
     key.rateLimitedAt = now;
-    key.rateLimitedUntil = now + KEY_REUSE_DELAY;
+    key.rateLimitedUntil = Math.max(currentRateLimit, nextRateLimit);
   }
 }

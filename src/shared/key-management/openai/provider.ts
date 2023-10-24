@@ -221,6 +221,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
 
     const selectedKey = keysByPriority[0];
     selectedKey.lastUsed = now;
+    this.throttle(selectedKey.hash);
     return { ...selectedKey };
   }
 
@@ -228,7 +229,6 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
   public update(keyHash: string, update: OpenAIKeyUpdate) {
     const keyFromPool = this.keys.find((k) => k.hash === keyHash)!;
     Object.assign(keyFromPool, { lastChecked: Date.now(), ...update });
-    // this.writeKeyStatus();
   }
 
   /** Called by the key checker to create clones of keys for the given orgs. */
@@ -379,8 +379,19 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
    * avoid spamming the API with requests while we wait to learn whether this
    * key is already rate limited.
    */
-  public throttle(hash: string) {
+  private throttle(hash: string) {
+    const now = Date.now();
     const key = this.keys.find((k) => k.hash === hash)!;
+
+    const currentRateLimit = Math.max(
+      key.rateLimitRequestsReset,
+      key.rateLimitTokensReset
+    ) + key.rateLimitedAt;
+    const nextRateLimit = now + KEY_REUSE_DELAY;
+
+    // Don't throttle if the key is already naturally rate limited.
+    if (currentRateLimit > nextRateLimit) return;
+
     key.rateLimitedAt = Date.now();
     key.rateLimitRequestsReset = KEY_REUSE_DELAY;
   }

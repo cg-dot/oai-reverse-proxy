@@ -25,6 +25,7 @@ import {
   limitCompletions,
   stripHeaders,
   createOnProxyReqHandler,
+  signAwsRequest,
 } from "./middleware/request";
 import {
   createOnProxyResHandler,
@@ -163,8 +164,8 @@ function transformTurboInstructResponse(
   return transformed;
 }
 
-const openaiProxy = createQueueMiddleware(
-  createProxyMiddleware({
+const openaiProxy = createQueueMiddleware({
+  proxyMiddleware: createProxyMiddleware({
     target: "https://api.openai.com",
     changeOrigin: true,
     selfHandleResponse: true,
@@ -184,8 +185,8 @@ const openaiProxy = createQueueMiddleware(
       proxyRes: createOnProxyResHandler([openaiResponseHandler]),
       error: handleProxyError,
     },
-  })
-);
+  }),
+});
 
 const openaiEmbeddingsProxy = createProxyMiddleware({
   target: "https://api.openai.com",
