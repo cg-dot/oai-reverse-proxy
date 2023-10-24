@@ -25,7 +25,6 @@ import {
   limitCompletions,
   stripHeaders,
   createOnProxyReqHandler,
-  signAwsRequest,
 } from "./middleware/request";
 import {
   createOnProxyResHandler,
