@@ -3,7 +3,6 @@ import { Request, Response } from "express";
 import * as http from "http";
 import util from "util";
 import zlib from "zlib";
-import { logger } from "../../../logger";
 import { enqueue, trackWaitTime } from "../../queue";
 import { HttpError } from "../../../shared/errors";
 import { keyPool } from "../../../shared/key-management";
@@ -188,7 +187,7 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
           body = await decoder(body);
         } else {
           const errorMessage = `Proxy received response with unsupported content-encoding: ${contentEncoding}`;
-          logger.warn({ contentEncoding, key: req.key?.hash }, errorMessage);
+          req.log.warn({ contentEncoding, key: req.key?.hash }, errorMessage);
           writeErrorResponse(req, res, 500, {
             error: errorMessage,
             contentEncoding,
@@ -205,7 +204,7 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
         return resolve(body.toString());
       } catch (error: any) {
         const errorMessage = `Proxy received response with invalid JSON: ${error.message}`;
-        logger.warn({ error: error.stack, key: req.key?.hash }, errorMessage);
+        req.log.warn({ error: error.stack, key: req.key?.hash }, errorMessage);
         writeErrorResponse(req, res, 500, { error: errorMessage });
         return reject(errorMessage);
       }
@@ -251,7 +250,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     // Likely Bad Gateway or Gateway Timeout from upstream's reverse proxy
     const hash = req.key?.hash;
     const statusMessage = proxyRes.statusMessage || "Unknown error";
-    logger.warn({ statusCode, statusMessage, key: hash }, parseError.message);
+    req.log.warn({ statusCode, statusMessage, key: hash }, parseError.message);
 
     const errorObject = {
       statusCode,
@@ -268,7 +267,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     errorPayload.error?.type ||
     getAwsErrorType(proxyRes.headers["x-amzn-errortype"]);
 
-  logger.warn(
+  req.log.warn(
     { statusCode, type: errorType, errorPayload, key: req.key?.hash },
     `Received error response from upstream. (${proxyRes.statusMessage})`
   );

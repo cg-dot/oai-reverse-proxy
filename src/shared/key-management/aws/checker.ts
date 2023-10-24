@@ -182,7 +182,7 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     }
 
     this.log.debug(
-      { key: key.hash, errorType, data, status },
+      { key: key.hash, errorType, data, status, model },
       "Liveness test complete."
     );
   }

@@ -34,10 +34,6 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
     throw new Error("You must specify a model with your request.");
   }
 
-  // TODO: use separate middleware to deal with stream flags
-  req.isStreaming = req.body.stream === true || req.body.stream === "true";
-  req.body.stream = req.isStreaming;
-
   if (req.inboundApi === req.outboundApi) {
     assignedKey = keyPool.get(req.body.model);
   } else {

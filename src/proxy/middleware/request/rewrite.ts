@@ -14,6 +14,12 @@ export const createOnProxyReqHandler = ({
   pipeline,
 }: RewriterOptions): ProxyReqCallback => {
   return (proxyReq, req, res, options) => {
+    // The streaming flag must be set before any other middleware runs, because
+    // it may influence which other middleware a particular API pipeline wants
+    // to run.
+    req.isStreaming = req.body.stream === true || req.body.stream === "true";
+    req.body.stream = req.isStreaming;
+
     try {
       for (const validator of beforeRewrite) {
         validator(proxyReq, req, res, options);
