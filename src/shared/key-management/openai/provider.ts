@@ -221,15 +221,6 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
 
     const selectedKey = keysByPriority[0];
     selectedKey.lastUsed = now;
-
-    // When a key is selected, we rate-limit it for a brief period of time to
-    // prevent the queue processor from immediately flooding it with requests
-    // while the initial request is still being processed (which is when we will
-    // get new rate limit headers).
-    // Instead, we will let a request through every second until the key
-    // becomes fully saturated and locked out again.
-    selectedKey.rateLimitedAt = now;
-    selectedKey.rateLimitRequestsReset = KEY_REUSE_DELAY;
     return { ...selectedKey };
   }
 
@@ -383,20 +374,16 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     this.checker?.scheduleNextCheck();
   }
 
-  /** Writes key status to disk. */
-  // public writeKeyStatus() {
-  //   const keys = this.keys.map((key) => ({
-  //     key: key.key,
-  //     isGpt4: key.isGpt4,
-  //     usage: key.usage,
-  //     hardLimit: key.hardLimit,
-  //     isDisabled: key.isDisabled,
-  //   }));
-  //   fs.writeFileSync(
-  //     path.join(__dirname, "..", "keys.json"),
-  //     JSON.stringify(keys, null, 2)
-  //   );
-  // }
+  /**
+   * Called when a key is selected for a request, briefly disabling it to
+   * avoid spamming the API with requests while we wait to learn whether this
+   * key is already rate limited.
+   */
+  public throttle(hash: string) {
+    const key = this.keys.find((k) => k.hash === hash)!;
+    key.rateLimitedAt = Date.now();
+    key.rateLimitRequestsReset = KEY_REUSE_DELAY;
+  }
 }
 
 /**

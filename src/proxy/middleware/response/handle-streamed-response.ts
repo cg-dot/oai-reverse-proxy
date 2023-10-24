@@ -4,7 +4,7 @@ import { promisify } from "util";
 import {
   buildFakeSse,
   copySseResponseHeaders,
-  initializeSseStream
+  initializeSseStream,
 } from "../../../shared/streaming";
 import { enqueue } from "../../queue";
 import { decodeResponseBody, RawResponseBodyHandler, RetryableError } from ".";
@@ -83,7 +83,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     return aggregator.getFinalResponse();
   } catch (err) {
     if (err instanceof RetryableError) {
-      keyPool.markRateLimited(req.key!)
+      keyPool.markRateLimited(req.key!);
       req.log.warn(
         { key: req.key!.hash, retryCount: req.retryCount },
         `Re-enqueueing request due to retryable error during streaming response.`

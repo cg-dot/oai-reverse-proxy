@@ -37,13 +37,13 @@ export interface AwsBedrockKey extends Key, AwsBedrockKeyUsage {
  * Upon being rate limited, a key will be locked out for this many milliseconds
  * while we wait for other concurrent requests to finish.
  */
-const RATE_LIMIT_LOCKOUT = 1000;
+const RATE_LIMIT_LOCKOUT = 4000;
 /**
  * Upon assigning a key, we will wait this many milliseconds before allowing it
  * to be used again. This is to prevent the queue from flooding a key with too
  * many requests while we wait to learn whether previous ones succeeded.
  */
-const KEY_REUSE_DELAY = 500;
+const KEY_REUSE_DELAY = 250;
 
 export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
   readonly service = "aws";
@@ -131,11 +131,6 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
 
     const selectedKey = keysByPriority[0];
     selectedKey.lastUsed = now;
-    selectedKey.rateLimitedAt = now;
-    // Intended to throttle the queue processor as otherwise it will just
-    // flood the API with requests and we want to wait a sec to see if we're
-    // going to get a rate limit error on this key.
-    selectedKey.rateLimitedUntil = now + KEY_REUSE_DELAY;
     return { ...selectedKey };
   }
 
@@ -198,5 +193,12 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     this.keys.forEach(({ hash }) =>
       this.update(hash, { lastChecked: 0, isDisabled: false })
     );
+  }
+
+  public throttle(hash: string) {
+    const key = this.keys.find((k) => k.hash === hash)!;
+    const now = Date.now();
+    key.rateLimitedAt = now;
+    key.rateLimitedUntil = now + KEY_REUSE_DELAY;
   }
 }

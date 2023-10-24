@@ -3,6 +3,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import { v4 } from "uuid";
 import { config } from "../config";
 import { logger } from "../logger";
+import { keyPool } from "../shared/key-management";
 import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
@@ -134,6 +135,7 @@ const awsProxy = createQueueMiddleware(
     on: {
       proxyReq: createOnProxyReqHandler({
         pipeline: [
+          (_, req) => keyPool.throttle(req.key!),
           applyQuotaLimits,
           // Credentials are added by signAwsRequest preprocessor
           languageFilter,

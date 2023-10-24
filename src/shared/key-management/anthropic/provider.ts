@@ -153,11 +153,6 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
 
     const selectedKey = keysByPriority[0];
     selectedKey.lastUsed = now;
-    selectedKey.rateLimitedAt = now;
-    // Intended to throttle the queue processor as otherwise it will just
-    // flood the API with requests and we want to wait a sec to see if we're
-    // going to get a rate limit error on this key.
-    selectedKey.rateLimitedUntil = now + KEY_REUSE_DELAY;
     return { ...selectedKey };
   }
 
@@ -225,5 +220,12 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
       });
     });
     this.checker?.scheduleNextCheck();
+  }
+
+  public throttle(hash: string) {
+    const key = this.keys.find((k) => k.hash === hash)!;
+    const now = Date.now();
+    key.rateLimitedAt = now;
+    key.rateLimitedUntil = now + KEY_REUSE_DELAY;
   }
 }

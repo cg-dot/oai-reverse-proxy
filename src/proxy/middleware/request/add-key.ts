@@ -59,6 +59,7 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
     }
   }
 
+  keyPool.throttle(assignedKey);
   req.key = assignedKey;
   req.log.info(
     {
