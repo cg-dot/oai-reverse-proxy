@@ -8,6 +8,7 @@ import {
   setApiFormat,
   transformOutboundPayload,
 } from ".";
+import { ZodIssue } from "zod";
 
 type RequestPreprocessorOptions = {
   /**
@@ -66,14 +67,21 @@ async function executePreprocessors(
     }
     next();
   } catch (error) {
-    req.log.error(error, "Error while executing request preprocessor");
+    if (error.constructor.name === "ZodError") {
+      const msg = error?.issues
+        ?.map((issue: ZodIssue) => issue.message)
+        .join("; ");
+      req.log.info(msg, "Prompt validation failed.");
+    } else {
+      req.log.error(error, "Error while executing request preprocessor");
+    }
 
     // If the requested has opted into streaming, the client probably won't
     // handle a non-eventstream response, but we haven't initialized the SSE
     // stream yet as that is typically done later by the request queue. We'll
     // do that here and then call classifyErrorAndSend to use the streaming
     // error handler.
-    initializeSseStream(res)
+    initializeSseStream(res);
     classifyErrorAndSend(error as Error, req, res);
   }
 }
