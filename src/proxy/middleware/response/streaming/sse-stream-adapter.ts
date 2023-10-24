@@ -40,6 +40,7 @@ export class SSEStreamAdapter extends Transform {
   protected processAwsEvent(event: AwsEventStreamMessage): string | null {
     const { payload, headers } = event;
     if (headers[":message-type"] === "exception" || !payload.bytes) {
+      const eventStr = JSON.stringify(event);
       // Under high load, AWS can rugpull us by returning a 200 and starting the
       // stream but then immediately sending a rate limit error as the first
       // event. My guess is some race condition in their rate limiting check
@@ -47,18 +48,17 @@ export class SSEStreamAdapter extends Transform {
       // concurrency slot is available.
       if (headers[":exception-type"] === "throttlingException") {
         log.warn(
-          { event: JSON.stringify(event) },
+          { event: eventStr },
           "AWS request throttled after streaming has already started; retrying"
         );
         throw new RetryableError("AWS request throttled mid-stream");
+      } else {
+        log.error(
+          { event: eventStr },
+          "Received unexpected AWS event stream message"
+        );
+        return getFakeErrorCompletion("proxy AWS error", eventStr);
       }
-
-      log.error(
-        { event: JSON.stringify(event) },
-        "Received bad streaming event from AWS"
-      );
-      const message = JSON.stringify(event);
-      return getFakeErrorCompletion("proxy AWS error", message);
     } else {
       const { bytes } = payload;
       // technically this is a transformation but we don't really distinguish

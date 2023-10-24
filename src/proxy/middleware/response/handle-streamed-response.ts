@@ -11,6 +11,7 @@ import { decodeResponseBody, RawResponseBodyHandler, RetryableError } from ".";
 import { SSEStreamAdapter } from "./streaming/sse-stream-adapter";
 import { SSEMessageTransformer } from "./streaming/sse-message-transformer";
 import { EventAggregator } from "./streaming/event-aggregator";
+import { keyPool } from "../../../shared/key-management";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -61,7 +62,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
   const adapter = new SSEStreamAdapter({ contentType });
   const aggregator = new EventAggregator({ format: req.outboundApi });
   const transformer = new SSEMessageTransformer({
-    inputFormat: req.outboundApi, // outbound from the request's perspective
+    inputFormat: req.outboundApi,
     inputApiVersion: String(req.headers["anthropic-version"]),
     logger: req.log,
     requestId: String(req.id),
@@ -82,7 +83,8 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     return aggregator.getFinalResponse();
   } catch (err) {
     if (err instanceof RetryableError) {
-      req.log.info(
+      keyPool.markRateLimited(req.key!)
+      req.log.warn(
         { key: req.key!.hash, retryCount: req.retryCount },
         `Re-enqueueing request due to retryable error during streaming response.`
       );

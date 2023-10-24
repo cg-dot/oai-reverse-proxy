@@ -73,6 +73,7 @@ export class SSEMessageTransformer extends Transform {
       if (!transformedMessage) return callback();
 
       if (this.msgCount === 1) {
+        // TODO: does this need to be skipped for passthroughToOpenAI?
         this.push(createInitialMessage(transformedMessage));
       }
       this.push(transformedMessage);
