@@ -1,7 +1,7 @@
 import cookieParser from "cookie-parser";
 import expressSession from "express-session";
 import MemoryStore from "memorystore";
-import { COOKIE_SECRET } from "../config";
+import { config, COOKIE_SECRET } from "../config";
 
 const ONE_WEEK = 1000 * 60 * 60 * 24 * 7;
 
@@ -12,7 +12,12 @@ const sessionMiddleware = expressSession({
   resave: false,
   saveUninitialized: false,
   store: new (MemoryStore(expressSession))({ checkPeriod: ONE_WEEK }),
-  cookie: { sameSite: "strict", maxAge: ONE_WEEK, signed: true },
+  cookie: {
+    sameSite: "strict",
+    maxAge: ONE_WEEK,
+    signed: true,
+    secure: !config.useInsecureCookies,
+  },
 });
 
 const withSession = [cookieParserMiddleware, sessionMiddleware];

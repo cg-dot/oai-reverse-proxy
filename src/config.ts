@@ -152,6 +152,11 @@ type Config = {
   quotaRefreshPeriod?: "hourly" | "daily" | string;
   /** Whether to allow users to change their own nicknames via the UI. */
   allowNicknameChanges: boolean;
+  /**
+   * If true, cookies will be set without the `Secure` attribute, allowing
+   * the admin UI to used over HTTP.
+   */
+  useInsecureCookies: boolean;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -223,6 +228,7 @@ export const config: Config = {
   },
   quotaRefreshPeriod: getEnvWithDefault("QUOTA_REFRESH_PERIOD", undefined),
   allowNicknameChanges: getEnvWithDefault("ALLOW_NICKNAME_CHANGES", true),
+  useInsecureCookies: getEnvWithDefault("USE_INSECURE_COOKIES", false),
 } as const;
 
 function generateCookieSecret() {
@@ -326,6 +332,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "blockMessage",
   "blockRedirect",
   "allowNicknameChanges",
+  "useInsecureCookies",
 ];
 
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;
