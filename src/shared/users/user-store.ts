@@ -180,22 +180,33 @@ export function incrementTokenCount(
  * to the user's list of IPs. Returns the user if they exist and are not
  * disabled, otherwise returns undefined.
  */
-export function authenticate(token: string, ip: string) {
+export function authenticate(token: string, ip: string):
+  { user?: User; result: "success" | "disabled" | "not_found" | "limited" }
+  {
   const user = users.get(token);
-  if (!user || user.disabledAt) return;
-  if (!user.ip.includes(ip)) user.ip.push(ip);
-  
-  const configIpLimit = user.maxIps ?? config.maxIpsPerUser;
-  const ipLimit =
-    user.type === "special" || !configIpLimit ? Infinity : configIpLimit;
-  if (user.ip.length > ipLimit) {
-    disableUser(token, "IP address limit exceeded.");
-    return;
+  if (!user) return { result: "not_found" };
+  if (user.disabledAt) return { result: "disabled" };
+
+  const newIp = !user.ip.includes(ip);
+
+  const userLimit = user.maxIps ?? config.maxIpsPerUser;
+  const enforcedLimit =
+    user.type === "special" || !userLimit ? Infinity : userLimit;
+
+  if (newIp && user.ip.length >= enforcedLimit) {
+    if (config.maxIpsAutoBan) {
+      user.ip.push(ip);
+      disableUser(token, "IP address limit exceeded.");
+      return { result: "disabled" };
+    }
+    return { result: "limited" };
+  } else if (newIp) {
+    user.ip.push(ip);
   }
 
   user.lastUsedAt = Date.now();
   usersToFlush.add(token);
-  return user;
+  return { user, result: "success" };
 }
 
 export function hasAvailableQuota(
@@ -366,7 +377,7 @@ function getModelFamilyForQuotaUsage(model: string): ModelFamily {
   if (model.startsWith("claude")) {
     return "claude";
   }
-  if(model.startsWith("anthropic.claude")) {
+  if (model.startsWith("anthropic.claude")) {
     return "aws-claude";
   }
   throw new Error(`Unknown quota model family for model ${model}`);

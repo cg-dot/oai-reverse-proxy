@@ -46,6 +46,10 @@ router.post("/edit-nickname", (req, res) => {
     throw new ForbiddenError("Not logged in.");
   } else if (!config.allowNicknameChanges || existing.disabledAt) {
     throw new ForbiddenError("Nickname changes are not allowed.");
+  } else if (!config.maxIpsAutoBan && !existing.ip.includes(req.ip)) {
+    throw new ForbiddenError(
+      "Nickname changes are only allowed from registered IPs."
+    );
   }
 
   const schema = UserPartialSchema.pick({ nickname: true })

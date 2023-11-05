@@ -65,11 +65,16 @@ type Config = {
    */
   firebaseKey?: string;
   /**
-   * Maximum number of IPs per user, after which their token is disabled.
+   * Maximum number of IPs allowed per user token.
    * Users with the manually-assigned `special` role are exempt from this limit.
    * - Defaults to 0, which means that users are not IP-limited.
    */
   maxIpsPerUser: number;
+  /**
+   * Whether a user token should be automatically disabled if it exceeds the
+   * `maxIpsPerUser` limit, or if only connections from new IPs are be rejected.
+   */
+  maxIpsAutoBan: boolean;
   /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
   modelRateLimit: number;
   /**
@@ -172,6 +177,7 @@ export const config: Config = {
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
   gatekeeperStore: getEnvWithDefault("GATEKEEPER_STORE", "memory"),
   maxIpsPerUser: getEnvWithDefault("MAX_IPS_PER_USER", 0),
+  maxIpsAutoBan: getEnvWithDefault("MAX_IPS_AUTO_BAN", true),
   firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
   firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
