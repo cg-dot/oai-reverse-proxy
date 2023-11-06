@@ -287,18 +287,12 @@ function getOpenAIInfo() {
       const tokens = modelStats.get(`${f}__tokens`) || 0;
       const cost = getTokenCostUsd(f, tokens);
 
-      const active = modelStats.get(`${f}__active`) || 0;
-      const trial = modelStats.get(`${f}__trial`) || 0;
-      const revoked = modelStats.get(`${f}__revoked`) || 0;
-      const overQuota = modelStats.get(`${f}__overQuota`) || 0;
-      if (active + trial + revoked + overQuota === 0) return;
-
       info[f] = {
         usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
-        activeKeys: active,
-        trialKeys: trial,
-        revokedKeys: revoked,
-        overQuotaKeys: overQuota,
+        activeKeys: modelStats.get(`${f}__active`) || 0,
+        trialKeys: modelStats.get(`${f}__trial`) || 0,
+        revokedKeys: modelStats.get(`${f}__revoked`) || 0,
+        overQuotaKeys: modelStats.get(`${f}__overQuota`) || 0,
       };
     });
   } else {
