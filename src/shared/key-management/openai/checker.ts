@@ -2,6 +2,7 @@ import axios, { AxiosError } from "axios";
 import type { OpenAIModelFamily } from "../../models";
 import { KeyCheckerBase } from "../key-checker-base";
 import type { OpenAIKey, OpenAIKeyProvider } from "./provider";
+import { getOpenAIModelFamily } from "../../models";
 
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
 const KEY_CHECK_PERIOD = 60 * 60 * 1000; // 1 hour
@@ -94,29 +95,21 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
     const { data } = await axios.get<GetModelsResponse>(GET_MODELS_URL, opts);
     const models = data.data;
 
-    const families: OpenAIModelFamily[] = [];
-    if (models.some(({ id }) => id.startsWith("gpt-3.5-turbo"))) {
-      families.push("turbo");
-    }
-
-    if (models.some(({ id }) => id.startsWith("gpt-4"))) {
-      families.push("gpt4");
-    }
-
-    if (models.some(({ id }) => id.startsWith("gpt-4-32k"))) {
-      families.push("gpt4-32k");
-    }
+    // const families: OpenAIModelFamily[] = [];
+    const families = new Set<OpenAIModelFamily>();
+    models.forEach(({ id }) => families.add(getOpenAIModelFamily(id, "turbo")));
 
     // We want to update the key's model families here, but we don't want to
     // update its `lastChecked` timestamp because we need to let the liveness
     // check run before we can consider the key checked.
 
+    const familiesArray = [...families];
     const keyFromPool = this.keys.find((k) => k.hash === key.hash)!;
     this.updateKey(key.hash, {
-      modelFamilies: families,
+      modelFamilies: familiesArray,
       lastChecked: keyFromPool.lastChecked,
     });
-    return families;
+    return familiesArray;
   }
 
   private async maybeCreateOrganizationClones(key: OpenAIKey) {

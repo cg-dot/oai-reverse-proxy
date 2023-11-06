@@ -5,6 +5,9 @@ import { ModelFamily } from "./models";
 export function getTokenCostUsd(model: ModelFamily, tokens: number) {
   let cost = 0;
   switch (model) {
+    case "gpt4-turbo":
+      cost = 0.00001;
+      break;
     case "gpt4-32k":
       cost = 0.00006;
       break;
@@ -12,7 +15,7 @@ export function getTokenCostUsd(model: ModelFamily, tokens: number) {
       cost = 0.00003;
       break;
     case "turbo":
-      cost = 0.0000015;
+      cost = 0.000001;
       break;
     case "aws-claude":
     case "claude":

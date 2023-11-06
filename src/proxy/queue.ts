@@ -211,6 +211,7 @@ function processQueue() {
 
   // TODO: `getLockoutPeriod` uses model names instead of model families
   // TODO: genericize this it's really ugly
+  const gpt4TurboLockout = keyPool.getLockoutPeriod("gpt-4-1106");
   const gpt432kLockout = keyPool.getLockoutPeriod("gpt-4-32k");
   const gpt4Lockout = keyPool.getLockoutPeriod("gpt-4");
   const turboLockout = keyPool.getLockoutPeriod("gpt-3.5-turbo");
@@ -219,6 +220,9 @@ function processQueue() {
   const awsClaudeLockout = keyPool.getLockoutPeriod("anthropic.claude-v2");
 
   const reqs: (Request | undefined)[] = [];
+  if (gpt4TurboLockout === 0) {
+    reqs.push(dequeue("gpt4-turbo"));
+  }
   if (gpt432kLockout === 0) {
     reqs.push(dequeue("gpt4-32k"));
   }

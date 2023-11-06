@@ -14,6 +14,7 @@ export type OpenAIModel =
   | "gpt-3.5-turbo-instruct"
   | "gpt-4"
   | "gpt-4-32k"
+  | "gpt-4-1106"
   | "text-embedding-ada-002";
 export const OPENAI_SUPPORTED_MODELS: readonly OpenAIModel[] = [
   "gpt-3.5-turbo",
@@ -98,7 +99,11 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
       const newKey: OpenAIKey = {
         key: k,
         service: "openai" as const,
-        modelFamilies: ["turbo" as const, "gpt4" as const],
+        modelFamilies: [
+          "turbo" as const,
+          "gpt4" as const,
+          "gpt4-turbo" as const,
+        ],
         isTrial: false,
         isDisabled: false,
         isRevoked: false,
@@ -117,6 +122,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         turboTokens: 0,
         gpt4Tokens: 0,
         "gpt4-32kTokens": 0,
+        "gpt4-turboTokens": 0,
       };
       this.keys.push(newKey);
     }
@@ -383,10 +389,9 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     const now = Date.now();
     const key = this.keys.find((k) => k.hash === hash)!;
 
-    const currentRateLimit = Math.max(
-      key.rateLimitRequestsReset,
-      key.rateLimitTokensReset
-    ) + key.rateLimitedAt;
+    const currentRateLimit =
+      Math.max(key.rateLimitRequestsReset, key.rateLimitTokensReset) +
+      key.rateLimitedAt;
     const nextRateLimit = now + KEY_REUSE_DELAY;
 
     // Don't throttle if the key is already naturally rate limited.

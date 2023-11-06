@@ -65,6 +65,7 @@ const OpenAIV1ChatCompletionSchema = z.object({
   presence_penalty: z.number().optional().default(0),
   logit_bias: z.any().optional(),
   user: z.string().optional(),
+  seed: z.number().int().optional(),
 });
 
 const OpenAIV1TextCompletionSchema = z

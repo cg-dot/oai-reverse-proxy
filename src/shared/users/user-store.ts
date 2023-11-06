@@ -21,6 +21,7 @@ const INITIAL_TOKENS: Required<UserTokenCounts> = {
   turbo: 0,
   gpt4: 0,
   "gpt4-32k": 0,
+  "gpt4-turbo": 0,
   claude: 0,
   bison: 0,
   "aws-claude": 0,
@@ -362,6 +363,9 @@ async function flushUsers() {
 
 // TODO: use key-management/models.ts for family mapping
 function getModelFamilyForQuotaUsage(model: string): ModelFamily {
+  if (model.startsWith("gpt-4-1106")) {
+    return "gpt4-turbo";
+  }
   if (model.includes("32k")) {
     return "gpt4-32k";
   }

@@ -181,14 +181,14 @@ export const config: Config = {
   firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
   firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
   modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
-  maxContextTokensOpenAI: getEnvWithDefault("MAX_CONTEXT_TOKENS_OPENAI", 0),
+  maxContextTokensOpenAI: getEnvWithDefault("MAX_CONTEXT_TOKENS_OPENAI", 16384),
   maxContextTokensAnthropic: getEnvWithDefault(
     "MAX_CONTEXT_TOKENS_ANTHROPIC",
     0
   ),
   maxOutputTokensOpenAI: getEnvWithDefault(
     ["MAX_OUTPUT_TOKENS_OPENAI", "MAX_OUTPUT_TOKENS"],
-    300
+    400
   ),
   maxOutputTokensAnthropic: getEnvWithDefault(
     ["MAX_OUTPUT_TOKENS_ANTHROPIC", "MAX_OUTPUT_TOKENS"],
@@ -198,6 +198,7 @@ export const config: Config = {
     "turbo",
     "gpt4",
     "gpt4-32k",
+    "gpt4-turbo",
     "claude",
     "bison",
     "aws-claude",
@@ -228,6 +229,7 @@ export const config: Config = {
     turbo: getEnvWithDefault("TOKEN_QUOTA_TURBO", 0),
     gpt4: getEnvWithDefault("TOKEN_QUOTA_GPT4", 0),
     "gpt4-32k": getEnvWithDefault("TOKEN_QUOTA_GPT4_32K", 0),
+    "gpt4-turbo": getEnvWithDefault("TOKEN_QUOTA_GPT4_TURBO", 0),
     claude: getEnvWithDefault("TOKEN_QUOTA_CLAUDE", 0),
     bison: getEnvWithDefault("TOKEN_QUOTA_BISON", 0),
     "aws-claude": getEnvWithDefault("TOKEN_QUOTA_AWS_CLAUDE", 0),
@@ -250,15 +252,6 @@ function generateCookieSecret() {
 export const COOKIE_SECRET = generateCookieSecret();
 
 export async function assertConfigIsValid() {
-  if (process.env.TURBO_ONLY === "true") {
-    startupLogger.warn(
-      "TURBO_ONLY is deprecated. Use ALLOWED_MODEL_FAMILIES=turbo instead."
-    );
-    config.allowedModelFamilies = config.allowedModelFamilies.filter(
-      (f) => !f.includes("gpt4")
-    );
-  }
-
   if (!["none", "proxy_key", "user_token"].includes(config.gatekeeper)) {
     throw new Error(
       `Invalid gatekeeper mode: ${config.gatekeeper}. Must be one of: none, proxy_key, user_token.`

@@ -42,6 +42,8 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
   let modelMax: number;
   if (model.match(/gpt-3.5-turbo-16k/)) {
     modelMax = 16384;
+  } else if (model.match(/gpt-4-1106(-preview)?/)) {
+    modelMax = 131072;
   } else if (model.match(/gpt-3.5-turbo/)) {
     modelMax = 4096;
   } else if (model.match(/gpt-4-32k/)) {
@@ -60,8 +62,6 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     // Not sure if AWS Claude has the same context limit as Anthropic Claude.
     modelMax = 100000;
   } else {
-    // Don't really want to throw here because I don't want to have to update
-    // this ASAP every time a new model is released.
     req.log.warn({ model }, "Unknown model, using 100k token limit.");
     modelMax = 100000;
   }

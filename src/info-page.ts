@@ -192,7 +192,9 @@ function addKeyToAggregates(k: KeyPoolKey) {
         increment(modelStats, `${f}__tokens`, tokens);
       });
 
-      if (families.includes("gpt4-32k")) {
+      if (families.includes("gpt4-turbo")) {
+        family = "gpt4-turbo";
+      } else if (families.includes("gpt4-32k")) {
         family = "gpt4-32k";
       } else if (families.includes("gpt4")) {
         family = "gpt4";
@@ -285,12 +287,18 @@ function getOpenAIInfo() {
       const tokens = modelStats.get(`${f}__tokens`) || 0;
       const cost = getTokenCostUsd(f, tokens);
 
+      const active = modelStats.get(`${f}__active`) || 0;
+      const trial = modelStats.get(`${f}__trial`) || 0;
+      const revoked = modelStats.get(`${f}__revoked`) || 0;
+      const overQuota = modelStats.get(`${f}__overQuota`) || 0;
+      if (active + trial + revoked + overQuota === 0) return;
+
       info[f] = {
         usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
-        activeKeys: modelStats.get(`${f}__active`) || 0,
-        trialKeys: modelStats.get(`${f}__trial`) || 0,
-        revokedKeys: modelStats.get(`${f}__revoked`) || 0,
-        overQuotaKeys: modelStats.get(`${f}__overQuota`) || 0,
+        activeKeys: active,
+        trialKeys: trial,
+        revokedKeys: revoked,
+        overQuotaKeys: overQuota,
       };
     });
   } else {

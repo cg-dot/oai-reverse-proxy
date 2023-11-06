@@ -1,6 +1,6 @@
 import { logger } from "../logger";
 
-export type OpenAIModelFamily = "turbo" | "gpt4" | "gpt4-32k";
+export type OpenAIModelFamily = "turbo" | "gpt4" | "gpt4-32k" | "gpt4-turbo";
 export type AnthropicModelFamily = "claude";
 export type GooglePalmModelFamily = "bison";
 export type AwsBedrockModelFamily = "aws-claude";
@@ -16,12 +16,14 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "turbo",
   "gpt4",
   "gpt4-32k",
+  "gpt4-turbo",
   "claude",
   "bison",
   "aws-claude",
 ] as const);
 
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
+  "^gpt-4-1106(-preview)?$": "gpt4-turbo",
   "^gpt-4-32k-\\d{4}$": "gpt4-32k",
   "^gpt-4-32k$": "gpt4-32k",
   "^gpt-4-\\d{4}$": "gpt4",
@@ -30,13 +32,14 @@ export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^text-embedding-ada-002$": "turbo",
 };
 
-export function getOpenAIModelFamily(model: string): OpenAIModelFamily {
+export function getOpenAIModelFamily(
+  model: string,
+  defaultFamily: OpenAIModelFamily = "gpt4"
+): OpenAIModelFamily {
   for (const [regex, family] of Object.entries(OPENAI_MODEL_FAMILY_MAP)) {
     if (model.match(regex)) return family;
   }
-  const stack = new Error().stack;
-  logger.warn({ model, stack }, "Unmapped model family");
-  return "gpt4";
+  return defaultFamily;
 }
 
 export function getClaudeModelFamily(_model: string): ModelFamily {
