@@ -234,7 +234,7 @@ export const config: Config = {
   },
   quotaRefreshPeriod: getEnvWithDefault("QUOTA_REFRESH_PERIOD", undefined),
   allowNicknameChanges: getEnvWithDefault("ALLOW_NICKNAME_CHANGES", true),
-  useInsecureCookies: getEnvWithDefault("USE_INSECURE_COOKIES", false),
+  useInsecureCookies: getEnvWithDefault("USE_INSECURE_COOKIES", isDev),
 } as const;
 
 function generateCookieSecret() {
