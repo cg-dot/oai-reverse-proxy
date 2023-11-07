@@ -169,12 +169,12 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     );
 
     if (availableKeys.length === 0) {
-      throw new Error(`No active keys available for ${neededFamily} models.`);
+      throw new Error(`No keys available for model family '${neededFamily}'.`);
     }
 
     if (!config.allowedModelFamilies.includes(neededFamily)) {
       throw new Error(
-        `Proxy operator has disabled access to ${neededFamily} models.`
+        `Proxy operator has disabled model family '${neededFamily}'.`
       );
     }
 
@@ -250,6 +250,8 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         ...keyFromPool,
         organizationId: orgId,
         isDisabled: false,
+        isRevoked: false,
+        isOverQuota: false,
         hash: `oai-${crypto
           .createHash("sha256")
           .update(keyFromPool.key + orgId)
@@ -306,7 +308,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         key.rateLimitRequestsReset,
         key.rateLimitTokensReset
       );
-      return now < key.rateLimitedAt + Math.min(10000, resetTime)
+      return now < key.rateLimitedAt + Math.min(10000, resetTime);
     }).length;
     const anyNotRateLimited = rateLimitedKeys < activeKeys.length;
 

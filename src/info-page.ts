@@ -169,8 +169,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
 
   let sumTokens = 0;
   let sumCost = 0;
-  let family: ModelFamily;
-  const families = k.modelFamilies.filter((f) =>
+  const enabledFamilies = k.modelFamilies.filter((f) =>
     config.allowedModelFamilies.includes(f)
   );
 
@@ -190,23 +189,15 @@ function addKeyToAggregates(k: KeyPoolKey) {
         sumTokens += tokens;
         sumCost += getTokenCostUsd(f, tokens);
         increment(modelStats, `${f}__tokens`, tokens);
+        increment(modelStats, `${f}__trial`, k.isTrial ? 1 : 0);
+        increment(modelStats, `${f}__revoked`, k.isRevoked ? 1 : 0);
+        increment(modelStats, `${f}__overQuota`, k.isOverQuota ? 1 : 0);
+        increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
       });
-
-      if (families.includes("gpt4-turbo")) {
-        family = "gpt4-turbo";
-      } else if (families.includes("gpt4-32k")) {
-        family = "gpt4-32k";
-      } else if (families.includes("gpt4")) {
-        family = "gpt4";
-      } else {
-        family = "turbo";
-      }
-
-      increment(modelStats, `${family}__trial`, k.isTrial ? 1 : 0);
       break;
-    case "anthropic":
+    case "anthropic": {
       if (!keyIsAnthropicKey(k)) throw new Error("Invalid key type");
-      family = "claude";
+      const family = "claude";
       sumTokens += k.claudeTokens;
       sumCost += getTokenCostUsd(family, k.claudeTokens);
       increment(modelStats, `${family}__tokens`, k.claudeTokens);
@@ -217,16 +208,18 @@ function addKeyToAggregates(k: KeyPoolKey) {
         Boolean(k.lastChecked) ? 0 : 1
       );
       break;
-    case "google-palm":
+    }
+    case "google-palm": {
       if (!keyIsGooglePalmKey(k)) throw new Error("Invalid key type");
-      family = "bison";
+      const family = "bison";
       sumTokens += k.bisonTokens;
       sumCost += getTokenCostUsd(family, k.bisonTokens);
       increment(modelStats, `${family}__tokens`, k.bisonTokens);
       break;
-    case "aws":
+    }
+    case "aws": {
       if (!keyIsAwsKey(k)) throw new Error("Invalid key type");
-      family = "aws-claude";
+      const family = "aws-claude";
       sumTokens += k["aws-claudeTokens"];
       sumCost += getTokenCostUsd(family, k["aws-claudeTokens"]);
       increment(modelStats, `${family}__tokens`, k["aws-claudeTokens"]);
@@ -238,19 +231,15 @@ function addKeyToAggregates(k: KeyPoolKey) {
       increment(modelStats, `${family}__awsLogged`, countAsLogged ? 1 : 0);
 
       break;
+    }
     default:
       assertNever(k.service);
   }
 
+  console.log(modelStats);
+
   increment(serviceStats, "tokens", sumTokens);
   increment(serviceStats, "tokenCost", sumCost);
-  increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
-  if ("isRevoked" in k) {
-    increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
-  }
-  if ("isOverQuota" in k) {
-    increment(modelStats, `${family}__overQuota`, k.isOverQuota ? 1 : 0);
-  }
 }
 
 function getOpenAIInfo() {
@@ -266,14 +255,15 @@ function getOpenAIInfo() {
     };
   } = {};
 
-  const allowedFamilies = new Set(config.allowedModelFamilies);
-  let families = new Set<OpenAIModelFamily>();
-  const keys = keyPool.list().filter((k) => {
-    const isOpenAI = keyIsOpenAIKey(k);
-    if (isOpenAI) k.modelFamilies.forEach((f) => families.add(f));
-    return isOpenAI;
-  }) as Omit<OpenAIKey, "key">[];
-  families = new Set([...families].filter((f) => allowedFamilies.has(f)));
+  const keys = keyPool.list().filter(keyIsOpenAIKey);
+  const enabledFamilies = new Set(config.allowedModelFamilies);
+  const accessibleFamilies = keyPool
+    .list()
+    .filter(keyIsOpenAIKey)
+    .flatMap((k) => k.modelFamilies)
+    .filter((f) => enabledFamilies.has(f))
+    .concat("turbo");
+  const familySet = new Set(accessibleFamilies);
 
   if (config.checkKeys) {
     const unchecked = serviceStats.get("openAiUncheckedKeys") || 0;
@@ -283,7 +273,7 @@ function getOpenAIInfo() {
     info.openaiKeys = keys.length;
     info.openaiOrgs = getUniqueOpenAIOrgs(keys);
 
-    families.forEach((f) => {
+    familySet.forEach((f) => {
       const tokens = modelStats.get(`${f}__tokens`) || 0;
       const cost = getTokenCostUsd(f, tokens);
 
@@ -294,6 +284,13 @@ function getOpenAIInfo() {
         revokedKeys: modelStats.get(`${f}__revoked`) || 0,
         overQuotaKeys: modelStats.get(`${f}__overQuota`) || 0,
       };
+
+      // Don't show trial/revoked keys for non-turbo families.
+      // Generally those stats only make sense for the lowest-tier model.
+      if (f !== "turbo") {
+        delete info[f]!.trialKeys;
+        delete info[f]!.revokedKeys;
+      }
     });
   } else {
     info.status = "Key checking is disabled.";
@@ -305,11 +302,13 @@ function getOpenAIInfo() {
     };
   }
 
-  families.forEach((f) => {
-    if (info[f]) {
+  familySet.forEach((f) => {
+    if (enabledFamilies.has(f)) {
       const { estimatedQueueTime, proomptersInQueue } = getQueueInformation(f);
       info[f]!.proomptersInQueue = proomptersInQueue;
       info[f]!.estimatedQueueTime = estimatedQueueTime;
+    } else {
+      (info[f]! as any).status = "GPT-3.5-Turbo is disabled on this proxy.";
     }
   });
 
