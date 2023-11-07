@@ -65,6 +65,10 @@ export interface OpenAIKey extends Key, OpenAIKeyUsage {
    * tokens.
    */
   rateLimitTokensReset: number;
+  /**
+   * This key's maximum request rate for GPT-4, per minute.
+   */
+  gpt4Rpm: number;
 }
 
 export type OpenAIKeyUpdate = Omit<
@@ -123,6 +127,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         gpt4Tokens: 0,
         "gpt4-32kTokens": 0,
         "gpt4-turboTokens": 0,
+        gpt4Rpm: 0,
       };
       this.keys.push(newKey);
     }
@@ -301,7 +306,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         key.rateLimitRequestsReset,
         key.rateLimitTokensReset
       );
-      return now < key.rateLimitedAt + resetTime;
+      return now < key.rateLimitedAt + Math.min(10000, resetTime)
     }).length;
     const anyNotRateLimited = rateLimitedKeys < activeKeys.length;
 
@@ -310,14 +315,16 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     }
 
     // If all keys are rate-limited, return the time until the first key is
-    // ready.
+    // ready. We don't want to wait longer than 10 seconds because rate limits
+    // are a rolling window and keys may become available sooner than the stated
+    // reset time.
     return Math.min(
       ...activeKeys.map((key) => {
         const resetTime = Math.max(
           key.rateLimitRequestsReset,
           key.rateLimitTokensReset
         );
-        return key.rateLimitedAt + resetTime - now;
+        return key.rateLimitedAt + Math.min(10000, resetTime) - now;
       })
     );
   }
@@ -340,30 +347,16 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     const requestsReset = headers["x-ratelimit-reset-requests"];
     const tokensReset = headers["x-ratelimit-reset-tokens"];
 
-    // Sometimes OpenAI only sends one of the two rate limit headers, it's
-    // unclear why.
-
-    if (requestsReset && typeof requestsReset === "string") {
-      this.log.debug(
-        { key: key.hash, requestsReset },
-        `Updating rate limit requests reset time`
-      );
+    if (typeof requestsReset === "string") {
       key.rateLimitRequestsReset = getResetDurationMillis(requestsReset);
     }
 
-    if (tokensReset && typeof tokensReset === "string") {
-      this.log.debug(
-        { key: key.hash, tokensReset },
-        `Updating rate limit tokens reset time`
-      );
+    if (typeof tokensReset === "string") {
       key.rateLimitTokensReset = getResetDurationMillis(tokensReset);
     }
 
     if (!requestsReset && !tokensReset) {
-      this.log.warn(
-        { key: key.hash },
-        `No rate limit headers in OpenAI response; skipping update`
-      );
+      this.log.warn({ key: key.hash }, `No ratelimit headers; skipping update`);
       return;
     }
   }
@@ -402,19 +395,44 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
   }
 }
 
+// wip
+function calculateRequestsPerMinute(headers: http.IncomingHttpHeaders) {
+  const requestsLimit = headers["x-ratelimit-limit-requests"];
+  const requestsReset = headers["x-ratelimit-reset-requests"];
+
+  if (typeof requestsLimit !== "string" || typeof requestsReset !== "string") {
+    return 0;
+  }
+
+  const limit = parseInt(requestsLimit, 10);
+  const reset = getResetDurationMillis(requestsReset);
+
+  // If `reset` is less than one minute, OpenAI specifies the `limit` as an
+  // integer representing requests per minute.  Otherwise it actually means the
+  // requests per day.
+  const isPerMinute = reset < 60000;
+  if (isPerMinute) return limit;
+  return limit / 1440;
+}
+
 /**
- * Converts reset string ("21.0032s" or "21ms") to a number of milliseconds.
- * Result is clamped to 10s even though the API returns up to 60s, because the
- * API returns the time until the entire quota is reset, even if a key may be
- * able to fulfill requests before then due to partial resets.
+ * Converts reset string ("14m25s", "21.0032s", "14ms" or "21ms") to a number of
+ * milliseconds.
  **/
 function getResetDurationMillis(resetDuration?: string): number {
-  const match = resetDuration?.match(/(\d+(\.\d+)?)(s|ms)/);
+  const match = resetDuration?.match(
+    /(?:(\d+)m(?!s))?(?:(\d+(?:\.\d+)?)s)?(?:(\d+)ms)?/
+  );
+
   if (match) {
-    const [, time, , unit] = match;
-    const value = parseFloat(time);
-    const result = unit === "s" ? value * 1000 : value;
-    return Math.min(result, 10000);
+    const [, minutes, seconds, milliseconds] = match.map(Number);
+
+    const minutesToMillis = (minutes || 0) * 60 * 1000;
+    const secondsToMillis = (seconds || 0) * 1000;
+    const millisecondsValue = milliseconds || 0;
+
+    return minutesToMillis + secondsToMillis + millisecondsValue;
   }
+
   return 0;
 }

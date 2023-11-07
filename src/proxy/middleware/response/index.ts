@@ -469,8 +469,14 @@ function handleOpenAIRateLimitError(
       break;
     case "requests":
     case "tokens":
-      // Per-minute request or token rate limit is exceeded, which we can retry
       keyPool.markRateLimited(req.key!);
+      if (errorPayload.error?.message?.match(/on requests per day/)) {
+        // This key has a very low rate limit, so we can't re-enqueue it.
+        errorPayload.proxy_note = `Assigned key has reached its per-day request limit for this model. Try another model.`;
+        break;
+      }
+
+      // Per-minute request or token rate limit is exceeded, which we can retry
       reenqueueRequest(req);
       throw new RetryableError("Rate-limited request re-enqueued.");
     default:
