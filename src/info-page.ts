@@ -169,9 +169,6 @@ function addKeyToAggregates(k: KeyPoolKey) {
 
   let sumTokens = 0;
   let sumCost = 0;
-  const enabledFamilies = k.modelFamilies.filter((f) =>
-    config.allowedModelFamilies.includes(f)
-  );
 
   switch (k.service) {
     case "openai":
@@ -200,6 +197,8 @@ function addKeyToAggregates(k: KeyPoolKey) {
       const family = "claude";
       sumTokens += k.claudeTokens;
       sumCost += getTokenCostUsd(family, k.claudeTokens);
+      increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
+      increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
       increment(modelStats, `${family}__tokens`, k.claudeTokens);
       increment(modelStats, `${family}__pozzed`, k.isPozzed ? 1 : 0);
       increment(
@@ -214,6 +213,8 @@ function addKeyToAggregates(k: KeyPoolKey) {
       const family = "bison";
       sumTokens += k.bisonTokens;
       sumCost += getTokenCostUsd(family, k.bisonTokens);
+      increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
+      increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
       increment(modelStats, `${family}__tokens`, k.bisonTokens);
       break;
     }
@@ -222,6 +223,8 @@ function addKeyToAggregates(k: KeyPoolKey) {
       const family = "aws-claude";
       sumTokens += k["aws-claudeTokens"];
       sumCost += getTokenCostUsd(family, k["aws-claudeTokens"]);
+      increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
+      increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
       increment(modelStats, `${family}__tokens`, k["aws-claudeTokens"]);
 
       // Ignore revoked keys for aws logging stats, but include keys where the
@@ -235,8 +238,6 @@ function addKeyToAggregates(k: KeyPoolKey) {
     default:
       assertNever(k.service);
   }
-
-  console.log(modelStats);
 
   increment(serviceStats, "tokens", sumTokens);
   increment(serviceStats, "tokenCost", sumCost);
@@ -288,6 +289,7 @@ function getOpenAIInfo() {
       // Don't show trial/revoked keys for non-turbo families.
       // Generally those stats only make sense for the lowest-tier model.
       if (f !== "turbo") {
+        console.log("deleting", f);
         delete info[f]!.trialKeys;
         delete info[f]!.revokedKeys;
       }
@@ -319,6 +321,7 @@ function getAnthropicInfo() {
   const claudeInfo: Partial<ModelAggregates> = {
     active: modelStats.get("claude__active") || 0,
     pozzed: modelStats.get("claude__pozzed") || 0,
+    revoked: modelStats.get("claude__revoked") || 0,
   };
 
   const queue = getQueueInformation("claude");
@@ -336,6 +339,7 @@ function getAnthropicInfo() {
       usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
       ...(unchecked > 0 ? { status: `Checking ${unchecked} keys...` } : {}),
       activeKeys: claudeInfo.active,
+      revokedKeys: claudeInfo.revoked,
       ...(config.checkKeys ? { pozzedKeys: claudeInfo.pozzed } : {}),
       proomptersInQueue: claudeInfo.queued,
       estimatedQueueTime: claudeInfo.queueTime,
@@ -346,6 +350,7 @@ function getAnthropicInfo() {
 function getPalmInfo() {
   const bisonInfo: Partial<ModelAggregates> = {
     active: modelStats.get("bison__active") || 0,
+    revoked: modelStats.get("bison__revoked") || 0,
   };
 
   const queue = getQueueInformation("bison");
@@ -358,6 +363,7 @@ function getPalmInfo() {
   return {
     usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
     activeKeys: bisonInfo.active,
+    revokedKeys: bisonInfo.revoked,
     proomptersInQueue: bisonInfo.queued,
     estimatedQueueTime: bisonInfo.queueTime,
   };
@@ -366,6 +372,7 @@ function getPalmInfo() {
 function getAwsInfo() {
   const awsInfo: Partial<ModelAggregates> = {
     active: modelStats.get("aws-claude__active") || 0,
+    revoked: modelStats.get("aws-claude__revoked") || 0,
   };
 
   const queue = getQueueInformation("aws-claude");
@@ -383,6 +390,7 @@ function getAwsInfo() {
   return {
     usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
     activeKeys: awsInfo.active,
+    revokedKeys: awsInfo.revoked,
     proomptersInQueue: awsInfo.queued,
     estimatedQueueTime: awsInfo.queueTime,
     ...(logged > 0 ? { privacy: logMsg } : {}),
