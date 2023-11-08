@@ -258,9 +258,7 @@ function getOpenAIInfo() {
 
   const keys = keyPool.list().filter(keyIsOpenAIKey);
   const enabledFamilies = new Set(config.allowedModelFamilies);
-  const accessibleFamilies = keyPool
-    .list()
-    .filter(keyIsOpenAIKey)
+  const accessibleFamilies = keys
     .flatMap((k) => k.modelFamilies)
     .filter((f) => enabledFamilies.has(f))
     .concat("turbo");
