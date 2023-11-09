@@ -6,8 +6,6 @@ import { UserInputError } from "../../../shared/errors";
 
 const rejectedClients = new Map<string, number>();
 
-console.log(config.rejectPhrases);
-
 setInterval(() => {
   rejectedClients.forEach((count, ip) => {
     if (count > 0) {
