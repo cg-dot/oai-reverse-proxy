@@ -21,7 +21,6 @@ import {
   createPreprocessorMiddleware,
   finalizeBody,
   forceModel,
-  languageFilter,
   limitCompletions,
   stripHeaders,
   createOnProxyReqHandler,
@@ -175,7 +174,6 @@ const openaiProxy = createQueueMiddleware({
         pipeline: [
           applyQuotaLimits,
           addKey,
-          languageFilter,
           limitCompletions,
           blockZoomerOrigins,
           stripHeaders,

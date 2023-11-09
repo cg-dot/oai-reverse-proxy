@@ -13,7 +13,6 @@ import {
   signAwsRequest,
   finalizeAwsRequest,
   createOnProxyReqHandler,
-  languageFilter,
   blockZoomerOrigins,
 } from "./middleware/request";
 import {
@@ -134,7 +133,6 @@ const awsProxy = createQueueMiddleware({
       proxyReq: createOnProxyReqHandler({
         pipeline: [
           applyQuotaLimits,
-          languageFilter,
           blockZoomerOrigins,
           stripHeaders,
           finalizeAwsRequest,

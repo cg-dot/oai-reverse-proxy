@@ -95,10 +95,10 @@ type Config = {
   maxOutputTokensOpenAI: number;
   /** For Anthropic, the maximum number of sampled tokens a user can request. */
   maxOutputTokensAnthropic: number;
-  /** Whether requests containing disallowed characters should be rejected. */
-  rejectDisallowed?: boolean;
+  /** Whether requests containing the following phrases should be rejected. */
+  rejectPhrases: string[];
   /** Message to return when rejecting requests. */
-  rejectMessage?: string;
+  rejectMessage: string;
   /** Verbosity level of diagnostic logging. */
   logLevel: "trace" | "debug" | "info" | "warn" | "error";
   /**
@@ -203,7 +203,7 @@ export const config: Config = {
     "bison",
     "aws-claude",
   ]),
-  rejectDisallowed: getEnvWithDefault("REJECT_DISALLOWED", false),
+  rejectPhrases: parseCsv(getEnvWithDefault("REJECT_PHRASES", "")),
   rejectMessage: getEnvWithDefault(
     "REJECT_MESSAGE",
     "This content violates /aicg/'s acceptable use policy."
@@ -321,6 +321,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "proxyKey",
   "adminKey",
   "checkKeys",
+  "rejectPhrases",
   "showTokenCosts",
   "googleSheetsKey",
   "firebaseKey",
@@ -420,4 +421,12 @@ export function getFirebaseApp(): firebase.app.App {
     throw new Error("Firebase app not initialized.");
   }
   return firebaseApp;
+}
+
+function parseCsv(val: string): string[] {
+  if (!val) return [];
+
+  const regex = /(".*?"|[^",]+)(?=\s*,|\s*$)/g;
+  const matches = val.match(regex) || [];
+  return matches.map(item => item.replace(/^"|"$/g, '').trim());
 }

@@ -12,7 +12,6 @@ import {
   blockZoomerOrigins,
   createPreprocessorMiddleware,
   finalizeBody,
-  languageFilter,
   stripHeaders,
   createOnProxyReqHandler,
 } from "./middleware/request";
@@ -142,7 +141,6 @@ const anthropicProxy = createQueueMiddleware({
           applyQuotaLimits,
           addKey,
           addAnthropicPreamble,
-          languageFilter,
           blockZoomerOrigins,
           stripHeaders,
           finalizeBody,

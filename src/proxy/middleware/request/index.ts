@@ -12,6 +12,7 @@ export {
 export { applyQuotaLimits } from "./apply-quota-limits";
 export { validateContextSize } from "./validate-context-size";
 export { countPromptTokens } from "./count-prompt-tokens";
+export { languageFilter } from "./language-filter";
 export { setApiFormat } from "./set-api-format";
 export { signAwsRequest } from "./sign-aws-request";
 export { transformOutboundPayload } from "./transform-outbound-payload";
@@ -22,7 +23,6 @@ export { addAnthropicPreamble } from "./add-anthropic-preamble";
 export { blockZoomerOrigins } from "./block-zoomer-origins";
 export { finalizeBody } from "./finalize-body";
 export { finalizeAwsRequest } from "./finalize-aws-request";
-export { languageFilter } from "./language-filter";
 export { limitCompletions } from "./limit-completions";
 export { stripHeaders } from "./strip-headers";
 

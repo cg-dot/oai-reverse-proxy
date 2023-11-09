@@ -7,6 +7,7 @@ import {
   countPromptTokens,
   setApiFormat,
   transformOutboundPayload,
+  languageFilter,
 } from ".";
 import { ZodIssue } from "zod";
 
@@ -38,6 +39,7 @@ export const createPreprocessorMiddleware = (
     ...(beforeTransform ?? []),
     transformOutboundPayload,
     countPromptTokens,
+    languageFilter,
     ...(afterTransform ?? []),
     validateContextSize,
   ];
@@ -81,7 +83,11 @@ async function executePreprocessors(
     // stream yet as that is typically done later by the request queue. We'll
     // do that here and then call classifyErrorAndSend to use the streaming
     // error handler.
-    initializeSseStream(res);
+    const { stream } = req.body;
+    const isStreaming = stream === "true" || stream === true;
+    if (isStreaming && !res.headersSent) {
+      initializeSseStream(res);
+    }
     classifyErrorAndSend(error as Error, req, res);
   }
 }

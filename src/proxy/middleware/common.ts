@@ -90,7 +90,7 @@ function classifyError(err: Error): {
 } & Record<string, any> {
   const defaultError = {
     status: 500,
-    userMessage: `Reverse proxy encountered an unexpected error. (${err.message})`,
+    userMessage: `Reverse proxy error: ${err.message}`,
     type: "proxy_internal_error",
     stack: err.stack,
   };

@@ -15,7 +15,6 @@ import {
   createPreprocessorMiddleware,
   finalizeBody,
   forceModel,
-  languageFilter,
   stripHeaders,
 } from "./middleware/request";
 import {
@@ -155,7 +154,6 @@ const googlePalmProxy = createQueueMiddleware({
         pipeline: [
           applyQuotaLimits,
           addKey,
-          languageFilter,
           blockZoomerOrigins,
           stripHeaders,
           finalizeBody,
