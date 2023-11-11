@@ -31,6 +31,10 @@ router.get("/lookup", (_req, res) => {
 router.post("/lookup", (req, res) => {
   const token = req.body.token;
   const user = userStore.getUser(token);
+  req.log.info(
+    { token: truncateToken(token), success: !!user },
+    "User self-service lookup"
+  );
   if (!user) {
     req.session.flash = { type: "error", message: "Invalid user token." };
     return res.redirect("/user/lookup");
@@ -66,5 +70,10 @@ router.post("/edit-nickname", (req, res) => {
   req.session.flash = { type: "success", message: "Nickname updated." };
   return res.redirect("/user/lookup");
 });
+
+function truncateToken(token: string) {
+  const sliceLength = Math.max(Math.floor(token.length / 8), 1);
+  return `${token.slice(0, sliceLength)}...${token.slice(-sliceLength)}`;
+}
 
 export { router as selfServiceRouter };

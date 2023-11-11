@@ -25,9 +25,7 @@ app.use(
   pinoHttp({
     quietReqLogger: true,
     logger,
-    autoLogging: {
-      ignore: ({ url }) => ["/health"].includes(url as string),
-    },
+    autoLogging: { ignore: ({ url }) => ["/health"].includes(url as string) },
     redact: {
       paths: [
         "req.headers.cookie",
@@ -39,6 +37,11 @@ app.use(
         "body.prompt",
       ],
       censor: "********",
+    },
+    customProps: (req) => {
+      const user = (req as express.Request).user;
+      if (user) return { userToken: `...${user.token.slice(-5)}` };
+      return {};
     },
   })
 );
