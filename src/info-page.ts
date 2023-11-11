@@ -304,6 +304,7 @@ function getOpenAIInfo() {
 
   familySet.forEach((f) => {
     if (enabledFamilies.has(f)) {
+      if (!info[f]) info[f] = { activeKeys: 0 }; // may occur if checkKeys is disabled
       const { estimatedQueueTime, proomptersInQueue } = getQueueInformation(f);
       info[f]!.proomptersInQueue = proomptersInQueue;
       info[f]!.estimatedQueueTime = estimatedQueueTime;
