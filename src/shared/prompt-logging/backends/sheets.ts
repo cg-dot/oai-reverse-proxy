@@ -256,8 +256,8 @@ export const appendBatch = async (batch: PromptLogEntry[]) => {
     return [
       entry.model,
       entry.endpoint,
-      entry.promptRaw.slice(0, 50000),
-      entry.promptFlattened.slice(0, 50000),
+      entry.promptRaw.slice(-50000),
+      entry.promptFlattened.slice(-50000),
       entry.response.slice(0, 50000),
     ];
   });
