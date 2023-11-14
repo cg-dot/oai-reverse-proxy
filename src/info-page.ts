@@ -445,6 +445,13 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
     if (hasGpt432k && allowedGpt432k) {
       waits.push(`**GPT-4-32k:** ${gpt432kWait}`);
     }
+
+    const dalleWait = getQueueInformation("dall-e").estimatedQueueTime;
+    const hasDalle = keys.some((k) => k.modelFamilies.includes("dall-e"));
+    const allowedDalle = config.allowedModelFamilies.includes("dall-e");
+    if (hasDalle && allowedDalle) {
+      waits.push(`**DALL-E:** ${dalleWait}`);
+    }
   }
 
   if (config.anthropicKey) {
