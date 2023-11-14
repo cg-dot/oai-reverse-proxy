@@ -305,7 +305,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         key.rateLimitRequestsReset,
         key.rateLimitTokensReset
       );
-      return now < key.rateLimitedAt + Math.min(10000, resetTime);
+      return now < key.rateLimitedAt + Math.min(20000, resetTime);
     }).length;
     const anyNotRateLimited = rateLimitedKeys < activeKeys.length;
 
@@ -323,7 +323,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
           key.rateLimitRequestsReset,
           key.rateLimitTokensReset
         );
-        return key.rateLimitedAt + Math.min(10000, resetTime) - now;
+        return key.rateLimitedAt + Math.min(20000, resetTime) - now;
       })
     );
   }
@@ -335,7 +335,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     // DALL-E requests do not send headers telling us when the rate limit will
     // be reset so we need to set a fallback value here.  Other models will have
     // this overwritten by the `updateRateLimits` method.
-    key.rateLimitRequestsReset = 5000;
+    key.rateLimitRequestsReset = 20000;
   }
 
   public incrementUsage(keyHash: string, model: string, tokens: number) {
