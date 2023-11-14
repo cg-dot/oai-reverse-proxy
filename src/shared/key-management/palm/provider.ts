@@ -5,11 +5,7 @@ import { logger } from "../../../logger";
 import type { GooglePalmModelFamily } from "../../models";
 
 // https://developers.generativeai.google.com/models/language
-export const GOOGLE_PALM_SUPPORTED_MODELS = [
-  "text-bison-001",
-  // "chat-bison-001", no adjustable safety settings, so it's useless
-] as const;
-export type GooglePalmModel = (typeof GOOGLE_PALM_SUPPORTED_MODELS)[number];
+export type GooglePalmModel = "text-bison-001";
 
 export type GooglePalmKeyUpdate = Omit<
   Partial<GooglePalmKey>,
@@ -149,7 +145,7 @@ export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
     key.bisonTokens += tokens;
   }
 
-  public getLockoutPeriod(_model: GooglePalmModel) {
+  public getLockoutPeriod() {
     const activeKeys = this.keys.filter((k) => !k.isDisabled);
     // Don't lock out if there are no keys available or the queue will stall.
     // Just let it through so the add-key middleware can throw an error.

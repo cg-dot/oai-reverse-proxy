@@ -87,9 +87,8 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
     body = transformAnthropicResponse(body, req);
   }
 
-  // TODO: Remove once tokenization is stable
-  if (req.debug) {
-    body.proxy_tokenizer_debug_info = req.debug;
+  if (req.tokenizerInfo) {
+    body.proxy_tokenizer = req.tokenizerInfo;
   }
 
   res.status(200).json(body);

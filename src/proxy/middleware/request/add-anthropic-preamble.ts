@@ -1,5 +1,5 @@
 import { AnthropicKey, Key } from "../../../shared/key-management";
-import { isCompletionRequest } from "../common";
+import { isTextGenerationRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
 
 /**
@@ -11,7 +11,7 @@ export const addAnthropicPreamble: ProxyRequestMiddleware = (
   _proxyReq,
   req
 ) => {
-  if (!isCompletionRequest(req) || req.key?.service !== "anthropic") {
+  if (!isTextGenerationRequest(req) || req.key?.service !== "anthropic") {
     return;
   }
 

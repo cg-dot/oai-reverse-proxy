@@ -9,6 +9,8 @@ import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
 import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
 import { GooglePalmKeyProvider } from "./palm/provider";
 import { AwsBedrockKeyProvider } from "./aws/provider";
+import { ModelFamily } from "../models";
+import { assertNever } from "../utils";
 
 type AllowedPartial = OpenAIKeyUpdate | AnthropicKeyUpdate;
 
@@ -37,7 +39,7 @@ export class KeyPool {
   }
 
   public get(model: Model): Key {
-    const service = this.getService(model);
+    const service = this.getServiceForModel(model);
     return this.getKeyProvider(service).get(model);
   }
 
@@ -67,7 +69,7 @@ export class KeyPool {
   public available(model: Model | "all" = "all"): number {
     return this.keyProviders.reduce((sum, provider) => {
       const includeProvider =
-        model === "all" || this.getService(model) === provider.service;
+        model === "all" || this.getServiceForModel(model) === provider.service;
       return sum + (includeProvider ? provider.available() : 0);
     }, 0);
   }
@@ -77,9 +79,9 @@ export class KeyPool {
     provider.incrementUsage(key.hash, model, tokens);
   }
 
-  public getLockoutPeriod(model: Model): number {
-    const service = this.getService(model);
-    return this.getKeyProvider(service).getLockoutPeriod(model);
+  public getLockoutPeriod(family: ModelFamily): number {
+    const service = this.getServiceForModelFamily(family);
+    return this.getKeyProvider(service).getLockoutPeriod(family);
   }
 
   public markRateLimited(key: Key): void {
@@ -104,8 +106,12 @@ export class KeyPool {
     provider.recheck();
   }
 
-  private getService(model: Model): LLMService {
-    if (model.startsWith("gpt") || model.startsWith("text-embedding-ada")) {
+  private getServiceForModel(model: Model): LLMService {
+    if (
+      model.startsWith("gpt") ||
+      model.startsWith("text-embedding-ada") ||
+      model.startsWith("dall-e")
+    ) {
       // https://platform.openai.com/docs/models/model-endpoint-compatibility
       return "openai";
     } else if (model.startsWith("claude-")) {
@@ -120,6 +126,25 @@ export class KeyPool {
       return "aws";
     }
     throw new Error(`Unknown service for model '${model}'`);
+  }
+
+  private getServiceForModelFamily(modelFamily: ModelFamily): LLMService {
+    switch (modelFamily) {
+      case "gpt4":
+      case "gpt4-32k":
+      case "gpt4-turbo":
+      case "turbo":
+      case "dall-e":
+        return "openai";
+      case "claude":
+        return "anthropic";
+      case "bison":
+        return "google-palm";
+      case "aws-claude":
+        return "aws";
+      default:
+        assertNever(modelFamily);
+    }
   }
 
   private getKeyProvider(service: LLMService): KeyProvider {

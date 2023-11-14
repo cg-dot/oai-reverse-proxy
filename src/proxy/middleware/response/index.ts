@@ -13,13 +13,16 @@ import {
   incrementTokenCount,
 } from "../../../shared/users/user-store";
 import { assertNever } from "../../../shared/utils";
+import { refundLastAttempt } from "../../rate-limit";
 import {
   getCompletionFromBody,
-  isCompletionRequest,
+  isImageGenerationRequest,
+  isTextGenerationRequest,
   writeErrorResponse,
 } from "../common";
 import { handleStreamedResponse } from "./handle-streamed-response";
 import { logPrompt } from "./log-prompt";
+import { saveImage } from "./save-image";
 
 const DECODER_MAP = {
   gzip: util.promisify(zlib.gunzip),
@@ -106,6 +109,7 @@ export const createOnProxyResHandler = (apiMiddleware: ProxyResMiddleware) => {
           countResponseTokens,
           incrementUsage,
           copyHttpHeaders,
+          saveImage,
           logPrompt,
           ...apiMiddleware
         );
@@ -285,7 +289,16 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     switch (service) {
       case "openai":
       case "google-palm":
-        errorPayload.proxy_note = `Upstream service rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
+        if (errorPayload.error?.code === "content_policy_violation") {
+          errorPayload.proxy_note = `Request was filtered by OpenAI's content moderation system. Try another prompt.`;
+          refundLastAttempt(req);
+        } else if (errorPayload.error?.code === "billing_hard_limit_reached") {
+          // For some reason, some models return this 400 error instead of the
+          // same 429 billing error that other models return.
+          handleOpenAIRateLimitError(req, tryAgainMessage, errorPayload);
+        } else {
+          errorPayload.proxy_note = `Upstream service rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
+        }
         break;
       case "anthropic":
       case "aws":
@@ -453,6 +466,7 @@ function handleOpenAIRateLimitError(
   const type = errorPayload.error?.type;
   switch (type) {
     case "insufficient_quota":
+    case "invalid_request_error": // this is the billing_hard_limit_reached error seen in some cases
       // Billing quota exceeded (key is dead, disable it)
       keyPool.disable(req.key!, "quota");
       errorPayload.proxy_note = `Assigned key's quota has been exceeded. ${tryAgainMessage}`;
@@ -487,13 +501,22 @@ function handleOpenAIRateLimitError(
 }
 
 const incrementUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
-  if (isCompletionRequest(req)) {
+  if (isTextGenerationRequest(req) || isImageGenerationRequest(req)) {
     const model = req.body.model;
     const tokensUsed = req.promptTokens! + req.outputTokens!;
+    req.log.debug(
+      {
+        model,
+        tokensUsed,
+        promptTokens: req.promptTokens,
+        outputTokens: req.outputTokens,
+      },
+      `Incrementing usage for model`
+    );
     keyPool.incrementUsage(req.key!, model, tokensUsed);
     if (req.user) {
       incrementPromptCount(req.user.token);
-      incrementTokenCount(req.user.token, model, tokensUsed);
+      incrementTokenCount(req.user.token, model, req.outboundApi, tokensUsed);
     }
   }
 };
@@ -504,6 +527,12 @@ const countResponseTokens: ProxyResHandlerWithBody = async (
   _res,
   body
 ) => {
+  if (req.outboundApi === "openai-image") {
+    req.outputTokens = req.promptTokens;
+    req.promptTokens = 0;
+    return;
+  }
+
   // This function is prone to breaking if the upstream API makes even minor
   // changes to the response format, especially for SSE responses. If you're
   // seeing errors in this function, check the reassembled response body from
@@ -518,8 +547,8 @@ const countResponseTokens: ProxyResHandlerWithBody = async (
       { service, tokens, prevOutputTokens: req.outputTokens },
       `Counted tokens for completion`
     );
-    if (req.debug) {
-      req.debug.completion_tokens = tokens;
+    if (req.tokenizerInfo) {
+      req.tokenizerInfo.completion_tokens = tokens;
     }
 
     req.outputTokens = tokens.token_count;

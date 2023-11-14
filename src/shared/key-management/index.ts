@@ -1,15 +1,17 @@
-import { OPENAI_SUPPORTED_MODELS, OpenAIModel } from "./openai/provider";
-import {
-  ANTHROPIC_SUPPORTED_MODELS,
-  AnthropicModel,
-} from "./anthropic/provider";
-import { GOOGLE_PALM_SUPPORTED_MODELS, GooglePalmModel } from "./palm/provider";
-import { AWS_BEDROCK_SUPPORTED_MODELS, AwsBedrockModel } from "./aws/provider";
+import { OpenAIModel } from "./openai/provider";
+import { AnthropicModel } from "./anthropic/provider";
+import { GooglePalmModel } from "./palm/provider";
+import { AwsBedrockModel } from "./aws/provider";
 import { KeyPool } from "./key-pool";
 import type { ModelFamily } from "../models";
 
 /** The request and response format used by a model's API. */
-export type APIFormat = "openai" | "anthropic" | "google-palm" | "openai-text";
+export type APIFormat =
+  | "openai"
+  | "anthropic"
+  | "google-palm"
+  | "openai-text"
+  | "openai-image";
 /** The service that a model is hosted on; distinct because services like AWS provide multiple APIs, but have their own endpoints and authentication. */
 export type LLMService = "openai" | "anthropic" | "google-palm" | "aws";
 export type Model =
@@ -60,23 +62,12 @@ export interface KeyProvider<T extends Key = Key> {
   update(hash: string, update: Partial<T>): void;
   available(): number;
   incrementUsage(hash: string, model: string, tokens: number): void;
-  getLockoutPeriod(model: Model): number;
+  getLockoutPeriod(model: ModelFamily): number;
   markRateLimited(hash: string): void;
   recheck(): void;
 }
 
 export const keyPool = new KeyPool();
-export const SUPPORTED_MODELS = [
-  ...OPENAI_SUPPORTED_MODELS,
-  ...ANTHROPIC_SUPPORTED_MODELS,
-] as const;
-export type SupportedModel = (typeof SUPPORTED_MODELS)[number];
-export {
-  OPENAI_SUPPORTED_MODELS,
-  ANTHROPIC_SUPPORTED_MODELS,
-  GOOGLE_PALM_SUPPORTED_MODELS,
-  AWS_BEDROCK_SUPPORTED_MODELS,
-};
 export { AnthropicKey } from "./anthropic/provider";
 export { OpenAIKey } from "./openai/provider";
 export { GooglePalmKey } from "./palm/provider";

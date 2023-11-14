@@ -2,61 +2,50 @@ import { RequestHandler, Router } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
 import { keyPool } from "../shared/key-management";
-import {
-  ModelFamily,
-  OpenAIModelFamily,
-  getOpenAIModelFamily,
-} from "../shared/models";
+import { getOpenAIModelFamily, ModelFamily, OpenAIModelFamily } from "../shared/models";
 import { logger } from "../logger";
 import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
 import {
-  RequestPreprocessor,
   addKey,
   addKeyForEmbeddingsRequest,
   applyQuotaLimits,
   blockZoomerOrigins,
   createEmbeddingsPreprocessorMiddleware,
+  createOnProxyReqHandler,
   createPreprocessorMiddleware,
   finalizeBody,
   forceModel,
   limitCompletions,
+  RequestPreprocessor,
   stripHeaders,
-  createOnProxyReqHandler,
 } from "./middleware/request";
-import {
-  createOnProxyResHandler,
-  ProxyResHandlerWithBody,
-} from "./middleware/response";
+import { createOnProxyResHandler, ProxyResHandlerWithBody } from "./middleware/response";
+
+// https://platform.openai.com/docs/models/overview
+const KNOWN_MODELS = [
+  "gpt-4-1106-preview",
+  "gpt-4",
+  "gpt-4-0613",
+  "gpt-4-0314", // EOL 2024-06-13
+  "gpt-4-32k",
+  "gpt-4-32k-0613",
+  "gpt-4-32k-0314", // EOL 2024-06-13
+  "gpt-3.5-turbo",
+  "gpt-3.5-turbo-0301", // EOL 2024-06-13
+  "gpt-3.5-turbo-0613",
+  "gpt-3.5-turbo-16k",
+  "gpt-3.5-turbo-16k-0613",
+  "gpt-3.5-turbo-instruct",
+  "gpt-3.5-turbo-instruct-0914",
+  "text-embedding-ada-002",
+];
 
 let modelsCache: any = null;
 let modelsCacheTime = 0;
 
-function getModelsResponse() {
-  if (new Date().getTime() - modelsCacheTime < 1000 * 60) {
-    return modelsCache;
-  }
-
-  // https://platform.openai.com/docs/models/overview
-  const knownModels = [
-    "gpt-4-1106-preview",
-    "gpt-4",
-    "gpt-4-0613",
-    "gpt-4-0314", // EOL 2024-06-13
-    "gpt-4-32k",
-    "gpt-4-32k-0613",
-    "gpt-4-32k-0314", // EOL 2024-06-13
-    "gpt-3.5-turbo",
-    "gpt-3.5-turbo-0301", // EOL 2024-06-13
-    "gpt-3.5-turbo-0613",
-    "gpt-3.5-turbo-16k",
-    "gpt-3.5-turbo-16k-0613",
-    "gpt-3.5-turbo-instruct",
-    "gpt-3.5-turbo-instruct-0914",
-    "text-embedding-ada-002",
-  ];
-
+export function generateModelList(models = KNOWN_MODELS) {
   let available = new Set<OpenAIModelFamily>();
   for (const key of keyPool.list()) {
     if (key.isDisabled || key.service !== "openai") continue;
@@ -67,7 +56,7 @@ function getModelsResponse() {
   const allowed = new Set<ModelFamily>(config.allowedModelFamilies);
   available = new Set([...available].filter((x) => allowed.has(x)));
 
-  const models = knownModels
+  return models
     .map((id) => ({
       id,
       object: "model",
@@ -87,15 +76,14 @@ function getModelsResponse() {
       parent: null,
     }))
     .filter((model) => available.has(getOpenAIModelFamily(model.id)));
-
-  modelsCache = { object: "list", data: models };
-  modelsCacheTime = new Date().getTime();
-
-  return modelsCache;
 }
 
 const handleModelRequest: RequestHandler = (_req, res) => {
-  res.status(200).json(getModelsResponse());
+  if (new Date().getTime() - modelsCacheTime < 1000 * 60) return modelsCache;
+  const result = generateModelList();
+  modelsCache = { object: "list", data: result };
+  modelsCacheTime = new Date().getTime();
+  res.status(200).json(modelsCache);
 };
 
 /** Handles some turbo-instruct special cases. */
@@ -137,9 +125,8 @@ const openaiResponseHandler: ProxyResHandlerWithBody = async (
     body = transformTurboInstructResponse(body);
   }
 
-  // TODO: Remove once tokenization is stable
-  if (req.debug) {
-    body.proxy_tokenizer_debug_info = req.debug;
+  if (req.tokenizerInfo) {
+    body.proxy_tokenizer = req.tokenizerInfo;
   }
 
   res.status(200).json(body);

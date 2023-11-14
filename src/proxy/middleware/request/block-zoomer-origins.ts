@@ -1,4 +1,3 @@
-import { isCompletionRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
 
 const DISALLOWED_ORIGIN_SUBSTRINGS = "janitorai.com,janitor.ai".split(",");
@@ -15,10 +14,6 @@ class ForbiddenError extends Error {
  * stop getting emails asking for tech support.
  */
 export const blockZoomerOrigins: ProxyRequestMiddleware = (_proxyReq, req) => {
-  if (!isCompletionRequest(req)) {
-    return;
-  }
-
   const origin = req.headers.origin || req.headers.referer;
   if (origin && DISALLOWED_ORIGIN_SUBSTRINGS.some((s) => origin.includes(s))) {
     // Venus-derivatives send a test prompt to check if the proxy is working.

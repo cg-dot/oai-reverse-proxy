@@ -15,12 +15,9 @@ export type OpenAIModel =
   | "gpt-4"
   | "gpt-4-32k"
   | "gpt-4-1106"
-  | "text-embedding-ada-002";
-export const OPENAI_SUPPORTED_MODELS: readonly OpenAIModel[] = [
-  "gpt-3.5-turbo",
-  "gpt-3.5-turbo-instruct",
-  "gpt-4",
-] as const;
+  | "text-embedding-ada-002"
+  | "dall-e-2"
+  | "dall-e-3"
 
 // Flattening model families instead of using a nested object for easier
 // cloning.
@@ -127,6 +124,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
         gpt4Tokens: 0,
         "gpt4-32kTokens": 0,
         "gpt4-turboTokens": 0,
+        "dall-eTokens": 0,
         gpt4Rpm: 0,
       };
       this.keys.push(newKey);
@@ -284,10 +282,9 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
    * Given a model, returns the period until a key will be available to service
    * the request, or returns 0 if a key is ready immediately.
    */
-  public getLockoutPeriod(model: Model = "gpt-4"): number {
-    const neededFamily = getOpenAIModelFamily(model);
+  public getLockoutPeriod(family: OpenAIModelFamily): number {
     const activeKeys = this.keys.filter(
-      (key) => !key.isDisabled && key.modelFamilies.includes(neededFamily)
+      (key) => !key.isDisabled && key.modelFamilies.includes(family)
     );
 
     if (activeKeys.length === 0) {
@@ -335,6 +332,10 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     this.log.debug({ key: keyHash }, "Key rate limited");
     const key = this.keys.find((k) => k.hash === keyHash)!;
     key.rateLimitedAt = Date.now();
+    // DALL-E requests do not send headers telling us when the rate limit will
+    // be reset so we need to set a fallback value here.  Other models will have
+    // this overwritten by the `updateRateLimits` method.
+    key.rateLimitRequestsReset = 5000;
   }
 
   public incrementUsage(keyHash: string, model: string, tokens: number) {

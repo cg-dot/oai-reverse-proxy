@@ -73,9 +73,8 @@ const awsResponseHandler: ProxyResHandlerWithBody = async (
     body = transformAwsResponse(body, req);
   }
 
-  // TODO: Remove once tokenization is stable
-  if (req.debug) {
-    body.proxy_tokenizer_debug_info = req.debug;
+  if (req.tokenizerInfo) {
+    body.proxy_tokenizer = req.tokenizerInfo;
   }
 
   // AWS does not confirm the model in the response, so we have to add it

@@ -2,7 +2,7 @@ import { Request } from "express";
 import { z } from "zod";
 import { config } from "../../../config";
 import { OpenAIPromptMessage } from "../../../shared/tokenization";
-import { isCompletionRequest } from "../common";
+import { isTextGenerationRequest, isImageGenerationRequest } from "../common";
 import { RequestPreprocessor } from ".";
 import { APIFormat } from "../../../shared/key-management";
 
@@ -88,6 +88,21 @@ const OpenAIV1TextCompletionSchema = z
   })
   .merge(OpenAIV1ChatCompletionSchema.omit({ messages: true }));
 
+// https://platform.openai.com/docs/api-reference/images/create
+const OpenAIV1ImagesGenerationSchema = z.object({
+  prompt: z.string().max(4000),
+  model: z.string().optional(),
+  quality: z.enum(["standard", "hd"]).optional().default("standard"),
+  n: z.number().int().min(1).max(4).optional().default(1),
+  response_format: z.enum(["url", "b64_json"]).optional(),
+  size: z
+    .enum(["256x256", "512x512", "1024x1024", "1792x1024", "1024x1792"])
+    .optional()
+    .default("1024x1024"),
+  style: z.enum(["vivid", "natural"]).optional().default("vivid"),
+  user: z.string().optional(),
+});
+
 // https://developers.generativeai.google/api/rest/generativelanguage/models/generateText
 const PalmV1GenerateTextSchema = z.object({
   model: z.string(),
@@ -110,6 +125,7 @@ const VALIDATORS: Record<APIFormat, z.ZodSchema<any>> = {
   anthropic: AnthropicV1CompleteSchema,
   openai: OpenAIV1ChatCompletionSchema,
   "openai-text": OpenAIV1TextCompletionSchema,
+  "openai-image": OpenAIV1ImagesGenerationSchema,
   "google-palm": PalmV1GenerateTextSchema,
 };
 
@@ -117,11 +133,10 @@ const VALIDATORS: Record<APIFormat, z.ZodSchema<any>> = {
 export const transformOutboundPayload: RequestPreprocessor = async (req) => {
   const sameService = req.inboundApi === req.outboundApi;
   const alreadyTransformed = req.retryCount > 0;
-  const notTransformable = !isCompletionRequest(req);
+  const notTransformable =
+    !isTextGenerationRequest(req) && !isImageGenerationRequest(req);
 
-  if (alreadyTransformed || notTransformable) {
-    return;
-  }
+  if (alreadyTransformed || notTransformable) return;
 
   if (sameService) {
     const result = VALIDATORS[req.inboundApi].safeParse(req.body);
@@ -148,6 +163,11 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
 
   if (req.inboundApi === "openai" && req.outboundApi === "openai-text") {
     req.body = openaiToOpenaiText(req);
+    return;
+  }
+
+  if (req.inboundApi === "openai" && req.outboundApi === "openai-image") {
+    req.body = openaiToOpenaiImage(req);
     return;
   }
 
@@ -224,6 +244,49 @@ function openaiToOpenaiText(req: Request) {
 
   const transformed = { ...rest, prompt: prompt, stop: stops };
   return OpenAIV1TextCompletionSchema.parse(transformed);
+}
+
+// Takes the last chat message and uses it verbatim as the image prompt.
+function openaiToOpenaiImage(req: Request) {
+  const { body } = req;
+  const result = OpenAIV1ChatCompletionSchema.safeParse(body);
+  if (!result.success) {
+    req.log.warn(
+      { issues: result.error.issues, body },
+      "Invalid OpenAI-to-OpenAI-image request"
+    );
+    throw result.error;
+  }
+
+  const { messages } = result.data;
+  const prompt = messages.filter((m) => m.role === "user").pop()?.content;
+
+  if (body.stream) {
+    throw new Error(
+      "Streaming is not supported for image generation requests."
+    );
+  }
+
+  // Some frontends do weird things with the prompt, like prefixing it with a
+  // character name or wrapping the entire thing in quotes. We will look for
+  // the index of "Image:" and use everything after that as the prompt.
+
+  const index = prompt?.toLowerCase().indexOf("image:");
+  if (index === -1 || !prompt) {
+    throw new Error(
+      `Start your prompt with 'Image:' followed by a description of the image you want to generate (received: ${prompt}).`
+    );
+  }
+
+  // TODO: Add some way to specify parameters via chat message
+  const transformed = {
+    model: body.model.includes("dall-e") ? body.model : "dall-e-3",
+    quality: "standard",
+    size: "1024x1024",
+    response_format: "url",
+    prompt: prompt.slice(index! + 6).trim(),
+  };
+  return OpenAIV1ImagesGenerationSchema.parse(transformed);
 }
 
 function openaiToPalm(req: Request): z.infer<typeof PalmV1GenerateTextSchema> {

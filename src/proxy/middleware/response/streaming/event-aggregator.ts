@@ -33,7 +33,8 @@ export class EventAggregator {
       case "anthropic":
         return mergeEventsForAnthropic(this.events);
       case "google-palm":
-        throw new Error("Google PaLM API does not support streaming responses");
+      case "openai-image":
+        throw new Error(`SSE aggregation not supported for ${this.format}`);
       default:
         assertNever(this.format);
     }

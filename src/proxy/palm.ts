@@ -75,9 +75,8 @@ const palmResponseHandler: ProxyResHandlerWithBody = async (
     body = transformPalmResponse(body, req);
   }
 
-  // TODO: Remove once tokenization is stable
-  if (req.debug) {
-    body.proxy_tokenizer_debug_info = req.debug;
+  if (req.tokenizerInfo) {
+    body.proxy_tokenizer = req.tokenizerInfo;
   }
 
   // TODO: PaLM has no streaming capability which will pose a problem here if

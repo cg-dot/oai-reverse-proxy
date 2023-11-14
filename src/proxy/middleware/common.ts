@@ -9,11 +9,10 @@ import { QuotaExceededError } from "./request/apply-quota-limits";
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";
 const OPENAI_TEXT_COMPLETION_ENDPOINT = "/v1/completions";
 const OPENAI_EMBEDDINGS_ENDPOINT = "/v1/embeddings";
+const OPENAI_IMAGE_COMPLETION_ENDPOINT = "/v1/images/generations";
 const ANTHROPIC_COMPLETION_ENDPOINT = "/v1/complete";
 
-/** Returns true if we're making a request to a completion endpoint. */
-export function isCompletionRequest(req: Request) {
-  // 99% sure this function is not needed anymore
+export function isTextGenerationRequest(req: Request) {
   return (
     req.method === "POST" &&
     [
@@ -21,6 +20,13 @@ export function isCompletionRequest(req: Request) {
       OPENAI_TEXT_COMPLETION_ENDPOINT,
       ANTHROPIC_COMPLETION_ENDPOINT,
     ].some((endpoint) => req.path.startsWith(endpoint))
+  );
+}
+
+export function isImageGenerationRequest(req: Request) {
+  return (
+    req.method === "POST" &&
+    req.path.startsWith(OPENAI_IMAGE_COMPLETION_ENDPOINT)
   );
 }
 
@@ -53,8 +59,8 @@ export function writeErrorResponse(
     res.write(`data: [DONE]\n\n`);
     res.end();
   } else {
-    if (req.debug && errorPayload.error) {
-      errorPayload.error.proxy_tokenizer_debug_info = req.debug;
+    if (req.tokenizerInfo && errorPayload.error) {
+      errorPayload.error.proxy_tokenizer = req.tokenizerInfo;
     }
     res.status(statusCode).json(errorPayload);
   }
@@ -103,7 +109,7 @@ function classifyError(err: Error): {
         code: { enabled: false },
         maxErrors: 3,
         transform: ({ issue, ...rest }) => {
-          return `At '${rest.pathComponent}', ${issue.message}`;
+          return `At '${rest.pathComponent}': ${issue.message}`;
         },
       });
       return { status: 400, userMessage, type: "proxy_validation_error" };
@@ -173,6 +179,8 @@ export function getCompletionFromBody(req: Request, body: Record<string, any>) {
       return body.completion.trim();
     case "google-palm":
       return body.candidates[0].output;
+    case "openai-image":
+      return body.data?.map((item: any) => item.url).join("\n");
     default:
       assertNever(format);
   }
@@ -184,6 +192,8 @@ export function getModelFromBody(req: Request, body: Record<string, any>) {
     case "openai":
     case "openai-text":
       return body.model;
+    case "openai-image":
+      return req.body.model;
     case "anthropic":
       // Anthropic confirms the model in the response, but AWS Claude doesn't.
       return body.model || req.body.model;

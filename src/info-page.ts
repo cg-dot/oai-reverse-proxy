@@ -14,6 +14,7 @@ import { getUniqueIps } from "./proxy/rate-limit";
 import { getEstimatedWaitTime, getQueueLength } from "./proxy/queue";
 import { getTokenCostUsd, prettyTokens } from "./shared/stats";
 import { assertNever } from "./shared/utils";
+import { getLastNImages } from "./shared/file-storage/image-history";
 
 const INFO_PAGE_TTL = 2000;
 let infoPageHtml: string | undefined;
@@ -94,6 +95,8 @@ function cacheInfoPageHtml(baseUrl: string) {
   const tokens = serviceStats.get("tokens") || 0;
   const tokenCost = serviceStats.get("tokenCost") || 0;
 
+  const allowDalle = config.allowedModelFamilies.includes("dall-e");
+
   const info = {
     uptime: Math.floor(process.uptime()),
     endpoints: {
@@ -101,13 +104,16 @@ function cacheInfoPageHtml(baseUrl: string) {
       ...(openaiKeys
         ? { ["openai2"]: baseUrl + "/proxy/openai/turbo-instruct" }
         : {}),
+      ...(openaiKeys && allowDalle
+        ? { ["openai-image"]: baseUrl + "/proxy/openai-image" }
+        : {}),
       ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
       ...(palmKeys ? { "google-palm": baseUrl + "/proxy/google-palm" } : {}),
       ...(awsKeys ? { aws: baseUrl + "/proxy/aws/claude" } : {}),
     },
     proompts,
     tookens: `${prettyTokens(tokens)}${getCostString(tokenCost)}`,
-    ...(config.modelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
+    ...(config.textModelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
     openaiKeys,
     anthropicKeys,
     palmKeys,
@@ -287,7 +293,6 @@ function getOpenAIInfo() {
       // Don't show trial/revoked keys for non-turbo families.
       // Generally those stats only make sense for the lowest-tier model.
       if (f !== "turbo") {
-        console.log("deleting", f);
         delete info[f]!.trialKeys;
         delete info[f]!.revokedKeys;
       }
@@ -457,6 +462,9 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
   if (customGreeting) {
     infoBody += `\n## Server Greeting\n${customGreeting}`;
   }
+
+  infoBody += buildRecentImageSection();
+
   return converter.makeHtml(infoBody);
 }
 
@@ -497,6 +505,43 @@ function getServerTitle() {
   }
 
   return "OAI Reverse Proxy";
+}
+
+function buildRecentImageSection() {
+  if (
+    !config.allowedModelFamilies.includes("dall-e") ||
+    !config.showRecentImages
+  ) {
+    return "";
+  }
+
+  let html = `<h2>Recent DALL-E Generations</h2>`;
+  const recentImages = getLastNImages(12).reverse();
+  if (recentImages.length === 0) {
+    html += `<p>No images yet.</p>`;
+    return html;
+  }
+
+  html += `<div style="display: flex; flex-wrap: wrap;" id="recent-images">`;
+  for (const { url, prompt } of recentImages) {
+    const thumbUrl = url.replace(/\.png$/, "_t.jpg");
+    const escapedPrompt = escapeHtml(prompt);
+    html += `<div style="margin: 0.5em;" class="recent-image">
+<a href="${url}" target="_blank"><img src="${thumbUrl}" title="${escapedPrompt}" alt="${escapedPrompt}" style="max-width: 150px; max-height: 150px;" /></a>
+</div>`;
+  }
+  html += `</div>`;
+
+  return html;
+}
+
+function escapeHtml(unsafe: string) {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function getExternalUrlForHuggingfaceSpaceId(spaceId: string) {

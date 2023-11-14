@@ -99,7 +99,8 @@ function getTransformer(
         ? anthropicV1ToOpenAI
         : anthropicV2ToOpenAI;
     case "google-palm":
-      throw new Error("Google PaLM does not support streaming responses");
+    case "openai-image":
+      throw new Error(`SSE transformation not supported for ${responseApi}`);
     default:
       assertNever(responseApi);
   }

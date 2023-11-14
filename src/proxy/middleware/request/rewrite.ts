@@ -17,6 +17,7 @@ export const createOnProxyReqHandler = ({
     // The streaming flag must be set before any other middleware runs, because
     // it may influence which other middleware a particular API pipeline wants
     // to run.
+    // Image generation requests can't be streamed.
     req.isStreaming = req.body.stream === true || req.body.stream === "true";
     req.body.stream = req.isStreaming;
 

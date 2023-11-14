@@ -79,7 +79,8 @@ export function buildFakeSse(
       };
       break;
     case "google-palm":
-      throw new Error("PaLM not supported as an inbound API format");
+    case "openai-image":
+      throw new Error(`SSE not supported for ${req.inboundApi} requests`);
     default:
       assertNever(req.inboundApi);
   }

@@ -1,6 +1,8 @@
-import { logger } from "../logger";
+// Don't import anything here, this is imported by config.ts
 
-export type OpenAIModelFamily = "turbo" | "gpt4" | "gpt4-32k" | "gpt4-turbo";
+import pino from "pino";
+
+export type OpenAIModelFamily = "turbo" | "gpt4" | "gpt4-32k" | "gpt4-turbo" | "dall-e";
 export type AnthropicModelFamily = "claude";
 export type GooglePalmModelFamily = "bison";
 export type AwsBedrockModelFamily = "aws-claude";
@@ -17,6 +19,7 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "gpt4",
   "gpt4-32k",
   "gpt4-turbo",
+  "dall-e",
   "claude",
   "bison",
   "aws-claude",
@@ -30,7 +33,10 @@ export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^gpt-4$": "gpt4",
   "^gpt-3.5-turbo": "turbo",
   "^text-embedding-ada-002$": "turbo",
+  "^dall-e-\\d{1}$": "dall-e",
 };
+
+const modelLogger = pino({ level: "debug" }).child({ module: "startup" });
 
 export function getOpenAIModelFamily(
   model: string,
@@ -42,14 +48,14 @@ export function getOpenAIModelFamily(
   return defaultFamily;
 }
 
-export function getClaudeModelFamily(_model: string): ModelFamily {
+export function getClaudeModelFamily(model: string): ModelFamily {
+  if (model.startsWith("anthropic.")) return getAwsBedrockModelFamily(model);
   return "claude";
 }
 
 export function getGooglePalmModelFamily(model: string): ModelFamily {
   if (model.match(/^\w+-bison-\d{3}$/)) return "bison";
-  const stack = new Error().stack;
-  logger.warn({ model, stack }, "Unmapped PaLM model family");
+  modelLogger.warn({ model }, "Could not determine Google PaLM model family");
   return "bison";
 }
 

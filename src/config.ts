@@ -1,11 +1,16 @@
 import dotenv from "dotenv";
 import type firebase from "firebase-admin";
+import path from "path";
 import pino from "pino";
 import type { ModelFamily } from "./shared/models";
+import { MODEL_FAMILIES } from "./shared/models";
 dotenv.config();
 
 const startupLogger = pino({ level: "debug" }).child({ module: "startup" });
 const isDev = process.env.NODE_ENV !== "production";
+
+export const DATA_DIR = path.join(__dirname, "..", "data");
+export const USER_ASSETS_DIR = path.join(DATA_DIR, "user-files");
 
 type Config = {
   /** The port the proxy server will listen on. */
@@ -75,8 +80,10 @@ type Config = {
    * `maxIpsPerUser` limit, or if only connections from new IPs are be rejected.
    */
   maxIpsAutoBan: boolean;
-  /** Per-IP limit for requests per minute to OpenAI's completions endpoint. */
-  modelRateLimit: number;
+  /** Per-IP limit for requests per minute to text and chat models. */
+  textModelRateLimit: number;
+  /** Per-IP limit for requests per minute to image generation models. */
+  imageModelRateLimit: number;
   /**
    * For OpenAI, the maximum number of context tokens (prompt + max output) a
    * user can request before their request is rejected.
@@ -157,6 +164,8 @@ type Config = {
   quotaRefreshPeriod?: "hourly" | "daily" | string;
   /** Whether to allow users to change their own nicknames via the UI. */
   allowNicknameChanges: boolean;
+  /** Whether to show recent DALL-E image generations on the homepage. */
+  showRecentImages: boolean;
   /**
    * If true, cookies will be set without the `Secure` attribute, allowing
    * the admin UI to used over HTTP.
@@ -180,7 +189,8 @@ export const config: Config = {
   maxIpsAutoBan: getEnvWithDefault("MAX_IPS_AUTO_BAN", true),
   firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
   firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
-  modelRateLimit: getEnvWithDefault("MODEL_RATE_LIMIT", 4),
+  textModelRateLimit: getEnvWithDefault("TEXT_MODEL_RATE_LIMIT", 4),
+  imageModelRateLimit: getEnvWithDefault("IMAGE_MODEL_RATE_LIMIT", 4),
   maxContextTokensOpenAI: getEnvWithDefault("MAX_CONTEXT_TOKENS_OPENAI", 16384),
   maxContextTokensAnthropic: getEnvWithDefault(
     "MAX_CONTEXT_TOKENS_ANTHROPIC",
@@ -225,17 +235,19 @@ export const config: Config = {
     "You must be over the age of majority in your country to use this service."
   ),
   blockRedirect: getEnvWithDefault("BLOCK_REDIRECT", "https://www.9gag.com"),
-  tokenQuota: {
-    turbo: getEnvWithDefault("TOKEN_QUOTA_TURBO", 0),
-    gpt4: getEnvWithDefault("TOKEN_QUOTA_GPT4", 0),
-    "gpt4-32k": getEnvWithDefault("TOKEN_QUOTA_GPT4_32K", 0),
-    "gpt4-turbo": getEnvWithDefault("TOKEN_QUOTA_GPT4_TURBO", 0),
-    claude: getEnvWithDefault("TOKEN_QUOTA_CLAUDE", 0),
-    bison: getEnvWithDefault("TOKEN_QUOTA_BISON", 0),
-    "aws-claude": getEnvWithDefault("TOKEN_QUOTA_AWS_CLAUDE", 0),
-  },
+  tokenQuota: MODEL_FAMILIES.reduce(
+    (acc, family: ModelFamily) => {
+      acc[family] = getEnvWithDefault(
+        `TOKEN_QUOTA_${family.toUpperCase().replace(/-/g, "_")}`,
+        0
+      ) as number;
+      return acc;
+    },
+    {} as { [key in ModelFamily]: number }
+  ),
   quotaRefreshPeriod: getEnvWithDefault("QUOTA_REFRESH_PERIOD", undefined),
   allowNicknameChanges: getEnvWithDefault("ALLOW_NICKNAME_CHANGES", true),
+  showRecentImages: getEnvWithDefault("SHOW_RECENT_IMAGES", true),
   useInsecureCookies: getEnvWithDefault("USE_INSECURE_COOKIES", isDev),
 } as const;
 
@@ -252,6 +264,19 @@ function generateCookieSecret() {
 export const COOKIE_SECRET = generateCookieSecret();
 
 export async function assertConfigIsValid() {
+  if (process.env.MODEL_RATE_LIMIT !== undefined) {
+    const limit =
+      parseInt(process.env.MODEL_RATE_LIMIT, 10) || config.textModelRateLimit;
+
+    config.textModelRateLimit = limit;
+    config.imageModelRateLimit = Math.max(Math.floor(limit / 2), 1);
+
+    startupLogger.warn(
+      { textLimit: limit, imageLimit: config.imageModelRateLimit },
+      "MODEL_RATE_LIMIT is deprecated. Use TEXT_MODEL_RATE_LIMIT and IMAGE_MODEL_RATE_LIMIT instead."
+    );
+  }
+
   if (!["none", "proxy_key", "user_token"].includes(config.gatekeeper)) {
     throw new Error(
       `Invalid gatekeeper mode: ${config.gatekeeper}. Must be one of: none, proxy_key, user_token.`
@@ -332,6 +357,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "blockMessage",
   "blockRedirect",
   "allowNicknameChanges",
+  "showRecentImages",
   "useInsecureCookies",
 ];
 
@@ -428,5 +454,5 @@ function parseCsv(val: string): string[] {
 
   const regex = /(".*?"|[^",]+)(?=\s*,|\s*$)/g;
   const matches = val.match(regex) || [];
-  return matches.map(item => item.replace(/^"|"$/g, '').trim());
+  return matches.map((item) => item.replace(/^"|"$/g, "").trim());
 }

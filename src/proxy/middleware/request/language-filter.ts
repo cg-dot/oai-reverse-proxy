@@ -58,6 +58,7 @@ function getPromptFromRequest(req: Request) {
         )
         .join("\n\n");
     case "openai-text":
+    case "openai-image":
       return body.prompt;
     case "google-palm":
       return body.prompt.text;

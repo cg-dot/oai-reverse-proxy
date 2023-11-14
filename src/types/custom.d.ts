@@ -24,8 +24,7 @@ declare global {
       heartbeatInterval?: NodeJS.Timeout;
       promptTokens?: number;
       outputTokens?: number;
-      // TODO: remove later
-      debug: Record<string, any>;
+      tokenizerInfo: Record<string, any>;
       signedRequest: HttpRequest;
     }
   }

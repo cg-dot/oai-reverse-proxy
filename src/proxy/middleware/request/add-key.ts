@@ -1,23 +1,11 @@
 import { Key, OpenAIKey, keyPool } from "../../../shared/key-management";
-import { isCompletionRequest, isEmbeddingsRequest } from "../common";
+import { isEmbeddingsRequest } from "../common";
 import { ProxyRequestMiddleware } from ".";
 import { assertNever } from "../../../shared/utils";
 
 /** Add a key that can service this request to the request object. */
 export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
   let assignedKey: Key;
-
-  if (!isCompletionRequest(req)) {
-    // Horrible, horrible hack to stop the proxy from complaining about clients
-    // not sending a model when they are requesting the list of models (which
-    // requires a key, but obviously not a model).
-
-    // I don't think this is needed anymore since models requests are no longer
-    // proxied to the upstream API. Everything going through this is either a
-    // completion request or a special case like OpenAI embeddings.
-    req.log.warn({ path: req.path }, "addKey called on non-completion request");
-    req.body.model = "gpt-3.5-turbo";
-  }
 
   if (!req.inboundApi || !req.outboundApi) {
     const err = new Error(
@@ -54,6 +42,9 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
         throw new Error(
           "OpenAI Chat as an API translation target is not supported"
         );
+      case "openai-image":
+        assignedKey = keyPool.get("dall-e-3");
+        break;
       default:
         assertNever(req.outboundApi);
     }

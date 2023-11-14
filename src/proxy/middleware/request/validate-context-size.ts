@@ -34,6 +34,8 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     case "google-palm":
       proxyMax = BISON_MAX_CONTEXT;
       break;
+    case "openai-image":
+      return;
     default:
       assertNever(req.outboundApi);
   }
@@ -81,10 +83,10 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     "Prompt size validated"
   );
 
-  req.debug.prompt_tokens = promptTokens;
-  req.debug.completion_tokens = outputTokens;
-  req.debug.max_model_tokens = modelMax;
-  req.debug.max_proxy_tokens = proxyMax;
+  req.tokenizerInfo.prompt_tokens = promptTokens;
+  req.tokenizerInfo.completion_tokens = outputTokens;
+  req.tokenizerInfo.max_model_tokens = modelMax;
+  req.tokenizerInfo.max_proxy_tokens = proxyMax;
 };
 
 function assertRequestHasTokenCounts(

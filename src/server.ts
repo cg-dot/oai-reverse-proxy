@@ -1,11 +1,14 @@
-import { assertConfigIsValid, config } from "./config";
+import { assertConfigIsValid, config, USER_ASSETS_DIR } from "./config";
 import "source-map-support/register";
+import checkDiskSpace from "check-disk-space";
 import express from "express";
 import cors from "cors";
 import path from "path";
 import pinoHttp from "pino-http";
+import os from "os";
 import childProcess from "child_process";
 import { logger } from "./logger";
+import { setupAssetsDir } from "./shared/file-storage/setup-assets-dir";
 import { keyPool } from "./shared/key-management";
 import { adminRouter } from "./admin/routes";
 import { proxyRouter } from "./proxy/routes";
@@ -58,6 +61,8 @@ app.set("views", [
   path.join(__dirname, "shared/views"),
 ]);
 
+app.use("/user_content", express.static(USER_ASSETS_DIR));
+
 app.get("/health", (_req, res) => res.sendStatus(200));
 app.use(cors());
 app.use(checkOrigin);
@@ -99,13 +104,17 @@ async function start() {
 
   await initTokenizers();
 
+  if (config.allowedModelFamilies.includes("dall-e")) {
+    await setupAssetsDir();
+  }
+
   if (config.gatekeeper === "user_token") {
     await initUserStore();
   }
 
   if (config.promptLogging) {
     logger.info("Starting prompt logging...");
-    logQueue.start();
+    await logQueue.start();
   }
 
   logger.info("Starting request queue...");
@@ -116,8 +125,12 @@ async function start() {
     registerUncaughtExceptionHandler();
   });
 
+  const diskSpace = await checkDiskSpace(
+    __dirname.startsWith("/app") ? "/app" : os.homedir()
+  );
+
   logger.info(
-    { build: process.env.BUILD_INFO, nodeEnv: process.env.NODE_ENV },
+    { build: process.env.BUILD_INFO, nodeEnv: process.env.NODE_ENV, diskSpace },
     "Startup complete."
   );
 }

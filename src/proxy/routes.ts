@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from "express";
 import { gatekeeper } from "./gatekeeper";
 import { checkRisuToken } from "./check-risu-token";
 import { openai } from "./openai";
+import { openaiImage } from "./openai-image";
 import { anthropic } from "./anthropic";
 import { googlePalm } from "./palm";
 import { aws } from "./aws";
@@ -27,6 +28,7 @@ proxyRouter.use((req, _res, next) => {
   next();
 });
 proxyRouter.use("/openai", addV1, openai);
+proxyRouter.use("/openai-image", addV1, openaiImage);
 proxyRouter.use("/anthropic", addV1, anthropic);
 proxyRouter.use("/google-palm", addV1, googlePalm);
 proxyRouter.use("/aws/claude", addV1, aws);

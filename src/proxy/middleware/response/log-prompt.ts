@@ -4,7 +4,8 @@ import { logQueue } from "../../../shared/prompt-logging";
 import {
   getCompletionFromBody,
   getModelFromBody,
-  isCompletionRequest,
+  isImageGenerationRequest,
+  isTextGenerationRequest,
 } from "../common";
 import { ProxyResHandlerWithBody } from ".";
 import { assertNever } from "../../../shared/utils";
@@ -23,11 +24,11 @@ export const logPrompt: ProxyResHandlerWithBody = async (
     throw new Error("Expected body to be an object");
   }
 
-  if (!isCompletionRequest(req)) {
-    return;
-  }
+  const loggable =
+    isTextGenerationRequest(req) || isImageGenerationRequest(req);
+  if (!loggable) return;
 
-  const promptPayload = getPromptForRequest(req);
+  const promptPayload = getPromptForRequest(req, responseBody);
   const promptFlattened = flattenMessages(promptPayload);
   const response = getCompletionFromBody(req, responseBody);
   const model = getModelFromBody(req, responseBody);
@@ -46,7 +47,18 @@ type OaiMessage = {
   content: string;
 };
 
-const getPromptForRequest = (req: Request): string | OaiMessage[] => {
+type OaiImageResult = {
+  prompt: string;
+  size: string;
+  style: string;
+  quality: string;
+  revisedPrompt?: string;
+};
+
+const getPromptForRequest = (
+  req: Request,
+  responseBody: Record<string, any>
+): string | OaiMessage[] | OaiImageResult => {
   // Since the prompt logger only runs after the request has been proxied, we
   // can assume the body has already been transformed to the target API's
   // format.
@@ -55,6 +67,14 @@ const getPromptForRequest = (req: Request): string | OaiMessage[] => {
       return req.body.messages;
     case "openai-text":
       return req.body.prompt;
+    case "openai-image":
+      return {
+        prompt: req.body.prompt,
+        size: req.body.size,
+        style: req.body.style,
+        quality: req.body.quality,
+        revisedPrompt: responseBody.data[0].revised_prompt,
+      };
     case "anthropic":
       return req.body.prompt;
     case "google-palm":
@@ -64,9 +84,14 @@ const getPromptForRequest = (req: Request): string | OaiMessage[] => {
   }
 };
 
-const flattenMessages = (messages: string | OaiMessage[]): string => {
-  if (typeof messages === "string") {
-    return messages.trim();
+const flattenMessages = (
+  val: string | OaiMessage[] | OaiImageResult
+): string => {
+  if (typeof val === "string") {
+    return val.trim();
   }
-  return messages.map((m) => `${m.role}: ${m.content}`).join("\n");
+  if (Array.isArray(val)) {
+    return val.map((m) => `${m.role}: ${m.content}`).join("\n");
+  }
+  return val.prompt.trim();
 };

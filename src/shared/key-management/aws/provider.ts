@@ -6,12 +6,10 @@ import type { AwsBedrockModelFamily } from "../../models";
 import { AwsKeyChecker } from "./checker";
 
 // https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html
-export const AWS_BEDROCK_SUPPORTED_MODELS = [
-  "anthropic.claude-v1",
-  "anthropic.claude-v2",
-  "anthropic.claude-instant-v1",
-] as const;
-export type AwsBedrockModel = (typeof AWS_BEDROCK_SUPPORTED_MODELS)[number];
+export type AwsBedrockModel =
+  | "anthropic.claude-v1"
+  | "anthropic.claude-v2"
+  | "anthropic.claude-instant-v1";
 
 type AwsBedrockKeyUsage = {
   [K in AwsBedrockModelFamily as `${K}Tokens`]: number;
@@ -158,7 +156,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     key["aws-claudeTokens"] += tokens;
   }
 
-  public getLockoutPeriod(_model: AwsBedrockModel) {
+  public getLockoutPeriod() {
     // TODO: same exact behavior for three providers, should be refactored
     const activeKeys = this.keys.filter((k) => !k.isDisabled);
     // Don't lock out if there are no keys available or the queue will stall.

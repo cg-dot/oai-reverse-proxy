@@ -11,9 +11,17 @@ import admin from "firebase-admin";
 import schedule from "node-schedule";
 import { v4 as uuid } from "uuid";
 import { config, getFirebaseApp } from "../../config";
-import { MODEL_FAMILIES, ModelFamily } from "../models";
+import {
+  getClaudeModelFamily,
+  getGooglePalmModelFamily,
+  getOpenAIModelFamily,
+  MODEL_FAMILIES,
+  ModelFamily,
+} from "../models";
 import { logger } from "../../logger";
 import { User, UserTokenCounts, UserUpdate } from "./schema";
+import { APIFormat } from "../key-management";
+import { assertNever } from "../utils";
 
 const log = logger.child({ module: "users" });
 
@@ -22,6 +30,7 @@ const INITIAL_TOKENS: Required<UserTokenCounts> = {
   gpt4: 0,
   "gpt4-32k": 0,
   "gpt4-turbo": 0,
+  "dall-e": 0,
   claude: 0,
   bison: 0,
   "aws-claude": 0,
@@ -166,11 +175,12 @@ export function incrementPromptCount(token: string) {
 export function incrementTokenCount(
   token: string,
   model: string,
+  api: APIFormat,
   consumption: number
 ) {
   const user = users.get(token);
   if (!user) return;
-  const modelFamily = getModelFamilyForQuotaUsage(model);
+  const modelFamily = getModelFamilyForQuotaUsage(model, api);
   const existing = user.tokenCounts[modelFamily] ?? 0;
   user.tokenCounts[modelFamily] = existing + consumption;
   usersToFlush.add(token);
@@ -181,9 +191,10 @@ export function incrementTokenCount(
  * to the user's list of IPs. Returns the user if they exist and are not
  * disabled, otherwise returns undefined.
  */
-export function authenticate(token: string, ip: string):
-  { user?: User; result: "success" | "disabled" | "not_found" | "limited" }
-  {
+export function authenticate(
+  token: string,
+  ip: string
+): { user?: User; result: "success" | "disabled" | "not_found" | "limited" } {
   const user = users.get(token);
   if (!user) return { result: "not_found" };
   if (user.disabledAt) return { result: "disabled" };
@@ -210,16 +221,22 @@ export function authenticate(token: string, ip: string):
   return { user, result: "success" };
 }
 
-export function hasAvailableQuota(
-  token: string,
-  model: string,
-  requested: number
-) {
-  const user = users.get(token);
+export function hasAvailableQuota({
+  userToken,
+  model,
+  api,
+  requested,
+}: {
+  userToken: string;
+  model: string;
+  api: APIFormat;
+  requested: number;
+}) {
+  const user = users.get(userToken);
   if (!user) return false;
   if (user.type === "special") return true;
 
-  const modelFamily = getModelFamilyForQuotaUsage(model);
+  const modelFamily = getModelFamilyForQuotaUsage(model, api);
   const { tokenCounts, tokenLimits } = user;
   const tokenLimit = tokenLimits[modelFamily];
 
@@ -361,30 +378,22 @@ async function flushUsers() {
   );
 }
 
-// TODO: use key-management/models.ts for family mapping
-function getModelFamilyForQuotaUsage(model: string): ModelFamily {
-  if (model.startsWith("gpt-4-1106")) {
-    return "gpt4-turbo";
+function getModelFamilyForQuotaUsage(
+  model: string,
+  api: APIFormat
+): ModelFamily {
+  switch (api) {
+    case "openai":
+    case "openai-text":
+    case "openai-image":
+      return getOpenAIModelFamily(model);
+    case "anthropic":
+      return getClaudeModelFamily(model);
+    case "google-palm":
+      return getGooglePalmModelFamily(model);
+    default:
+      assertNever(api);
   }
-  if (model.includes("32k")) {
-    return "gpt4-32k";
-  }
-  if (model.startsWith("gpt-4")) {
-    return "gpt4";
-  }
-  if (model.startsWith("gpt-3.5")) {
-    return "turbo";
-  }
-  if (model.includes("bison")) {
-    return "bison";
-  }
-  if (model.startsWith("claude")) {
-    return "claude";
-  }
-  if (model.startsWith("anthropic.claude")) {
-    return "aws-claude";
-  }
-  throw new Error(`Unknown quota model family for model ${model}`);
 }
 
 function getRefreshCrontab() {
