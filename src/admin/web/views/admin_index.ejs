@@ -1,5 +1,11 @@
 <%- include("partials/shared_header", { title: "OAI Reverse Proxy Admin" }) %>
 <h1>OAI Reverse Proxy Admin</h1>
+<% if (!usersEnabled) { %>
+<p style="color: red; background-color: #eedddd; padding: 1em">
+  <strong>🚨 <code>user_token</code> gatekeeper is not enabled.</strong><br />
+  <br />None of the user management features will do anything.
+</p>
+<% } %>
 <% if (!persistenceEnabled) { %>
 <p style="color: red; background-color: #eedddd; padding: 1em">
   <strong>⚠️ Users will be lost when the server restarts because persistence is not configured.</strong><br />
@@ -19,6 +25,7 @@
   <li><a href="/admin/manage/import-users">Import Users</a></li>
   <li><a href="/admin/manage/export-users">Export Users</a></li>
   <li><a href="/admin/manage/download-stats">Download Rentry Stats</a>
+  <li><a href="/admin/service-info">Service Info</a></li>
 </ul>
 <h3>Maintenance</h3>
 <form id="maintenanceForm" action="/admin/manage/maintenance" method="post">

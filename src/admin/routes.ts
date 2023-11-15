@@ -4,6 +4,7 @@ import { HttpError } from "../shared/errors";
 import { injectLocals } from "../shared/inject-locals";
 import { withSession } from "../shared/with-session";
 import { injectCsrfToken, checkCsrfToken } from "../shared/inject-csrf";
+import { buildInfoPageHtml } from "../info-page";
 import { loginRouter } from "./login";
 import { usersApiRouter as apiRouter } from "./api/users";
 import { usersWebRouter as webRouter } from "./web/manage";
@@ -23,6 +24,11 @@ adminRouter.use(checkCsrfToken);
 adminRouter.use(injectLocals);
 adminRouter.use("/", loginRouter);
 adminRouter.use("/manage", authorize({ via: "cookie" }), webRouter);
+adminRouter.use("/service-info", authorize({ via: "cookie" }), (req, res) => {
+  return res.send(
+    buildInfoPageHtml(req.protocol + "://" + req.get("host"), true)
+  );
+});
 
 adminRouter.use(
   (

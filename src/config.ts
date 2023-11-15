@@ -171,6 +171,13 @@ type Config = {
    * the admin UI to used over HTTP.
    */
   useInsecureCookies: boolean;
+  /**
+   * Whether to use a more minimal public Service Info page with static content.
+   * This disables all stats, including traffic, keys, and queue info.
+   * The full info page will appear if you have signed in as an admin using the
+   * configured ADMIN_KEY and go to /admin/service-info.
+   **/
+  staticServiceInfo?: boolean;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -249,6 +256,7 @@ export const config: Config = {
   allowNicknameChanges: getEnvWithDefault("ALLOW_NICKNAME_CHANGES", true),
   showRecentImages: getEnvWithDefault("SHOW_RECENT_IMAGES", true),
   useInsecureCookies: getEnvWithDefault("USE_INSECURE_COOKIES", isDev),
+  staticServiceInfo: getEnvWithDefault("STATIC_SERVICE_INFO", false),
 } as const;
 
 function generateCookieSecret() {
@@ -314,7 +322,8 @@ export async function assertConfigIsValid() {
   // them to users.
   for (const key of getKeys(config)) {
     const maybeSensitive = ["key", "credentials", "secret", "password"].some(
-      (sensitive) => key.toLowerCase().includes(sensitive)
+      (sensitive) =>
+        key.toLowerCase().includes(sensitive) && !["checkKeys"].includes(key)
     );
     const secured = new Set([...SENSITIVE_KEYS, ...OMITTED_KEYS]);
     if (maybeSensitive && !secured.has(key))
@@ -345,7 +354,6 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "awsCredentials",
   "proxyKey",
   "adminKey",
-  "checkKeys",
   "rejectPhrases",
   "showTokenCosts",
   "googleSheetsKey",
@@ -359,6 +367,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "allowNicknameChanges",
   "showRecentImages",
   "useInsecureCookies",
+  "staticServiceInfo",
 ];
 
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;

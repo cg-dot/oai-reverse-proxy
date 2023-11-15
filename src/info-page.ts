@@ -4,10 +4,10 @@ import showdown from "showdown";
 import { config, listConfig } from "./config";
 import {
   AnthropicKey,
-  GooglePalmKey,
-  OpenAIKey,
   AwsBedrockKey,
+  GooglePalmKey,
   keyPool,
+  OpenAIKey,
 } from "./shared/key-management";
 import { ModelFamily, OpenAIModelFamily } from "./shared/models";
 import { getUniqueIps } from "./proxy/rate-limit";
@@ -72,7 +72,10 @@ export const handleInfoPage = (req: Request, res: Response) => {
       ? getExternalUrlForHuggingfaceSpaceId(process.env.SPACE_ID)
       : req.protocol + "://" + req.get("host");
 
-  res.send(cacheInfoPageHtml(baseUrl));
+  infoPageHtml = buildInfoPageHtml(baseUrl);
+  infoPageLastUpdated = Date.now();
+
+  res.send(infoPageHtml);
 };
 
 function getCostString(cost: number) {
@@ -80,8 +83,9 @@ function getCostString(cost: number) {
   return ` ($${cost.toFixed(2)})`;
 }
 
-function cacheInfoPageHtml(baseUrl: string) {
+export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
   const keys = keyPool.list();
+  const hideFullInfo = config.staticServiceInfo && !asAdmin;
 
   modelStats.clear();
   serviceStats.clear();
@@ -97,31 +101,45 @@ function cacheInfoPageHtml(baseUrl: string) {
 
   const allowDalle = config.allowedModelFamilies.includes("dall-e");
 
-  const info = {
-    uptime: Math.floor(process.uptime()),
-    endpoints: {
-      ...(openaiKeys ? { openai: baseUrl + "/proxy/openai" } : {}),
-      ...(openaiKeys
-        ? { ["openai2"]: baseUrl + "/proxy/openai/turbo-instruct" }
-        : {}),
-      ...(openaiKeys && allowDalle
-        ? { ["openai-image"]: baseUrl + "/proxy/openai-image" }
-        : {}),
-      ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
-      ...(palmKeys ? { "google-palm": baseUrl + "/proxy/google-palm" } : {}),
-      ...(awsKeys ? { aws: baseUrl + "/proxy/aws/claude" } : {}),
-    },
+  const endpoints = {
+    ...(openaiKeys ? { openai: baseUrl + "/proxy/openai" } : {}),
+    ...(openaiKeys
+      ? { ["openai2"]: baseUrl + "/proxy/openai/turbo-instruct" }
+      : {}),
+    ...(openaiKeys && allowDalle
+      ? { ["openai-image"]: baseUrl + "/proxy/openai-image" }
+      : {}),
+    ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
+    ...(palmKeys ? { "google-palm": baseUrl + "/proxy/google-palm" } : {}),
+    ...(awsKeys ? { aws: baseUrl + "/proxy/aws/claude" } : {}),
+  };
+
+  const stats = {
     proompts,
     tookens: `${prettyTokens(tokens)}${getCostString(tokenCost)}`,
     ...(config.textModelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
+  };
+
+  const keyInfo = {
     openaiKeys,
     anthropicKeys,
     palmKeys,
     awsKeys,
+  };
+
+  const providerInfo = {
     ...(openaiKeys ? getOpenAIInfo() : {}),
     ...(anthropicKeys ? getAnthropicInfo() : {}),
     ...(palmKeys ? { "palm-bison": getPalmInfo() } : {}),
     ...(awsKeys ? { "aws-claude": getAwsInfo() } : {}),
+  }
+
+  const info = {
+    uptime: Math.floor(process.uptime()),
+    endpoints,
+    ...(hideFullInfo ? {} : stats),
+    ...keyInfo,
+    ...(hideFullInfo ? {} : providerInfo),
     config: listConfig(),
     build: process.env.BUILD_INFO || "dev",
   };
@@ -129,7 +147,7 @@ function cacheInfoPageHtml(baseUrl: string) {
   const title = getServerTitle();
   const headerHtml = buildInfoPageHeader(new showdown.Converter(), title);
 
-  const pageBody = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -144,11 +162,6 @@ function cacheInfoPageHtml(baseUrl: string) {
     ${getSelfServiceLinks()}
   </body>
 </html>`;
-
-  infoPageHtml = pageBody;
-  infoPageLastUpdated = Date.now();
-
-  return pageBody;
 }
 
 function getUniqueOpenAIOrgs(keys: KeyPoolKey[]) {
@@ -402,8 +415,8 @@ function getAwsInfo() {
 }
 
 const customGreeting = fs.existsSync("greeting.md")
-  ? fs.readFileSync("greeting.md", "utf8")
-  : null;
+  ? `\n## Server Greeting\n${fs.readFileSync("greeting.md", "utf8")}`
+  : "";
 
 /**
  * If the server operator provides a `greeting.md` file, it will be included in
@@ -422,8 +435,12 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
 **If you are uncomfortable with this, don't send prompts to this proxy!**`;
   }
 
+  if (config.staticServiceInfo) {
+    return converter.makeHtml(infoBody + customGreeting);
+  }
+
   const waits: string[] = [];
-  infoBody += `\n## Estimated Wait Times\nIf the AI is busy, your prompt will processed when a slot frees up.`;
+  infoBody += `\n## Estimated Wait Times`;
 
   if (config.openaiKey) {
     // TODO: un-fuck this
@@ -466,9 +483,7 @@ Logs are anonymous and do not contain IP addresses or timestamps. [You can see t
 
   infoBody += "\n\n" + waits.join(" / ");
 
-  if (customGreeting) {
-    infoBody += `\n## Server Greeting\n${customGreeting}`;
-  }
+  infoBody += customGreeting;
 
   infoBody += buildRecentImageSection();
 
@@ -544,11 +559,11 @@ function buildRecentImageSection() {
 
 function escapeHtml(unsafe: string) {
   return unsafe
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function getExternalUrlForHuggingfaceSpaceId(spaceId: string) {
