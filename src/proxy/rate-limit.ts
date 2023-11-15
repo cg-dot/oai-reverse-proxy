@@ -83,7 +83,7 @@ export const refundLastAttempt = (req: Request) => {
   const key = req.user?.token || req.risuToken || req.ip;
   const attempts = lastAttempts.get(key) || [];
   attempts.pop();
-}
+};
 
 export const ipLimiter = async (
   req: Request,
@@ -109,7 +109,9 @@ export const ipLimiter = async (
     return next();
   }
 
-  const type = req.baseUrl + req.path ? "image" : "text";
+  const type = (req.baseUrl + req.path).includes("openai-image")
+    ? "image"
+    : "text";
   const limit = type === "image" ? imageLimit : textLimit;
 
   // If user is authenticated, key rate limiting by their token. Otherwise, key
