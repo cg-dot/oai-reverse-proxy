@@ -389,7 +389,7 @@ function killQueuedRequest(req: Request) {
   }
   const res = req.res;
   try {
-    const message = `Your request has been terminated by the proxy because it has been in the queue for more than 5 minutes. The queue is currently ${queue.length} requests long.`;
+    const message = `Your request has been terminated by the proxy because it has been in the queue for more than 5 minutes.`;
     if (res.headersSent) {
       const fakeErrorEvent = buildFakeSse("proxy queue error", message, req);
       res.write(fakeErrorEvent);
