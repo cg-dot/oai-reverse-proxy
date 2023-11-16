@@ -473,6 +473,14 @@ function removeProxyMiddlewareEventListeners(req: Request) {
 export function registerHeartbeat(req: Request) {
   const res = req.res!;
 
+  const currentSize = getHeartbeatSize();
+  req.log.info({
+    currentSize,
+    HEARTBEAT_INTERVAL,
+    PAYLOAD_SCALE_FACTOR,
+    MAX_HEARTBEAT_SIZE,
+  }, "Joining queue with heartbeat.");
+
   let isBufferFull = false;
   let bufferFullCount = 0;
   req.heartbeatInterval = setInterval(() => {
@@ -542,8 +550,9 @@ function getHeartbeatPayload() {
   const size = getHeartbeatSize();
   const data =
     process.env.NODE_ENV === "production"
-      ? crypto.randomBytes(size)
+      ? crypto.randomBytes(size).toString("base64")
       : `payload size: ${size}`;
+
   return `: queue heartbeat ${data}\n\n`;
 }
 
