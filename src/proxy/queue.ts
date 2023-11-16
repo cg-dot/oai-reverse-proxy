@@ -11,6 +11,7 @@
  * back in the queue and it will be retried later using the same closure.
  */
 
+import crypto from "crypto";
 import type { Handler, Request } from "express";
 import { keyPool } from "../shared/key-management";
 import {
@@ -23,7 +24,7 @@ import {
 import { buildFakeSse, initializeSseStream } from "../shared/streaming";
 import { assertNever } from "../shared/utils";
 import { logger } from "../logger";
-import { SHARED_IP_ADDRESSES } from "./rate-limit";
+import { getUniqueIps, SHARED_IP_ADDRESSES } from "./rate-limit";
 import { RequestPreprocessor } from "./middleware/request";
 
 const queue: Request[] = [];
@@ -33,6 +34,15 @@ const log = logger.child({ module: "request-queue" });
 const AGNAI_CONCURRENCY_LIMIT = 5;
 /** Maximum number of queue slots for individual users. */
 const USER_CONCURRENCY_LIMIT = 1;
+const MIN_HEARTBEAT_SIZE = 512;
+const MAX_HEARTBEAT_SIZE =
+  1024 * parseInt(process.env.MAX_HEARTBEAT_SIZE_KB ?? "1024");
+const HEARTBEAT_INTERVAL =
+  1000 * parseInt(process.env.HEARTBEAT_INTERVAL_SEC ?? "5");
+const LOAD_THRESHOLD = parseFloat(process.env.LOAD_THRESHOLD ?? "50");
+const PAYLOAD_SCALE_FACTOR = parseFloat(
+  process.env.PAYLOAD_SCALE_FACTOR ?? "6"
+);
 
 /**
  * Returns an identifier for a request. This is used to determine if a
@@ -93,31 +103,21 @@ export function enqueue(req: Request) {
     if (!res.headersSent) {
       initStreaming(req);
     }
-    req.heartbeatInterval = setInterval(() => {
-      if (process.env.NODE_ENV === "production") {
-        if (!req.query.badSseParser) req.res!.write(": queue heartbeat\n\n");
-      } else {
-        req.log.info(`Sending heartbeat to request in queue.`);
-        const partition = getPartitionForRequest(req);
-        const avgWait = Math.round(getEstimatedWaitTime(partition) / 1000);
-        const currentDuration = Math.round((Date.now() - req.startTime) / 1000);
-        const debugMsg = `queue length: ${queue.length}; elapsed time: ${currentDuration}s; avg wait: ${avgWait}s`;
-        req.res!.write(buildFakeSse("heartbeat", debugMsg, req));
-      }
-    }, 10000);
+    registerHeartbeat(req);
+  } else if (getProxyLoad() > LOAD_THRESHOLD) {
+    throw new Error(
+      "Due to heavy traffic on this proxy, you must enable streaming for your request."
+    );
   }
 
-  // Register a handler to remove the request from the queue if the connection
-  // is aborted or closed before it is dequeued.
   const removeFromQueue = () => {
     req.log.info(`Removing aborted request from queue.`);
     const index = queue.indexOf(req);
     if (index !== -1) {
       queue.splice(index, 1);
     }
-    if (req.heartbeatInterval) {
-      clearInterval(req.heartbeatInterval);
-    }
+    if (req.heartbeatInterval) clearInterval(req.heartbeatInterval);
+    if (req.monitorInterval) clearInterval(req.monitorInterval);
   };
   req.onAborted = removeFromQueue;
   req.res!.once("close", removeFromQueue);
@@ -188,9 +188,8 @@ export function dequeue(partition: ModelFamily): Request | undefined {
     req.onAborted = undefined;
   }
 
-  if (req.heartbeatInterval) {
-    clearInterval(req.heartbeatInterval);
-  }
+  if (req.heartbeatInterval) clearInterval(req.heartbeatInterval);
+  if (req.monitorInterval) clearInterval(req.monitorInterval);
 
   // Track the time leaving the queue now, but don't add it to the wait times
   // yet because we don't know if the request will succeed or fail. We track
@@ -385,6 +384,7 @@ export function createQueueMiddleware({
 function killQueuedRequest(req: Request) {
   if (!req.res || req.res.writableEnded) {
     req.log.warn(`Attempted to terminate request that has already ended.`);
+    queue.splice(queue.indexOf(req), 1);
     return;
   }
   const res = req.res;
@@ -468,4 +468,85 @@ function removeProxyMiddlewareEventListeners(req: Request) {
   if (reqOnError) {
     req.removeListener("error", reqOnError as any);
   }
+}
+
+export function registerHeartbeat(req: Request) {
+  const res = req.res!;
+
+  let isBufferFull = false;
+  let bufferFullCount = 0;
+  req.heartbeatInterval = setInterval(() => {
+    if (isBufferFull) {
+      bufferFullCount++;
+      if (bufferFullCount >= 3) {
+        req.log.error("Heartbeat skipped too many times; killing connection.");
+        res.destroy();
+      } else {
+        req.log.warn({ bufferFullCount }, "Heartbeat skipped; buffer is full.");
+      }
+      return;
+    }
+
+    const data = getHeartbeatPayload();
+    if (!res.write(data)) {
+      isBufferFull = true;
+      res.once("drain", () => (isBufferFull = false));
+    }
+  }, HEARTBEAT_INTERVAL);
+  monitorHeartbeat(req);
+}
+
+function monitorHeartbeat(req: Request) {
+  const res = req.res!;
+
+  let lastBytesSent = 0;
+  req.monitorInterval = setInterval(() => {
+    const bytesSent = res.socket?.bytesWritten ?? 0;
+    const bytesSinceLast = bytesSent - lastBytesSent;
+    req.log.debug(
+      {
+        previousBytesSent: lastBytesSent,
+        currentBytesSent: bytesSent,
+      },
+      "Heartbeat monitor check."
+    );
+    lastBytesSent = bytesSent;
+
+    const minBytes = Math.floor(getHeartbeatSize() / 2);
+    if (bytesSinceLast < minBytes) {
+      req.log.warn(
+        { minBytes, bytesSinceLast },
+        "Queued request is processing heartbeats enough data or server is overloaded; killing connection."
+      );
+      res.destroy();
+    }
+  }, HEARTBEAT_INTERVAL * 2);
+}
+
+/** Sends larger heartbeats when the queue is overloaded */
+function getHeartbeatSize() {
+  const load = getProxyLoad();
+
+  if (load <= LOAD_THRESHOLD) {
+    return MIN_HEARTBEAT_SIZE;
+  } else {
+    const excessLoad = load - LOAD_THRESHOLD;
+    const size =
+      MIN_HEARTBEAT_SIZE + Math.pow(excessLoad * PAYLOAD_SCALE_FACTOR, 2);
+    if (size > MAX_HEARTBEAT_SIZE) return MAX_HEARTBEAT_SIZE;
+    return size;
+  }
+}
+
+function getHeartbeatPayload() {
+  const size = getHeartbeatSize();
+  const data =
+    process.env.NODE_ENV === "production"
+      ? crypto.randomBytes(size)
+      : `payload size: ${size}`;
+  return `: queue heartbeat ${data}\n\n`;
+}
+
+function getProxyLoad() {
+  return Math.max(getUniqueIps(), queue.length);
 }

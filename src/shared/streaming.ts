@@ -39,11 +39,7 @@ export function copySseResponseHeaders(
  * that the request is being proxied to. Used to send error messages to the
  * client in the middle of a streaming request.
  */
-export function buildFakeSse(
-  type: string,
-  string: string,
-  req: Request
-) {
+export function buildFakeSse(type: string, string: string, req: Request) {
   let fakeEvent;
   const content = `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`;
 
@@ -54,7 +50,7 @@ export function buildFakeSse(
         object: "chat.completion.chunk",
         created: Date.now(),
         model: req.body?.model,
-        choices: [{ delta: { content }, index: 0, finish_reason: type }]
+        choices: [{ delta: { content }, index: 0, finish_reason: type }],
       };
       break;
     case "openai-text":
@@ -63,9 +59,9 @@ export function buildFakeSse(
         object: "text_completion",
         created: Date.now(),
         choices: [
-          { text: content, index: 0, logprobs: null, finish_reason: type }
+          { text: content, index: 0, logprobs: null, finish_reason: type },
         ],
-        model: req.body?.model
+        model: req.body?.model,
       };
       break;
     case "anthropic":
@@ -75,7 +71,7 @@ export function buildFakeSse(
         truncated: false, // I've never seen this be true
         stop: null,
         model: req.body?.model,
-        log_id: "proxy-req-" + req.id
+        log_id: "proxy-req-" + req.id,
       };
       break;
     case "google-palm":
@@ -86,10 +82,10 @@ export function buildFakeSse(
   }
 
   if (req.inboundApi === "anthropic") {
-    return [
-      "event: completion",
-      `data: ${JSON.stringify(fakeEvent)}`,
-    ].join("\n") + "\n\n";
+    return (
+      ["event: completion", `data: ${JSON.stringify(fakeEvent)}`].join("\n") +
+      "\n\n"
+    );
   }
 
   return `data: ${JSON.stringify(fakeEvent)}\n\n`;
