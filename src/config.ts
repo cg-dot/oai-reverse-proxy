@@ -173,7 +173,7 @@ type Config = {
   useInsecureCookies: boolean;
   /**
    * Whether to use a more minimal public Service Info page with static content.
-   * This disables all stats, including traffic, keys, and queue info.
+   * Disables all stats pertaining to traffic, prompt/token usage, and queues.
    * The full info page will appear if you have signed in as an admin using the
    * configured ADMIN_KEY and go to /admin/service-info.
    **/
@@ -368,6 +368,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "showRecentImages",
   "useInsecureCookies",
   "staticServiceInfo",
+  "checkKeys",
 ];
 
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;

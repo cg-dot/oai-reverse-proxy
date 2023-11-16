@@ -120,18 +120,21 @@ export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
     ...(config.textModelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
   };
 
-  const keyInfo = {
-    openaiKeys,
-    anthropicKeys,
-    palmKeys,
-    awsKeys,
-  };
+  const keyInfo = { openaiKeys, anthropicKeys, palmKeys, awsKeys };
 
   const providerInfo = {
     ...(openaiKeys ? getOpenAIInfo() : {}),
     ...(anthropicKeys ? getAnthropicInfo() : {}),
     ...(palmKeys ? { "palm-bison": getPalmInfo() } : {}),
     ...(awsKeys ? { "aws-claude": getAwsInfo() } : {}),
+  };
+
+  if (hideFullInfo) {
+    for (const provider of Object.keys(providerInfo)) {
+      delete (providerInfo as any)[provider].proomptersInQueue;
+      delete (providerInfo as any)[provider].estimatedQueueTime;
+      delete (providerInfo as any)[provider].usage;
+    }
   }
 
   const info = {
@@ -139,7 +142,7 @@ export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
     endpoints,
     ...(hideFullInfo ? {} : stats),
     ...keyInfo,
-    ...(hideFullInfo ? {} : providerInfo),
+    ...providerInfo,
     config: listConfig(),
     build: process.env.BUILD_INFO || "dev",
   };
