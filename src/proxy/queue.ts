@@ -88,9 +88,6 @@ export function enqueue(req: Request) {
     }
   }
 
-  queue.push(req);
-  req.queueOutTime = 0;
-
   // shitty hack to remove hpm's event listeners on retried requests
   removeProxyMiddlewareEventListeners(req);
 
@@ -109,6 +106,9 @@ export function enqueue(req: Request) {
       "Due to heavy traffic on this proxy, you must enable streaming for your request."
     );
   }
+
+  queue.push(req);
+  req.queueOutTime = 0;
 
   const removeFromQueue = () => {
     req.log.info(`Removing aborted request from queue.`);
@@ -414,6 +414,7 @@ function initStreaming(req: Request) {
   }
 
   res.write(`: joining queue at position ${queue.length}\n\n`);
+  res.write(getHeartbeatPayload());
 }
 
 /**
