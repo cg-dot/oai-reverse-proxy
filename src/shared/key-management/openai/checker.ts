@@ -98,11 +98,11 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
     const families = new Set<OpenAIModelFamily>();
     models.forEach(({ id }) => families.add(getOpenAIModelFamily(id, "turbo")));
 
-    if (families.has("dall-e") && !models.find(({ id }) => id === "dall-e-3")) {
-      if (process.env.DALLE_2_OVERRIDE !== "true") {
-        families.delete("dall-e");
-      }
-    }
+    // as of 2023-11-18, many keys no longer return the dalle3 model but still
+    // have access to it via the api for whatever reason.
+    // if (families.has("dall-e") && !models.find(({ id }) => id === "dall-e-3")) {
+    //   families.delete("dall-e");
+    // }
 
     // We want to update the key's model families here, but we don't want to
     // update its `lastChecked` timestamp because we need to let the liveness

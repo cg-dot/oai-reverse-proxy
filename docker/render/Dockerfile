@@ -17,8 +17,6 @@ ARG GREETING_URL
 RUN if [ -n "$GREETING_URL" ]; then \
     curl -sL "$GREETING_URL" > greeting.md; \
     fi
-RUN chown -R 1000:1000 /app
-USER 1000
 COPY package*.json greeting.md* ./
 RUN npm install
 COPY . .
