@@ -98,10 +98,10 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
     const families = new Set<OpenAIModelFamily>();
     models.forEach(({ id }) => families.add(getOpenAIModelFamily(id, "turbo")));
 
-    // For now we remove dall-e from the list of provisioned models if only
-    // dall-e-2 is available.
     if (families.has("dall-e") && !models.find(({ id }) => id === "dall-e-3")) {
-      families.delete("dall-e");
+      if (process.env.DALLE_2_OVERRIDE !== "true") {
+        families.delete("dall-e");
+      }
     }
 
     // We want to update the key's model families here, but we don't want to
