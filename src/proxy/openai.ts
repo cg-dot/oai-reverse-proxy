@@ -26,6 +26,7 @@ import { createOnProxyResHandler, ProxyResHandlerWithBody } from "./middleware/r
 // https://platform.openai.com/docs/models/overview
 const KNOWN_MODELS = [
   "gpt-4-1106-preview",
+  "gpt-4-vision-preview",
   "gpt-4",
   "gpt-4-0613",
   "gpt-4-0314", // EOL 2024-06-13

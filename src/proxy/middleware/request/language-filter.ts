@@ -3,6 +3,7 @@ import { config } from "../../../config";
 import { assertNever } from "../../../shared/utils";
 import { RequestPreprocessor } from ".";
 import { UserInputError } from "../../../shared/errors";
+import { OpenAIChatMessage } from "./transform-outbound-payload";
 
 const rejectedClients = new Map<string, number>();
 
@@ -53,9 +54,16 @@ function getPromptFromRequest(req: Request) {
       return body.prompt;
     case "openai":
       return body.messages
-        .map(
-          (m: { content: string; role: string }) => `${m.role}: ${m.content}`
-        )
+        .map((msg: OpenAIChatMessage) => {
+          const text = Array.isArray(msg.content)
+            ? msg.content
+                .map((c) => {
+                  if ("text" in c) return c.text;
+                })
+                .join()
+            : msg.content;
+          return `${msg.role}: ${text}`;
+        })
         .join("\n\n");
     case "openai-text":
     case "openai-image":

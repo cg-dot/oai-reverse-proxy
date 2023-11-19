@@ -1,13 +1,14 @@
 import { Request } from "express";
 import { z } from "zod";
 import { config } from "../../../config";
-import { OpenAIPromptMessage } from "../../../shared/tokenization";
 import { isTextGenerationRequest, isImageGenerationRequest } from "../common";
 import { RequestPreprocessor } from ".";
 import { APIFormat } from "../../../shared/key-management";
 
 const CLAUDE_OUTPUT_MAX = config.maxOutputTokensAnthropic;
 const OPENAI_OUTPUT_MAX = config.maxOutputTokensOpenAI;
+
+// TODO: move schemas to shared
 
 // https://console.anthropic.com/docs/api/reference#-v1-complete
 export const AnthropicV1CompleteSchema = z.object({
@@ -29,12 +30,25 @@ export const AnthropicV1CompleteSchema = z.object({
 });
 
 // https://platform.openai.com/docs/api-reference/chat/create
-const OpenAIV1ChatCompletionSchema = z.object({
+const OpenAIV1ChatContentArraySchema = z.array(
+  z.union([
+    z.object({ type: z.literal("text"), text: z.string() }),
+    z.object({
+      type: z.literal("image_url"),
+      image_url: z.object({
+        url: z.string().url(),
+        detail: z.enum(["low", "auto", "high"]).optional().default("auto"),
+      }),
+    }),
+  ])
+);
+
+export const OpenAIV1ChatCompletionSchema = z.object({
   model: z.string(),
   messages: z.array(
     z.object({
       role: z.enum(["system", "user", "assistant"]),
-      content: z.string(),
+      content: z.union([z.string(), OpenAIV1ChatContentArraySchema]),
       name: z.string().optional(),
     }),
     {
@@ -67,6 +81,10 @@ const OpenAIV1ChatCompletionSchema = z.object({
   user: z.string().optional(),
   seed: z.number().int().optional(),
 });
+
+export type OpenAIChatMessage = z.infer<
+  typeof OpenAIV1ChatCompletionSchema
+>["messages"][0];
 
 const OpenAIV1TextCompletionSchema = z
   .object({
@@ -232,7 +250,7 @@ function openaiToOpenaiText(req: Request) {
   }
 
   const { messages, ...rest } = result.data;
-  const prompt = flattenOpenAiChatMessages(messages);
+  const prompt = flattenOpenAIChatMessages(messages);
 
   let stops = rest.stop
     ? Array.isArray(rest.stop)
@@ -260,6 +278,9 @@ function openaiToOpenaiImage(req: Request) {
 
   const { messages } = result.data;
   const prompt = messages.filter((m) => m.role === "user").pop()?.content;
+  if (Array.isArray(prompt)) {
+    throw new Error("Image generation prompt must be a text message.");
+  }
 
   if (body.stream) {
     throw new Error(
@@ -304,7 +325,7 @@ function openaiToPalm(req: Request): z.infer<typeof PalmV1GenerateTextSchema> {
   }
 
   const { messages, ...rest } = result.data;
-  const prompt = flattenOpenAiChatMessages(messages);
+  const prompt = flattenOpenAIChatMessages(messages);
 
   let stops = rest.stop
     ? Array.isArray(rest.stop)
@@ -336,7 +357,7 @@ function openaiToPalm(req: Request): z.infer<typeof PalmV1GenerateTextSchema> {
   };
 }
 
-export function openAIMessagesToClaudePrompt(messages: OpenAIPromptMessage[]) {
+export function openAIMessagesToClaudePrompt(messages: OpenAIChatMessage[]) {
   return (
     messages
       .map((m) => {
@@ -348,17 +369,17 @@ export function openAIMessagesToClaudePrompt(messages: OpenAIPromptMessage[]) {
         } else if (role === "user") {
           role = "Human";
         }
+        const name = m.name?.trim();
+        const content = flattenOpenAIMessageContent(m.content);
         // https://console.anthropic.com/docs/prompt-design
         // `name` isn't supported by Anthropic but we can still try to use it.
-        return `\n\n${role}: ${m.name?.trim() ? `(as ${m.name}) ` : ""}${
-          m.content
-        }`;
+        return `\n\n${role}: ${name ? `(as ${name}) ` : ""}${content}`;
       })
       .join("") + "\n\nAssistant:"
   );
 }
 
-function flattenOpenAiChatMessages(messages: OpenAIPromptMessage[]) {
+function flattenOpenAIChatMessages(messages: OpenAIChatMessage[]) {
   // Temporary to allow experimenting with prompt strategies
   const PROMPT_VERSION: number = 1;
   switch (PROMPT_VERSION) {
@@ -375,7 +396,7 @@ function flattenOpenAiChatMessages(messages: OpenAIPromptMessage[]) {
             } else if (role === "user") {
               role = "User";
             }
-            return `\n\n${role}: ${m.content}`;
+            return `\n\n${role}: ${flattenOpenAIMessageContent(m.content)}`;
           })
           .join("") + "\n\nAssistant:"
       );
@@ -387,10 +408,23 @@ function flattenOpenAiChatMessages(messages: OpenAIPromptMessage[]) {
           if (role === "system") {
             role = "System: ";
           }
-          return `\n\n${role}${m.content}`;
+          return `\n\n${role}${flattenOpenAIMessageContent(m.content)}`;
         })
         .join("");
     default:
       throw new Error(`Unknown prompt version: ${PROMPT_VERSION}`);
   }
+}
+
+function flattenOpenAIMessageContent(
+  content: OpenAIChatMessage["content"]
+): string {
+  return Array.isArray(content)
+    ? content
+        .map((contentItem) => {
+          if ("text" in contentItem) return contentItem.text;
+          if ("image_url" in contentItem) return "[ Uploaded Image Omitted ]";
+        })
+        .join("\n")
+    : content;
 }

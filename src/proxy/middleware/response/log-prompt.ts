@@ -9,6 +9,7 @@ import {
 } from "../common";
 import { ProxyResHandlerWithBody } from ".";
 import { assertNever } from "../../../shared/utils";
+import { OpenAIChatMessage } from "../request/transform-outbound-payload";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */
 export const logPrompt: ProxyResHandlerWithBody = async (
@@ -42,11 +43,6 @@ export const logPrompt: ProxyResHandlerWithBody = async (
   });
 };
 
-type OaiMessage = {
-  role: "user" | "assistant" | "system";
-  content: string;
-};
-
 type OaiImageResult = {
   prompt: string;
   size: string;
@@ -58,7 +54,7 @@ type OaiImageResult = {
 const getPromptForRequest = (
   req: Request,
   responseBody: Record<string, any>
-): string | OaiMessage[] | OaiImageResult => {
+): string | OpenAIChatMessage[] | OaiImageResult => {
   // Since the prompt logger only runs after the request has been proxied, we
   // can assume the body has already been transformed to the target API's
   // format.
@@ -85,13 +81,25 @@ const getPromptForRequest = (
 };
 
 const flattenMessages = (
-  val: string | OaiMessage[] | OaiImageResult
+  val: string | OpenAIChatMessage[] | OaiImageResult
 ): string => {
   if (typeof val === "string") {
     return val.trim();
   }
   if (Array.isArray(val)) {
-    return val.map((m) => `${m.role}: ${m.content}`).join("\n");
+    return val
+      .map(({ content, role }) => {
+        const text = Array.isArray(content)
+          ? content
+              .map((c) => {
+                if ("text" in c) return c.text;
+                if ("image_url" in c) return "(( Attached Image ))";
+              })
+              .join("\n")
+          : content;
+        return `${role}: ${text}`;
+      })
+      .join("\n");
   }
   return val.prompt.trim();
 };

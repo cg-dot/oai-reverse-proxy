@@ -3,11 +3,9 @@ import { promises as fs } from "fs";
 import path from "path";
 import { v4 } from "uuid";
 import { USER_ASSETS_DIR } from "../../config";
-import { logger } from "../../logger";
 import { addToImageHistory } from "./image-history";
-import sharp from "sharp";
+import { libSharp } from "./index";
 
-const log = logger.child({ module: "file-storage" });
 
 export type OpenAIImageGenerationResult = {
   created: number;
@@ -40,7 +38,7 @@ async function saveB64Image(b64: string) {
 async function createThumbnail(filepath: string) {
   const thumbnailPath = filepath.replace(/(\.[\wd_-]+)$/i, "_t.jpg");
 
-  await sharp(filepath)
+  await libSharp(filepath)
     .resize(150, 150, {
       fit: "inside",
       withoutEnlargement: true,

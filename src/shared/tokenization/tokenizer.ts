@@ -1,4 +1,5 @@
 import { Request } from "express";
+import type { OpenAIChatMessage } from "../../proxy/middleware/request/transform-outbound-payload";
 import { assertNever } from "../utils";
 import {
   init as initClaude,
@@ -7,7 +8,6 @@ import {
 import {
   init as initOpenAi,
   getTokenCount as getOpenAITokenCount,
-  OpenAIPromptMessage,
   getOpenAIImageCost,
 } from "./openai";
 import { APIFormat } from "../key-management";
@@ -20,7 +20,7 @@ export async function init() {
 /** Tagged union via `service` field of the different types of requests that can
  * be made to the tokenization service, for both prompts and completions */
 type TokenCountRequest = { req: Request } & (
-  | { prompt: OpenAIPromptMessage[]; completion?: never; service: "openai" }
+  | { prompt: OpenAIChatMessage[]; completion?: never; service: "openai" }
   | {
       prompt: string;
       completion?: never;
@@ -52,7 +52,7 @@ export async function countTokens({
     case "openai":
     case "openai-text":
       return {
-        ...getOpenAITokenCount(prompt ?? completion, req.body.model),
+        ...(await getOpenAITokenCount(prompt ?? completion, req.body.model)),
         tokenization_duration_ms: getElapsedMs(time),
       };
     case "openai-image":
@@ -69,7 +69,7 @@ export async function countTokens({
       // TODO: Can't find a tokenization library for PaLM. There is an API
       // endpoint for it but it adds significant latency to the request.
       return {
-        ...getOpenAITokenCount(prompt ?? completion, req.body.model),
+        ...(await getOpenAITokenCount(prompt ?? completion, req.body.model)),
         tokenization_duration_ms: getElapsedMs(time),
       };
     default:

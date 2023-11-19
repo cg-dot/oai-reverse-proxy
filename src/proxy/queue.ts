@@ -475,7 +475,7 @@ export function registerHeartbeat(req: Request) {
   const res = req.res!;
 
   const currentSize = getHeartbeatSize();
-  req.log.info({
+  req.log.debug({
     currentSize,
     HEARTBEAT_INTERVAL,
     PAYLOAD_SCALE_FACTOR,

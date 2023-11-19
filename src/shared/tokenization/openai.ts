@@ -1,5 +1,11 @@
 import { Tiktoken } from "tiktoken/lite";
 import cl100k_base from "tiktoken/encoders/cl100k_base.json";
+import { logger } from "../../logger";
+import { libSharp } from "../file-storage";
+import type { OpenAIChatMessage } from "../../proxy/middleware/request/transform-outbound-payload";
+
+const log = logger.child({ module: "tokenizer", service: "openai" });
+const GPT4_VISION_SYSTEM_PROMPT_SIZE = 170;
 
 let encoder: Tiktoken;
 
@@ -15,8 +21,8 @@ export function init() {
 // Tested against:
 // https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
 
-export function getTokenCount(
-  prompt: string | OpenAIPromptMessage[],
+export async function getTokenCount(
+  prompt: string | OpenAIChatMessage[],
   model: string
 ) {
   if (typeof prompt === "string") {
@@ -24,31 +30,49 @@ export function getTokenCount(
   }
 
   const gpt4 = model.startsWith("gpt-4");
+  const vision = model.includes("vision");
 
   const tokensPerMessage = gpt4 ? 3 : 4;
   const tokensPerName = gpt4 ? 1 : -1; // turbo omits role if name is present
 
-  let numTokens = 0;
+  let numTokens = vision ? GPT4_VISION_SYSTEM_PROMPT_SIZE : 0;
 
   for (const message of prompt) {
     numTokens += tokensPerMessage;
     for (const key of Object.keys(message)) {
       {
-        const value = message[key as keyof OpenAIPromptMessage];
-        if (!value || typeof value !== "string") continue;
+        let textContent: string = "";
+        const value = message[key as keyof OpenAIChatMessage];
+
+        if (!value) continue;
+
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (item.type === "text") {
+              textContent += item.text;
+            } else if (item.type === "image_url") {
+              const { url, detail } = item.image_url;
+              const cost = await getGpt4VisionTokenCost(url, detail);
+              numTokens += cost ?? 0;
+            }
+          }
+        } else {
+          textContent = value;
+        }
+
         // Break if we get a huge message or exceed the token limit to prevent
         // DoS.
-        // 100k tokens allows for future 100k GPT-4 models and 500k characters
+        // 200k tokens allows for future 200k GPT-4 models and 500k characters
         // is just a sanity check
-        if (value.length > 500000 || numTokens > 100000) {
-          numTokens = 100000;
+        if (textContent.length > 500000 || numTokens > 200000) {
+          numTokens = 200000;
           return {
             tokenizer: "tiktoken (prompt length limit exceeded)",
             token_count: numTokens,
           };
         }
 
-        numTokens += encoder.encode(value).length;
+        numTokens += encoder.encode(textContent).length;
         if (key === "name") {
           numTokens += tokensPerName;
         }
@@ -57,6 +81,78 @@ export function getTokenCount(
   }
   numTokens += 3; // every reply is primed with <|start|>assistant<|message|>
   return { tokenizer: "tiktoken", token_count: numTokens };
+}
+
+async function getGpt4VisionTokenCost(
+  url: string,
+  detail: "auto" | "low" | "high" = "auto"
+) {
+  // For now we do not allow remote images as the proxy would have to download
+  // them, which is a potential DoS vector.
+  if (!url.startsWith("data:image/")) {
+    throw new Error(
+      "Remote images are not supported. Add the image to your prompt as a base64 data URL."
+    );
+  }
+
+  const base64Data = url.split(",")[1];
+  const buffer = Buffer.from(base64Data, "base64");
+  const image = libSharp(buffer);
+  const metadata = await image.metadata();
+
+  if (!metadata || !metadata.width || !metadata.height) {
+    throw new Error("Prompt includes an image that could not be parsed");
+  }
+
+  const { width, height } = metadata;
+
+  let selectedDetail: "low" | "high";
+  if (detail === "auto") {
+    const threshold = 512 * 512;
+    const imageSize = width * height;
+    selectedDetail = imageSize > threshold ? "high" : "low";
+  } else {
+    selectedDetail = detail;
+  }
+
+  // https://platform.openai.com/docs/guides/vision/calculating-costs
+  if (selectedDetail === "low") {
+    log.info(
+      { width, height, tokens: 85 },
+      "Using fixed GPT-4-Vision token cost for low detail image"
+    );
+    return 85;
+  }
+
+  let newWidth = width;
+  let newHeight = height;
+  if (width > 2048 || height > 2048) {
+    const aspectRatio = width / height;
+    if (width > height) {
+      newWidth = 2048;
+      newHeight = Math.round(2048 / aspectRatio);
+    } else {
+      newHeight = 2048;
+      newWidth = Math.round(2048 * aspectRatio);
+    }
+  }
+
+  if (newWidth < newHeight) {
+    newHeight = Math.round((newHeight / newWidth) * 768);
+    newWidth = 768;
+  } else {
+    newWidth = Math.round((newWidth / newHeight) * 768);
+    newHeight = 768;
+  }
+
+  const tiles = Math.ceil(newWidth / 512) * Math.ceil(newHeight / 512);
+  const tokens = 170 * tiles + 85;
+
+  log.info(
+    { width, height, newWidth, newHeight, tiles, tokens },
+    "Calculated GPT-4-Vision token cost for high detail image"
+  );
+  return tokens;
 }
 
 function getTextTokenCount(prompt: string) {
@@ -72,12 +168,6 @@ function getTextTokenCount(prompt: string) {
     token_count: encoder.encode(prompt).length,
   };
 }
-
-export type OpenAIPromptMessage = {
-  name?: string;
-  content: string;
-  role: string;
-};
 
 // Model	Resolution	Price
 // DALL·E 3	1024×1024	$0.040 / image

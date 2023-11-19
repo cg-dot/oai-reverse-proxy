@@ -1,6 +1,7 @@
 import { RequestPreprocessor } from "./index";
-import { countTokens, OpenAIPromptMessage } from "../../../shared/tokenization";
+import { countTokens } from "../../../shared/tokenization";
 import { assertNever } from "../../../shared/utils";
+import type { OpenAIChatMessage } from "./transform-outbound-payload";
 
 /**
  * Given a request with an already-transformed body, counts the number of
@@ -13,7 +14,7 @@ export const countPromptTokens: RequestPreprocessor = async (req) => {
   switch (service) {
     case "openai": {
       req.outputTokens = req.body.max_tokens;
-      const prompt: OpenAIPromptMessage[] = req.body.messages;
+      const prompt: OpenAIChatMessage[] = req.body.messages;
       result = await countTokens({ req, prompt, service });
       break;
     }

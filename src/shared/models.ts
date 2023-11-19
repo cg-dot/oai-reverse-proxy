@@ -27,6 +27,7 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
 
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^gpt-4-1106(-preview)?$": "gpt4-turbo",
+  "^gpt-4(-\\d{4})?-vision(-preview)?$": "gpt4-turbo",
   "^gpt-4-32k-\\d{4}$": "gpt4-32k",
   "^gpt-4-32k$": "gpt4-32k",
   "^gpt-4-\\d{4}$": "gpt4",
