@@ -11,7 +11,8 @@ export type AnthropicModel =
   | "claude-instant-v1-100k"
   | "claude-v1"
   | "claude-v1-100k"
-  | "claude-2";
+  | "claude-2"
+  | "claude-2.1";
 
 export type AnthropicKeyUpdate = Omit<
   Partial<AnthropicKey>,

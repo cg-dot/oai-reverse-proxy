@@ -37,6 +37,6 @@ export function prettyTokens(tokens: number): string {
   } else if (absTokens < 1000000000) {
     return (tokens / 1000000).toFixed(2) + "m";
   } else {
-    return (tokens / 1000000000).toFixed(2) + "b";
+    return (tokens / 1000000000).toFixed(3) + "b";
   }
 }
