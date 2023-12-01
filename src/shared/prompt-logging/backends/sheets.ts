@@ -396,7 +396,7 @@ export const init = async (onStop: () => void) => {
     await loadIndexSheet(false);
     await writeIndexSheet();
   } catch (e) {
-    log.warn(e, "Could not load index sheet. Creating a new one.");
+    log.warn({ error: e.message }, "Could not load index sheet. Creating a new one.");
     await createIndexSheet();
   }
 };

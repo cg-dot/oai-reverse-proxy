@@ -69,7 +69,7 @@ export const start = async () => {
     log.info("Logging backend initialized.");
     started = true;
   } catch (e) {
-    log.error(e, "Could not initialize logging backend.");
+    log.error({ error: e.message }, "Could not initialize logging backend.");
     return;
   }
   scheduleFlush();
