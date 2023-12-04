@@ -276,12 +276,9 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
       (key) => !key.isDisabled && key.modelFamilies.includes(family)
     );
 
-    if (activeKeys.length === 0) {
-      // If there are no active keys for this model we can't fulfill requests.
-      // We'll return 0 to let the request through and return an error,
-      // otherwise the request will be stuck in the queue forever.
-      return 0;
-    }
+    // Don't lock out if there are no keys available or the queue will stall.
+    // Just let it through so the add-key middleware can throw an error.
+    if (activeKeys.length === 0) return 0;
 
     // A key is rate-limited if its `rateLimitedAt` plus the greater of its
     // `rateLimitRequestsReset` and `rateLimitTokensReset` is after the

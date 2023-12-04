@@ -15,6 +15,8 @@ import crypto from "crypto";
 import type { Handler, Request } from "express";
 import { keyPool } from "../shared/key-management";
 import {
+  getAwsBedrockModelFamily,
+  getAzureOpenAIModelFamily,
   getClaudeModelFamily,
   getGooglePalmModelFamily,
   getOpenAIModelFamily,
@@ -136,11 +138,10 @@ function getPartitionForRequest(req: Request): ModelFamily {
   // they should be treated as separate queues.
   const model = req.body.model ?? "gpt-3.5-turbo";
 
-  // Weird special case for AWS because they serve multiple models from
+  // Weird special case for AWS/Azure because they serve multiple models from
   // different vendors, even if currently only one is supported.
-  if (req.service === "aws") {
-    return "aws-claude";
-  }
+  if (req.service === "aws") return getAwsBedrockModelFamily(model);
+  if (req.service === "azure") return getAzureOpenAIModelFamily(model);
 
   switch (req.outboundApi) {
     case "anthropic":
@@ -221,7 +222,11 @@ function processQueue() {
 
   reqs.filter(Boolean).forEach((req) => {
     if (req?.proceed) {
-      req.log.info({ retries: req.retryCount }, `Dequeuing request.`);
+      const modelFamily = getPartitionForRequest(req!);
+      req.log.info({
+        retries: req.retryCount,
+        partition: modelFamily,
+      }, `Dequeuing request.`);
       req.proceed();
     }
   });
@@ -415,6 +420,7 @@ function initStreaming(req: Request) {
     // Some clients have a broken SSE parser that doesn't handle comments
     // correctly. These clients can pass ?badSseParser=true to
     // disable comments in the SSE stream.
+    res.write(getHeartbeatPayload());
     return;
   }
 

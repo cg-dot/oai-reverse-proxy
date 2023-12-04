@@ -157,8 +157,11 @@ export class AzureOpenAIKeyProvider implements KeyProvider<AzureOpenAIKey> {
 
   // TODO: all of this shit is duplicate code
 
-  public getLockoutPeriod() {
-    const activeKeys = this.keys.filter((k) => !k.isDisabled);
+  public getLockoutPeriod(family: AzureOpenAIModelFamily) {
+    const activeKeys = this.keys.filter(
+      (key) => !key.isDisabled && key.modelFamilies.includes(family)
+    );
+
     // Don't lock out if there are no keys available or the queue will stall.
     // Just let it through so the add-key middleware can throw an error.
     if (activeKeys.length === 0) return 0;

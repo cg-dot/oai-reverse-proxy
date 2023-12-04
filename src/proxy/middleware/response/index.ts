@@ -343,8 +343,10 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
       case "aws":
         handleAwsRateLimitError(req, errorPayload);
         break;
-      case "google-palm":
       case "azure":
+        handleAzureRateLimitError(req, errorPayload);
+        break;
+      case "google-palm":
         errorPayload.proxy_note = `Automatic rate limit retries are not supported for this service. Try again in a few seconds.`;
         break;
       default:
@@ -505,6 +507,22 @@ function handleOpenAIRateLimitError(
       break;
   }
   return errorPayload;
+}
+
+function handleAzureRateLimitError(
+  req: Request,
+  errorPayload: ProxiedErrorPayload
+) {
+  const code = errorPayload.error?.code;
+  switch (code) {
+    case "429":
+      keyPool.markRateLimited(req.key!);
+      reenqueueRequest(req);
+      throw new RetryableError("Rate-limited request re-enqueued.");
+    default:
+      errorPayload.proxy_note = `Unrecognized rate limit error from Azure (${code}). Please report this.`;
+      break;
+  }
 }
 
 const incrementUsage: ProxyResHandlerWithBody = async (_proxyRes, req) => {
