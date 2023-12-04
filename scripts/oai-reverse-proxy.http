@@ -1,0 +1,248 @@
+# OAI Reverse Proxy
+
+###
+# @name OpenAI -- Chat Completions
+POST https://api.openai.com/v1/chat/completions
+Authorization: Bearer {{oai-key-1}}
+Content-Type: application/json
+
+{
+  "model": "gpt-3.5-turbo",
+  "max_tokens": 30,
+  "stream": false,
+  "messages": [
+    {
+      "role": "user",
+      "content": "This is a test prompt."
+    }
+  ]
+}
+
+###
+# @name OpenAI -- Text Completions
+POST https://api.openai.com/v1/completions
+Authorization: Bearer {{oai-key-1}}
+Content-Type: application/json
+
+{
+  "model": "gpt-3.5-turbo-instruct",
+  "max_tokens": 30,
+  "stream": false,
+  "prompt": "This is a test prompt where"
+}
+
+###
+# @name OpenAI -- Create Embedding
+POST https://api.openai.com/v1/embeddings
+Authorization: Bearer {{oai-key-1}}
+Content-Type: application/json
+
+{
+  "model": "text-embedding-ada-002",
+  "input": "This is a test embedding input."
+}
+
+###
+# @name OpenAI -- Get Organizations
+GET https://api.openai.com/v1/organizations
+Authorization: Bearer {{oai-key-1}}
+
+###
+# @name OpenAI -- Get Models
+GET https://api.openai.com/v1/models
+Authorization: Bearer {{oai-key-1}}
+
+###
+# @name Azure OpenAI -- Chat Completions
+POST https://{{azu-resource-name}}.openai.azure.com/openai/deployments/{{azu-deployment-id}}/chat/completions?api-version=2023-09-01-preview
+api-key: {{azu-key-1}}
+Content-Type: application/json
+
+{
+  "max_tokens": 1,
+  "stream": false,
+  "messages": [
+    {
+      "role": "user",
+      "content": "This is a test prompt."
+    }
+  ]
+}
+
+###
+# @name Proxy / OpenAI -- Get Models
+GET {{proxy-host}}/proxy/openai/v1/models
+Authorization: Bearer {{proxy-key}}
+
+###
+# @name Proxy / OpenAI -- Native Chat Completions
+POST {{proxy-host}}/proxy/openai/chat/completions
+Authorization: Bearer {{proxy-key}}
+Content-Type: application/json
+
+{
+  "model": "gpt-3.5-turbo",
+  "max_tokens": 20,
+  "stream": true,
+  "temperature": 1,
+  "seed": 123,
+  "messages": [
+    {
+      "role": "user",
+      "content": "phrase one"
+    }
+  ]
+}
+
+###
+# @name Proxy / OpenAI -- Native Text Completions
+POST {{proxy-host}}/proxy/openai/v1/turbo-instruct/chat/completions
+Authorization: Bearer {{proxy-key}}
+Content-Type: application/json
+
+{
+  "model": "gpt-3.5-turbo-instruct",
+  "max_tokens": 20,
+  "temperature": 0,
+  "prompt": "Genshin Impact is a game about",
+  "stream": false
+}
+
+###
+# @name Proxy / OpenAI -- Chat-to-Text API Translation
+# Accepts a chat completion request and reformats it to work with the text completion API. `model` is ignored.
+POST {{proxy-host}}/proxy/openai/turbo-instruct/chat/completions
+Authorization: Bearer {{proxy-key}}
+Content-Type: application/json
+
+{
+  "model": "gpt-4",
+  "max_tokens": 20,
+  "stream": true,
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the name of the fourth president of the united states?"
+    },
+    {
+      "role": "assistant",
+      "content": "That would be George Washington."
+    },
+    {
+      "role": "user",
+      "content": "I don't think that's right..."
+    }
+  ]
+}
+
+###
+# @name Proxy / OpenAI -- Create Embedding
+POST {{proxy-host}}/proxy/openai/embeddings
+Authorization: Bearer {{proxy-key}}
+Content-Type: application/json
+
+{
+  "model": "text-embedding-ada-002",
+  "input": "This is a test embedding input."
+}
+
+
+###
+# @name Proxy / Anthropic -- Native Completion (old API)
+POST {{proxy-host}}/proxy/anthropic/v1/complete
+Authorization: Bearer {{proxy-key}}
+anthropic-version: 2023-01-01
+Content-Type: application/json
+
+{
+  "model": "claude-v1.3",
+  "max_tokens_to_sample": 20,
+  "temperature": 0.2,
+  "stream": true,
+  "prompt": "What is genshin impact\n\n:Assistant:"
+}
+
+###
+# @name Proxy / Anthropic -- Native Completion (2023-06-01 API)
+POST {{proxy-host}}/proxy/anthropic/v1/complete
+Authorization: Bearer {{proxy-key}}
+anthropic-version: 2023-06-01
+Content-Type: application/json
+
+{
+  "model": "claude-v1.3",
+  "max_tokens_to_sample": 20,
+  "temperature": 0.2,
+  "stream": true,
+  "prompt": "What is genshin impact\n\n:Assistant:"
+}
+
+###
+# @name Proxy / Anthropic -- OpenAI-to-Anthropic API Translation
+POST {{proxy-host}}/proxy/anthropic/v1/chat/completions
+Authorization: Bearer {{proxy-key}}
+#anthropic-version: 2023-06-01
+Content-Type: application/json
+
+{
+  "model": "gpt-3.5-turbo",
+  "max_tokens": 20,
+  "stream": false,
+  "temperature": 0,
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is genshin impact"
+    }
+  ]
+}
+
+###
+# @name Proxy / AWS Claude -- Native Completion
+POST {{proxy-host}}/proxy/aws/claude/v1/complete
+Authorization: Bearer {{proxy-key}}
+anthropic-version: 2023-01-01
+Content-Type: application/json
+
+{
+  "model": "claude-v2",
+  "max_tokens_to_sample": 10,
+  "temperature": 0,
+  "stream": true,
+  "prompt": "What is genshin impact\n\n:Assistant:"
+}
+
+###
+# @name Proxy / AWS Claude -- OpenAI-to-Anthropic API Translation
+POST {{proxy-host}}/proxy/aws/claude/chat/completions
+Authorization: Bearer {{proxy-key}}
+Content-Type: application/json
+
+{
+  "model": "gpt-3.5-turbo",
+  "max_tokens": 50,
+  "stream": true,
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is genshin impact?"
+    }
+  ]
+}
+
+###
+# @name Proxy / Google PaLM -- OpenAI-to-PaLM API Translation
+POST {{proxy-host}}/proxy/google-palm/v1/chat/completions
+Authorization: Bearer {{proxy-key}}
+Content-Type: application/json
+
+{
+  "model": "gpt-4",
+  "max_tokens": 42,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi what is the name of the fourth president of the united states?"
+    }
+  ]
+}

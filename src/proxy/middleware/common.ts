@@ -59,7 +59,7 @@ export function writeErrorResponse(
     res.write(`data: [DONE]\n\n`);
     res.end();
   } else {
-    if (req.tokenizerInfo && errorPayload.error) {
+    if (req.tokenizerInfo && typeof errorPayload.error === "object") {
       errorPayload.error.proxy_tokenizer = req.tokenizerInfo;
     }
     res.status(statusCode).json(errorPayload);

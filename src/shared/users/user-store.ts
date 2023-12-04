@@ -12,6 +12,7 @@ import schedule from "node-schedule";
 import { v4 as uuid } from "uuid";
 import { config, getFirebaseApp } from "../../config";
 import {
+  getAzureOpenAIModelFamily,
   getClaudeModelFamily,
   getGooglePalmModelFamily,
   getOpenAIModelFamily,
@@ -34,6 +35,10 @@ const INITIAL_TOKENS: Required<UserTokenCounts> = {
   claude: 0,
   bison: 0,
   "aws-claude": 0,
+  "azure-turbo": 0,
+  "azure-gpt4": 0,
+  "azure-gpt4-turbo": 0,
+  "azure-gpt4-32k": 0,
 };
 
 const users: Map<string, User> = new Map();
@@ -382,6 +387,9 @@ function getModelFamilyForQuotaUsage(
   model: string,
   api: APIFormat
 ): ModelFamily {
+  // TODO: this seems incorrect
+  if (model.includes("azure")) return getAzureOpenAIModelFamily(model);
+
   switch (api) {
     case "openai":
     case "openai-text":

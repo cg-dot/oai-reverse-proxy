@@ -2,15 +2,25 @@
 
 import pino from "pino";
 
-export type OpenAIModelFamily = "turbo" | "gpt4" | "gpt4-32k" | "gpt4-turbo" | "dall-e";
+export type OpenAIModelFamily =
+  | "turbo"
+  | "gpt4"
+  | "gpt4-32k"
+  | "gpt4-turbo"
+  | "dall-e";
 export type AnthropicModelFamily = "claude";
 export type GooglePalmModelFamily = "bison";
 export type AwsBedrockModelFamily = "aws-claude";
+export type AzureOpenAIModelFamily = `azure-${Exclude<
+  OpenAIModelFamily,
+  "dall-e"
+>}`;
 export type ModelFamily =
   | OpenAIModelFamily
   | AnthropicModelFamily
   | GooglePalmModelFamily
-  | AwsBedrockModelFamily;
+  | AwsBedrockModelFamily
+  | AzureOpenAIModelFamily;
 
 export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   arr: A & ([ModelFamily] extends [A[number]] ? unknown : never)
@@ -23,6 +33,10 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "claude",
   "bison",
   "aws-claude",
+  "azure-turbo",
+  "azure-gpt4",
+  "azure-gpt4-32k",
+  "azure-gpt4-turbo",
 ] as const);
 
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
@@ -62,6 +76,24 @@ export function getGooglePalmModelFamily(model: string): ModelFamily {
 
 export function getAwsBedrockModelFamily(_model: string): ModelFamily {
   return "aws-claude";
+}
+
+export function getAzureOpenAIModelFamily(
+  model: string,
+  defaultFamily: AzureOpenAIModelFamily = "azure-gpt4"
+): AzureOpenAIModelFamily {
+  // Azure model names omit periods.  addAzureKey also prepends "azure-" to the
+  // model name to route the request the correct keyprovider, so we need to
+  // remove that as well.
+  const modified = model
+    .replace("gpt-35-turbo", "gpt-3.5-turbo")
+    .replace("azure-", "");
+  for (const [regex, family] of Object.entries(OPENAI_MODEL_FAMILY_MAP)) {
+    if (modified.match(regex)) {
+      return `azure-${family}` as AzureOpenAIModelFamily;
+    }
+  }
+  return defaultFamily;
 }
 
 export function assertIsKnownModelFamily(

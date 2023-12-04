@@ -2,6 +2,7 @@ import { OpenAIModel } from "./openai/provider";
 import { AnthropicModel } from "./anthropic/provider";
 import { GooglePalmModel } from "./palm/provider";
 import { AwsBedrockModel } from "./aws/provider";
+import { AzureOpenAIModel } from "./azure/provider";
 import { KeyPool } from "./key-pool";
 import type { ModelFamily } from "../models";
 
@@ -13,12 +14,18 @@ export type APIFormat =
   | "openai-text"
   | "openai-image";
 /** The service that a model is hosted on; distinct because services like AWS provide multiple APIs, but have their own endpoints and authentication. */
-export type LLMService = "openai" | "anthropic" | "google-palm" | "aws";
+export type LLMService =
+  | "openai"
+  | "anthropic"
+  | "google-palm"
+  | "aws"
+  | "azure";
 export type Model =
   | OpenAIModel
   | AnthropicModel
   | GooglePalmModel
-  | AwsBedrockModel;
+  | AwsBedrockModel
+  | AzureOpenAIModel;
 
 export interface Key {
   /** The API key itself. Never log this, use `hash` instead. */
@@ -72,3 +79,4 @@ export { AnthropicKey } from "./anthropic/provider";
 export { OpenAIKey } from "./openai/provider";
 export { GooglePalmKey } from "./palm/provider";
 export { AwsBedrockKey } from "./aws/provider";
+export { AzureOpenAIKey } from "./azure/provider";

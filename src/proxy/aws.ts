@@ -11,7 +11,7 @@ import {
   createPreprocessorMiddleware,
   stripHeaders,
   signAwsRequest,
-  finalizeAwsRequest,
+  finalizeSignedRequest,
   createOnProxyReqHandler,
   blockZoomerOrigins,
 } from "./middleware/request";
@@ -30,7 +30,11 @@ const getModelsResponse = () => {
 
   if (!config.awsCredentials) return { object: "list", data: [] };
 
-  const variants = ["anthropic.claude-v1", "anthropic.claude-v2"];
+  const variants = [
+    "anthropic.claude-v1",
+    "anthropic.claude-v2",
+    "anthropic.claude-v2:1",
+  ];
 
   const models = variants.map((id) => ({
     id,
@@ -134,7 +138,7 @@ const awsProxy = createQueueMiddleware({
           applyQuotaLimits,
           blockZoomerOrigins,
           stripHeaders,
-          finalizeAwsRequest,
+          finalizeSignedRequest,
         ],
       }),
       proxyRes: createOnProxyResHandler([awsResponseHandler]),
@@ -183,7 +187,7 @@ function maybeReassignModel(req: Request) {
     req.body.model = "anthropic.claude-v1";
   } else {
     // User's client requested v2 or possibly some OpenAI model, default to v2
-    req.body.model = "anthropic.claude-v2";
+    req.body.model = "anthropic.claude-v2:1";
   }
   // TODO: Handle claude-instant
 }

@@ -6,6 +6,7 @@ import { openaiImage } from "./openai-image";
 import { anthropic } from "./anthropic";
 import { googlePalm } from "./palm";
 import { aws } from "./aws";
+import { azure } from "./azure";
 
 const proxyRouter = express.Router();
 proxyRouter.use((req, _res, next) => {
@@ -32,6 +33,7 @@ proxyRouter.use("/openai-image", addV1, openaiImage);
 proxyRouter.use("/anthropic", addV1, anthropic);
 proxyRouter.use("/google-palm", addV1, googlePalm);
 proxyRouter.use("/aws/claude", addV1, aws);
+proxyRouter.use("/azure/openai", addV1, azure);
 // Redirect browser requests to the homepage.
 proxyRouter.get("*", (req, res, next) => {
   const isBrowser = req.headers["user-agent"]?.includes("Mozilla");

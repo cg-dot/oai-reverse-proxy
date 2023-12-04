@@ -32,58 +32,36 @@ type GetLoggingConfigResponse = {
 type UpdateFn = typeof AwsBedrockKeyProvider.prototype.update;
 
 export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
-  private readonly updateKey: UpdateFn;
-
   constructor(keys: AwsBedrockKey[], updateKey: UpdateFn) {
     super(keys, {
       service: "aws",
       keyCheckPeriod: KEY_CHECK_PERIOD,
       minCheckInterval: MIN_CHECK_INTERVAL,
+      updateKey,
     });
-    this.updateKey = updateKey;
   }
 
-  protected async checkKey(key: AwsBedrockKey) {
-    if (key.isDisabled) {
-      this.log.warn({ key: key.hash }, "Skipping check for disabled key.");
-      this.scheduleNextCheck();
-      return;
+  protected async testKeyOrFail(key: AwsBedrockKey) {
+    // Only check models on startup.  For now all models must be available to
+    // the proxy because we don't route requests to different keys.
+    const modelChecks: Promise<unknown>[] = [];
+    const isInitialCheck = !key.lastChecked;
+    if (isInitialCheck) {
+      modelChecks.push(this.invokeModel("anthropic.claude-v1", key));
+      modelChecks.push(this.invokeModel("anthropic.claude-v2", key));
     }
 
-    this.log.debug({ key: key.hash }, "Checking key...");
-    let isInitialCheck = !key.lastChecked;
-    try {
-      // Only check models on startup.  For now all models must be available to
-      // the proxy because we don't route requests to different keys.
-      const modelChecks: Promise<unknown>[] = [];
-      if (isInitialCheck) {
-        modelChecks.push(this.invokeModel("anthropic.claude-v1", key));
-        modelChecks.push(this.invokeModel("anthropic.claude-v2", key));
-      }
+    await Promise.all(modelChecks);
+    await this.checkLoggingConfiguration(key);
 
-      await Promise.all(modelChecks);
-      await this.checkLoggingConfiguration(key);
-
-      this.log.info(
-        {
-          key: key.hash,
-          models: key.modelFamilies,
-          logged: key.awsLoggingStatus,
-        },
-        "Key check complete."
-      );
-    } catch (error) {
-      this.handleAxiosError(key, error as AxiosError);
-    }
-
-    this.updateKey(key.hash, {});
-
-    this.lastCheck = Date.now();
-    // Only enqueue the next check if this wasn't a startup check, since those
-    // are batched together elsewhere.
-    if (!isInitialCheck) {
-      this.scheduleNextCheck();
-    }
+    this.log.info(
+      {
+        key: key.hash,
+        models: key.modelFamilies,
+        logged: key.awsLoggingStatus,
+      },
+      "Checked key."
+    );
   }
 
   protected handleAxiosError(key: AwsBedrockKey, error: AxiosError) {

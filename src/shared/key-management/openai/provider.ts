@@ -217,17 +217,6 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
       return a.lastUsed - b.lastUsed;
     });
 
-    // logger.debug(
-    //   {
-    //     byPriority: keysByPriority.map((k) => ({
-    //       hash: k.hash,
-    //       isRateLimited: now - k.rateLimitedAt < rateLimitThreshold,
-    //       modelFamilies: k.modelFamilies,
-    //     })),
-    //   },
-    //   "Keys sorted by priority"
-    // );
-
     const selectedKey = keysByPriority[0];
     selectedKey.lastUsed = now;
     this.throttle(selectedKey.hash);

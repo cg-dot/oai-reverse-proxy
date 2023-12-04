@@ -24,7 +24,7 @@ import {
 import { createOnProxyResHandler, ProxyResHandlerWithBody } from "./middleware/response";
 
 // https://platform.openai.com/docs/models/overview
-const KNOWN_MODELS = [
+export const KNOWN_OPENAI_MODELS = [
   "gpt-4-1106-preview",
   "gpt-4-vision-preview",
   "gpt-4",
@@ -46,7 +46,7 @@ const KNOWN_MODELS = [
 let modelsCache: any = null;
 let modelsCacheTime = 0;
 
-export function generateModelList(models = KNOWN_MODELS) {
+export function generateModelList(models = KNOWN_OPENAI_MODELS) {
   let available = new Set<OpenAIModelFamily>();
   for (const key of keyPool.list()) {
     if (key.isDisabled || key.service !== "openai") continue;

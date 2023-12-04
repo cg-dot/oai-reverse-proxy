@@ -289,15 +289,17 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     switch (service) {
       case "openai":
       case "google-palm":
-        if (errorPayload.error?.code === "content_policy_violation") {
-          errorPayload.proxy_note = `Request was filtered by OpenAI's content moderation system. Try another prompt.`;
+      case "azure":
+        const filteredCodes = ["content_policy_violation", "content_filter"];
+        if (filteredCodes.includes(errorPayload.error?.code)) {
+          errorPayload.proxy_note = `Request was filtered by the upstream API's content moderation system. Modify your prompt and try again.`;
           refundLastAttempt(req);
         } else if (errorPayload.error?.code === "billing_hard_limit_reached") {
           // For some reason, some models return this 400 error instead of the
           // same 429 billing error that other models return.
           handleOpenAIRateLimitError(req, tryAgainMessage, errorPayload);
         } else {
-          errorPayload.proxy_note = `Upstream service rejected the request as invalid. Your prompt may be too long for ${req.body?.model}.`;
+          errorPayload.proxy_note = `The upstream API rejected the request. Your prompt may be too long for ${req.body?.model}.`;
         }
         break;
       case "anthropic":
@@ -342,7 +344,9 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         handleAwsRateLimitError(req, errorPayload);
         break;
       case "google-palm":
-        throw new Error("Rate limit handling not implemented for PaLM");
+      case "azure":
+        errorPayload.proxy_note = `Automatic rate limit retries are not supported for this service. Try again in a few seconds.`;
+        break;
       default:
         assertNever(service);
     }
@@ -368,6 +372,9 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         break;
       case "aws":
         errorPayload.proxy_note = `The requested AWS resource might not exist, or the key might not have access to it.`;
+        break;
+      case "azure":
+        errorPayload.proxy_note = `The assigned Azure deployment does not support the requested model.`;
         break;
       default:
         assertNever(service);

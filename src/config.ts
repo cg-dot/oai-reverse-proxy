@@ -34,6 +34,17 @@ type Config = {
    */
   awsCredentials?: string;
   /**
+   * Comma-delimited list of Azure OpenAI credentials. Each credential item
+   * should be a colon-delimited list of Azure resource name, deployment ID, and
+   * API key.
+   *
+   * The resource name is the subdomain in your Azure OpenAI deployment's URL,
+   * e.g. `https://resource-name.openai.azure.com
+   *
+   * @example `AZURE_CREDENTIALS=resource_name_1:deployment_id_1:api_key_1,resource_name_2:deployment_id_2:api_key_2`
+   */
+  azureCredentials?: string;
+  /**
    * The proxy key to require for requests. Only applicable if the user
    * management mode is set to 'proxy_key', and required if so.
    */
@@ -188,6 +199,7 @@ export const config: Config = {
   anthropicKey: getEnvWithDefault("ANTHROPIC_KEY", ""),
   googlePalmKey: getEnvWithDefault("GOOGLE_PALM_KEY", ""),
   awsCredentials: getEnvWithDefault("AWS_CREDENTIALS", ""),
+  azureCredentials: getEnvWithDefault("AZURE_CREDENTIALS", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
   adminKey: getEnvWithDefault("ADMIN_KEY", ""),
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
@@ -219,6 +231,10 @@ export const config: Config = {
     "claude",
     "bison",
     "aws-claude",
+    "azure-turbo",
+    "azure-gpt4",
+    "azure-gpt4-turbo",
+    "azure-gpt4-32k",
   ]),
   rejectPhrases: parseCsv(getEnvWithDefault("REJECT_PHRASES", "")),
   rejectMessage: getEnvWithDefault(
@@ -352,6 +368,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "anthropicKey",
   "googlePalmKey",
   "awsCredentials",
+  "azureCredentials",
   "proxyKey",
   "adminKey",
   "rejectPhrases",
@@ -369,6 +386,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "useInsecureCookies",
   "staticServiceInfo",
   "checkKeys",
+  "allowedModelFamilies",
 ];
 
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;
@@ -417,6 +435,7 @@ function getEnvWithDefault<T>(env: string | string[], defaultValue: T): T {
         "ANTHROPIC_KEY",
         "GOOGLE_PALM_KEY",
         "AWS_CREDENTIALS",
+        "AZURE_CREDENTIALS",
       ].includes(String(env))
     ) {
       return value as unknown as T;

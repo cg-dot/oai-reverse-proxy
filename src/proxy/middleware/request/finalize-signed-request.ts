@@ -1,11 +1,11 @@
 import type { ProxyRequestMiddleware } from ".";
 
 /**
- * For AWS requests, the body is signed earlier in the request pipeline, before
- * the proxy middleware. This function just assigns the path and headers to the
- * proxy request.
+ * For AWS/Azure requests, the body is signed earlier in the request pipeline,
+ * before the proxy middleware. This function just assigns the path and headers
+ * to the proxy request.
  */
-export const finalizeAwsRequest: ProxyRequestMiddleware = (proxyReq, req) => {
+export const finalizeSignedRequest: ProxyRequestMiddleware = (proxyReq, req) => {
   if (!req.signedRequest) {
     throw new Error("Expected req.signedRequest to be set");
   }

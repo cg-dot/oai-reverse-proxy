@@ -1,3 +1,4 @@
+/** This whole module really sucks */
 import fs from "fs";
 import { Request, Response } from "express";
 import showdown from "showdown";
@@ -5,11 +6,16 @@ import { config, listConfig } from "./config";
 import {
   AnthropicKey,
   AwsBedrockKey,
+  AzureOpenAIKey,
   GooglePalmKey,
   keyPool,
   OpenAIKey,
 } from "./shared/key-management";
-import { ModelFamily, OpenAIModelFamily } from "./shared/models";
+import {
+  AzureOpenAIModelFamily,
+  ModelFamily,
+  OpenAIModelFamily,
+} from "./shared/models";
 import { getUniqueIps } from "./proxy/rate-limit";
 import { getEstimatedWaitTime, getQueueLength } from "./proxy/queue";
 import { getTokenCostUsd, prettyTokens } from "./shared/stats";
@@ -23,6 +29,8 @@ let infoPageLastUpdated = 0;
 type KeyPoolKey = ReturnType<typeof keyPool.list>[0];
 const keyIsOpenAIKey = (k: KeyPoolKey): k is OpenAIKey =>
   k.service === "openai";
+const keyIsAzureKey = (k: KeyPoolKey): k is AzureOpenAIKey =>
+  k.service === "azure";
 const keyIsAnthropicKey = (k: KeyPoolKey): k is AnthropicKey =>
   k.service === "anthropic";
 const keyIsGooglePalmKey = (k: KeyPoolKey): k is GooglePalmKey =>
@@ -48,6 +56,7 @@ type ServiceAggregates = {
   anthropicKeys?: number;
   palmKeys?: number;
   awsKeys?: number;
+  azureKeys?: number;
   proompts: number;
   tokens: number;
   tokenCost: number;
@@ -62,17 +71,15 @@ const serviceStats = new Map<keyof ServiceAggregates, number>();
 
 export const handleInfoPage = (req: Request, res: Response) => {
   if (infoPageLastUpdated + INFO_PAGE_TTL > Date.now()) {
-    res.send(infoPageHtml);
-    return;
+    return res.send(infoPageHtml);
   }
 
-  // Sometimes huggingface doesn't send the host header and makes us guess.
   const baseUrl =
     process.env.SPACE_ID && !req.get("host")?.includes("hf.space")
       ? getExternalUrlForHuggingfaceSpaceId(process.env.SPACE_ID)
       : req.protocol + "://" + req.get("host");
 
-  infoPageHtml = buildInfoPageHtml(baseUrl);
+  infoPageHtml = buildInfoPageHtml(baseUrl + "/proxy");
   infoPageLastUpdated = Date.now();
 
   res.send(infoPageHtml);
@@ -95,6 +102,7 @@ export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
   const anthropicKeys = serviceStats.get("anthropicKeys") || 0;
   const palmKeys = serviceStats.get("palmKeys") || 0;
   const awsKeys = serviceStats.get("awsKeys") || 0;
+  const azureKeys = serviceStats.get("azureKeys") || 0;
   const proompts = serviceStats.get("proompts") || 0;
   const tokens = serviceStats.get("tokens") || 0;
   const tokenCost = serviceStats.get("tokenCost") || 0;
@@ -102,16 +110,15 @@ export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
   const allowDalle = config.allowedModelFamilies.includes("dall-e");
 
   const endpoints = {
-    ...(openaiKeys ? { openai: baseUrl + "/proxy/openai" } : {}),
-    ...(openaiKeys
-      ? { ["openai2"]: baseUrl + "/proxy/openai/turbo-instruct" }
-      : {}),
+    ...(openaiKeys ? { openai: baseUrl + "/openai" } : {}),
+    ...(openaiKeys ? { openai2: baseUrl + "/openai/turbo-instruct" } : {}),
     ...(openaiKeys && allowDalle
-      ? { ["openai-image"]: baseUrl + "/proxy/openai-image" }
+      ? { ["openai-image"]: baseUrl + "/openai-image" }
       : {}),
-    ...(anthropicKeys ? { anthropic: baseUrl + "/proxy/anthropic" } : {}),
-    ...(palmKeys ? { "google-palm": baseUrl + "/proxy/google-palm" } : {}),
-    ...(awsKeys ? { aws: baseUrl + "/proxy/aws/claude" } : {}),
+    ...(anthropicKeys ? { anthropic: baseUrl + "/anthropic" } : {}),
+    ...(palmKeys ? { "google-palm": baseUrl + "/google-palm" } : {}),
+    ...(awsKeys ? { aws: baseUrl + "/aws/claude" } : {}),
+    ...(azureKeys ? { azure: baseUrl + "/azure/openai" } : {}),
   };
 
   const stats = {
@@ -120,13 +127,17 @@ export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
     ...(config.textModelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
   };
 
-  const keyInfo = { openaiKeys, anthropicKeys, palmKeys, awsKeys };
+  const keyInfo = { openaiKeys, anthropicKeys, palmKeys, awsKeys, azureKeys };
+  for (const key of Object.keys(keyInfo)) {
+    if (!(keyInfo as any)[key]) delete (keyInfo as any)[key];
+  }
 
   const providerInfo = {
     ...(openaiKeys ? getOpenAIInfo() : {}),
     ...(anthropicKeys ? getAnthropicInfo() : {}),
-    ...(palmKeys ? { "palm-bison": getPalmInfo() } : {}),
-    ...(awsKeys ? { "aws-claude": getAwsInfo() } : {}),
+    ...(palmKeys ? getPalmInfo() : {}),
+    ...(awsKeys ? getAwsInfo() : {}),
+    ...(azureKeys ? getAzureInfo() : {}),
   };
 
   if (hideFullInfo) {
@@ -188,6 +199,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
   increment(serviceStats, "anthropicKeys", k.service === "anthropic" ? 1 : 0);
   increment(serviceStats, "palmKeys", k.service === "google-palm" ? 1 : 0);
   increment(serviceStats, "awsKeys", k.service === "aws" ? 1 : 0);
+  increment(serviceStats, "azureKeys", k.service === "azure" ? 1 : 0);
 
   let sumTokens = 0;
   let sumCost = 0;
@@ -201,17 +213,26 @@ function addKeyToAggregates(k: KeyPoolKey) {
         Boolean(k.lastChecked) ? 0 : 1
       );
 
-      // Technically this would not account for keys that have tokens recorded
-      // on models they aren't provisioned for, but that would be strange
       k.modelFamilies.forEach((f) => {
         const tokens = k[`${f}Tokens`];
         sumTokens += tokens;
         sumCost += getTokenCostUsd(f, tokens);
         increment(modelStats, `${f}__tokens`, tokens);
-        increment(modelStats, `${f}__trial`, k.isTrial ? 1 : 0);
         increment(modelStats, `${f}__revoked`, k.isRevoked ? 1 : 0);
-        increment(modelStats, `${f}__overQuota`, k.isOverQuota ? 1 : 0);
         increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
+        increment(modelStats, `${f}__trial`, k.isTrial ? 1 : 0);
+        increment(modelStats, `${f}__overQuota`, k.isOverQuota ? 1 : 0);
+      });
+      break;
+    case "azure":
+      if (!keyIsAzureKey(k)) throw new Error("Invalid key type");
+      k.modelFamilies.forEach((f) => {
+        const tokens = k[`${f}Tokens`];
+        sumTokens += tokens;
+        sumCost += getTokenCostUsd(f, tokens);
+        increment(modelStats, `${f}__tokens`, tokens);
+        increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
+        increment(modelStats, `${f}__revoked`, k.isRevoked ? 1 : 0);
       });
       break;
     case "anthropic": {
@@ -381,11 +402,13 @@ function getPalmInfo() {
   const cost = getTokenCostUsd("bison", tokens);
 
   return {
-    usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
-    activeKeys: bisonInfo.active,
-    revokedKeys: bisonInfo.revoked,
-    proomptersInQueue: bisonInfo.queued,
-    estimatedQueueTime: bisonInfo.queueTime,
+    bison: {
+      usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
+      activeKeys: bisonInfo.active,
+      revokedKeys: bisonInfo.revoked,
+      proomptersInQueue: bisonInfo.queued,
+      estimatedQueueTime: bisonInfo.queueTime,
+    },
   };
 }
 
@@ -408,13 +431,57 @@ function getAwsInfo() {
     : `${logged} active keys are potentially logged and can't be used. Set ALLOW_AWS_LOGGING=true to override.`;
 
   return {
-    usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
-    activeKeys: awsInfo.active,
-    revokedKeys: awsInfo.revoked,
-    proomptersInQueue: awsInfo.queued,
-    estimatedQueueTime: awsInfo.queueTime,
-    ...(logged > 0 ? { privacy: logMsg } : {}),
+    "aws-claude": {
+      usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
+      activeKeys: awsInfo.active,
+      revokedKeys: awsInfo.revoked,
+      proomptersInQueue: awsInfo.queued,
+      estimatedQueueTime: awsInfo.queueTime,
+      ...(logged > 0 ? { privacy: logMsg } : {}),
+    },
   };
+}
+
+function getAzureInfo() {
+  const azureFamilies = [
+    "azure-turbo",
+    "azure-gpt4",
+    "azure-gpt4-turbo",
+    "azure-gpt4-32k",
+  ] as const;
+
+  const azureInfo: {
+    [modelFamily in AzureOpenAIModelFamily]?: {
+      usage?: string;
+      activeKeys: number;
+      revokedKeys?: number;
+      proomptersInQueue?: number;
+      estimatedQueueTime?: string;
+    };
+  } = {};
+  for (const family of azureFamilies) {
+    const familyAllowed = config.allowedModelFamilies.includes(family);
+    const activeKeys = modelStats.get(`${family}__active`) || 0;
+
+    if (!familyAllowed || activeKeys === 0) continue;
+
+    azureInfo[family] = {
+      activeKeys,
+      revokedKeys: modelStats.get(`${family}__revoked`) || 0,
+    };
+
+    const queue = getQueueInformation(family);
+    azureInfo[family]!.proomptersInQueue = queue.proomptersInQueue;
+    azureInfo[family]!.estimatedQueueTime = queue.estimatedQueueTime;
+
+    const tokens = modelStats.get(`${family}__tokens`) || 0;
+    const cost = getTokenCostUsd(family, tokens);
+    azureInfo[family]!.usage = `${prettyTokens(tokens)} tokens${getCostString(
+      cost
+    )}`;
+  }
+
+  return azureInfo;
 }
 
 const customGreeting = fs.existsSync("greeting.md")
@@ -430,10 +497,10 @@ function buildInfoPageHeader(converter: showdown.Converter, title: string) {
   let infoBody = `<!-- Header for Showdown's parser, don't remove this line -->
 # ${title}`;
   if (config.promptLogging) {
-    infoBody += `\n## Prompt logging is enabled!
-The server operator has enabled prompt logging. The prompts you send to this proxy and the AI responses you receive may be saved.
+    infoBody += `\n## Prompt Logging Enabled
+This proxy keeps full logs of all prompts and AI responses. Prompt logs are anonymous and do not contain IP addresses or timestamps.
 
-Logs are anonymous and do not contain IP addresses or timestamps. [You can see the type of data logged here, along with the rest of the code.](https://gitgud.io/khanon/oai-reverse-proxy/-/blob/main/src/prompt-logging/index.ts).
+[You can see the type of data logged here, along with the rest of the code.](https://gitgud.io/khanon/oai-reverse-proxy/-/blob/main/src/shared/prompt-logging/index.ts).
 
 **If you are uncomfortable with this, don't send prompts to this proxy!**`;
   }
@@ -570,8 +637,6 @@ function escapeHtml(unsafe: string) {
 }
 
 function getExternalUrlForHuggingfaceSpaceId(spaceId: string) {
-  // Huggingface broke their amazon elb config and no longer sends the
-  // x-forwarded-host header. This is a workaround.
   try {
     const [username, spacename] = spaceId.split("/");
     return `https://${username}-${spacename.replace(/_/g, "-")}.hf.space`;

@@ -28,6 +28,7 @@ type SSEMessageTransformerOptions = TransformOptions & {
 export class SSEMessageTransformer extends Transform {
   private lastPosition: number;
   private msgCount: number;
+  private readonly inputFormat: APIFormat;
   private readonly transformFn: StreamingCompletionTransformer;
   private readonly log;
   private readonly fallbackId: string;
@@ -42,6 +43,7 @@ export class SSEMessageTransformer extends Transform {
       options.inputFormat,
       options.inputApiVersion
     );
+    this.inputFormat = options.inputFormat;
     this.fallbackId = options.requestId;
     this.fallbackModel = options.requestedModel;
     this.log.debug(
@@ -66,6 +68,17 @@ export class SSEMessageTransformer extends Transform {
           fallbackModel: this.fallbackModel,
         });
       this.lastPosition = newPosition;
+
+      // Special case for Azure OpenAI, which is 99% the same as OpenAI but
+      // sometimes emits an extra event at the beginning of the stream with the
+      // content moderation system's response to the prompt. A lot of frontends
+      // don't expect this and neither does our event aggregator so we drop it.
+      if (this.inputFormat === "openai" && this.msgCount <= 1) {
+        if (originalMessage.includes("prompt_filter_results")) {
+          this.log.debug("Dropping Azure OpenAI content moderation SSE event");
+          return callback();
+        }
+      }
 
       this.emit("originalMessage", originalMessage);
 

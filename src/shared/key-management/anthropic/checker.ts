@@ -26,46 +26,23 @@ type AnthropicAPIError = {
 type UpdateFn = typeof AnthropicKeyProvider.prototype.update;
 
 export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
-  private readonly updateKey: UpdateFn;
-
   constructor(keys: AnthropicKey[], updateKey: UpdateFn) {
     super(keys, {
       service: "anthropic",
       keyCheckPeriod: KEY_CHECK_PERIOD,
       minCheckInterval: MIN_CHECK_INTERVAL,
+      updateKey,
     });
-    this.updateKey = updateKey;
   }
 
-  protected async checkKey(key: AnthropicKey) {
-    if (key.isDisabled) {
-      this.log.warn({ key: key.hash }, "Skipping check for disabled key.");
-      this.scheduleNextCheck();
-      return;
-    }
-
-    this.log.debug({ key: key.hash }, "Checking key...");
-    let isInitialCheck = !key.lastChecked;
-    try {
-      const [{ pozzed }] = await Promise.all([this.testLiveness(key)]);
-      const updates = { isPozzed: pozzed };
-      this.updateKey(key.hash, updates);
-      this.log.info(
-        { key: key.hash, models: key.modelFamilies },
-        "Key check complete."
-      );
-    } catch (error) {
-      // touch the key so we don't check it again for a while
-      this.updateKey(key.hash, {});
-      this.handleAxiosError(key, error as AxiosError);
-    }
-
-    this.lastCheck = Date.now();
-    // Only enqueue the next check if this wasn't a startup check, since those
-    // are batched together elsewhere.
-    if (!isInitialCheck) {
-      this.scheduleNextCheck();
-    }
+  protected async testKeyOrFail(key: AnthropicKey) {
+    const [{ pozzed }] = await Promise.all([this.testLiveness(key)]);
+    const updates = { isPozzed: pozzed };
+    this.updateKey(key.hash, updates);
+    this.log.info(
+      { key: key.hash, models: key.modelFamilies },
+      "Checked key."
+    );
   }
 
   protected handleAxiosError(key: AnthropicKey, error: AxiosError) {
@@ -84,6 +61,7 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
               { key: key.hash, error: error.message },
               "Key is rate limited. Rechecking in 10 seconds."
             );
+            0;
             const next = Date.now() - (KEY_CHECK_PERIOD - 10 * 1000);
             this.updateKey(key.hash, { lastChecked: next });
             break;

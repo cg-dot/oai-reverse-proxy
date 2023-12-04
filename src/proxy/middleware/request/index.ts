@@ -22,7 +22,7 @@ export { addKey, addKeyForEmbeddingsRequest } from "./add-key";
 export { addAnthropicPreamble } from "./add-anthropic-preamble";
 export { blockZoomerOrigins } from "./block-zoomer-origins";
 export { finalizeBody } from "./finalize-body";
-export { finalizeAwsRequest } from "./finalize-aws-request";
+export { finalizeSignedRequest } from "./finalize-signed-request";
 export { limitCompletions } from "./limit-completions";
 export { stripHeaders } from "./strip-headers";
 

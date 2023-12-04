@@ -27,65 +27,41 @@ type UpdateFn = typeof OpenAIKeyProvider.prototype.update;
 
 export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
   private readonly cloneKey: CloneFn;
-  private readonly updateKey: UpdateFn;
 
   constructor(keys: OpenAIKey[], cloneFn: CloneFn, updateKey: UpdateFn) {
     super(keys, {
       service: "openai",
       keyCheckPeriod: KEY_CHECK_PERIOD,
       minCheckInterval: MIN_CHECK_INTERVAL,
+      recurringChecksEnabled: false,
+      updateKey,
     });
     this.cloneKey = cloneFn;
-    this.updateKey = updateKey;
   }
 
-  protected async checkKey(key: OpenAIKey) {
-    if (key.isDisabled) {
-      this.log.warn({ key: key.hash }, "Skipping check for disabled key.");
-      this.scheduleNextCheck();
-      return;
-    }
-
-    this.log.debug({ key: key.hash }, "Checking key...");
-    let isInitialCheck = !key.lastChecked;
-    try {
-      // We only need to check for provisioned models on the initial check.
-      if (isInitialCheck) {
-        const [provisionedModels, livenessTest] = await Promise.all([
-          this.getProvisionedModels(key),
-          this.testLiveness(key),
-          this.maybeCreateOrganizationClones(key),
-        ]);
-        const updates = {
-          modelFamilies: provisionedModels,
-          isTrial: livenessTest.rateLimit <= 250,
-        };
-        this.updateKey(key.hash, updates);
-      } else {
-        // No updates needed as models and trial status generally don't change.
-        const [_livenessTest] = await Promise.all([this.testLiveness(key)]);
-        this.updateKey(key.hash, {});
-      }
-      this.log.info(
-        { key: key.hash, models: key.modelFamilies, trial: key.isTrial },
-        "Key check complete."
-      );
-    } catch (error) {
-      // touch the key so we don't check it again for a while
+  protected async testKeyOrFail(key: OpenAIKey) {
+    // We only need to check for provisioned models on the initial check.
+    const isInitialCheck = !key.lastChecked;
+    if (isInitialCheck) {
+      const [provisionedModels, livenessTest] = await Promise.all([
+        this.getProvisionedModels(key),
+        this.testLiveness(key),
+        this.maybeCreateOrganizationClones(key),
+      ]);
+      const updates = {
+        modelFamilies: provisionedModels,
+        isTrial: livenessTest.rateLimit <= 250,
+      };
+      this.updateKey(key.hash, updates);
+    } else {
+      // No updates needed as models and trial status generally don't change.
+      const [_livenessTest] = await Promise.all([this.testLiveness(key)]);
       this.updateKey(key.hash, {});
-      this.handleAxiosError(key, error as AxiosError);
     }
-
-    this.lastCheck = Date.now();
-    // Only enqueue the next check if this wasn't a startup check, since those
-    // are batched together elsewhere.
-    if (!isInitialCheck) {
-      this.log.info(
-        { key: key.hash },
-        "Recurring keychecks are disabled, no-op."
-      );
-      // this.scheduleNextCheck();
-    }
+    this.log.info(
+      { key: key.hash, models: key.modelFamilies, trial: key.isTrial },
+      "Checked key."
+    );
   }
 
   private async getProvisionedModels(
@@ -138,6 +114,17 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
       .filter(({ is_default }) => !is_default)
       .map(({ id }) => id);
     this.cloneKey(key.hash, ids);
+
+    // It's possible that the keychecker may be stopped if all non-cloned keys
+    // happened to be unusable, in which case this clnoe will never be checked
+    // unless we restart the keychecker.
+    if (!this.timeout) {
+      this.log.warn(
+        { parent: key.hash },
+        "Restarting key checker to check cloned keys."
+      );
+      this.scheduleNextCheck();
+    }
   }
 
   protected handleAxiosError(key: OpenAIKey, error: AxiosError) {

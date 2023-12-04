@@ -26,6 +26,7 @@ import { assertNever } from "../shared/utils";
 import { logger } from "../logger";
 import { getUniqueIps, SHARED_IP_ADDRESSES } from "./rate-limit";
 import { RequestPreprocessor } from "./middleware/request";
+import { handleProxyError } from "./middleware/common";
 
 const queue: Request[] = [];
 const log = logger.child({ module: "request-queue" });
@@ -34,7 +35,7 @@ const log = logger.child({ module: "request-queue" });
 const AGNAI_CONCURRENCY_LIMIT = 5;
 /** Maximum number of queue slots for individual users. */
 const USER_CONCURRENCY_LIMIT = 1;
-const MIN_HEARTBEAT_SIZE = 512;
+const MIN_HEARTBEAT_SIZE = parseInt(process.env.MIN_HEARTBEAT_SIZE_B ?? "512");
 const MAX_HEARTBEAT_SIZE =
   1024 * parseInt(process.env.MAX_HEARTBEAT_SIZE_KB ?? "1024");
 const HEARTBEAT_INTERVAL =
@@ -358,12 +359,16 @@ export function createQueueMiddleware({
   return (req, res, next) => {
     req.proceed = async () => {
       if (beforeProxy) {
-        // Hack to let us run asynchronous middleware before the
-        // http-proxy-middleware handler. This is used to sign AWS requests
-        // before they are proxied, as the signing is asynchronous.
-        // Unlike RequestPreprocessors, this runs every time the request is
-        // dequeued, not just the first time.
-        await beforeProxy(req);
+        try {
+          // Hack to let us run asynchronous middleware before the
+          // http-proxy-middleware handler. This is used to sign AWS requests
+          // before they are proxied, as the signing is asynchronous.
+          // Unlike RequestPreprocessors, this runs every time the request is
+          // dequeued, not just the first time.
+          await beforeProxy(req);
+        } catch (err) {
+          return handleProxyError(err, req, res);
+        }
       }
       proxyMiddleware(req, res, next);
     };
