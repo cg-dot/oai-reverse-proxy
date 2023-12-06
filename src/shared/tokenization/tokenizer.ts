@@ -1,5 +1,5 @@
 import { Request } from "express";
-import type { OpenAIChatMessage } from "../../proxy/middleware/request/transform-outbound-payload";
+import type { OpenAIChatMessage } from "../../proxy/middleware/request/preprocessors/transform-outbound-payload";
 import { assertNever } from "../utils";
 import {
   init as initClaude,

@@ -2,8 +2,8 @@ import express from "express";
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
 import { HttpRequest } from "@smithy/protocol-http";
-import { keyPool } from "../../../shared/key-management";
-import { RequestPreprocessor } from ".";
+import { keyPool } from "../../../../shared/key-management";
+import { RequestPreprocessor } from "../index";
 import { AnthropicV1CompleteSchema } from "./transform-outbound-payload";
 
 const AMZ_HOST =

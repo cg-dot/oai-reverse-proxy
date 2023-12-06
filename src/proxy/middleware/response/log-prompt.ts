@@ -9,7 +9,7 @@ import {
 } from "../common";
 import { ProxyResHandlerWithBody } from ".";
 import { assertNever } from "../../../shared/utils";
-import { OpenAIChatMessage } from "../request/transform-outbound-payload";
+import { OpenAIChatMessage } from "../request/preprocessors/transform-outbound-payload";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */
 export const logPrompt: ProxyResHandlerWithBody = async (

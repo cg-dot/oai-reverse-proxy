@@ -1,5 +1,5 @@
-import { AzureOpenAIKey, keyPool } from "../../../shared/key-management";
-import { RequestPreprocessor } from ".";
+import { AzureOpenAIKey, keyPool } from "../../../../shared/key-management";
+import { RequestPreprocessor } from "../index";
 
 export const addAzureKey: RequestPreprocessor = (req) => {
   const apisValid = req.inboundApi === "openai" && req.outboundApi === "openai";

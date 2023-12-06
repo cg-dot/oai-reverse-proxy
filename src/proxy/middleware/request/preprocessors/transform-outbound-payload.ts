@@ -1,9 +1,9 @@
 import { Request } from "express";
 import { z } from "zod";
-import { config } from "../../../config";
-import { isTextGenerationRequest, isImageGenerationRequest } from "../common";
-import { RequestPreprocessor } from ".";
-import { APIFormat } from "../../../shared/key-management";
+import { config } from "../../../../config";
+import { isTextGenerationRequest, isImageGenerationRequest } from "../../common";
+import { RequestPreprocessor } from "../index";
+import { APIFormat } from "../../../../shared/key-management";
 
 const CLAUDE_OUTPUT_MAX = config.maxOutputTokensAnthropic;
 const OPENAI_OUTPUT_MAX = config.maxOutputTokensOpenAI;

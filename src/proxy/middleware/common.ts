@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { generateErrorMessage } from "zod-error";
 import { buildFakeSse } from "../../shared/streaming";
 import { assertNever } from "../../shared/utils";
-import { QuotaExceededError } from "./request/apply-quota-limits";
+import { QuotaExceededError } from "./request/preprocessors/apply-quota-limits";
 
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";
 const OPENAI_TEXT_COMPLETION_ENDPOINT = "/v1/completions";

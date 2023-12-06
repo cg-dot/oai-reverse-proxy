@@ -29,6 +29,14 @@ type RequestPreprocessorOptions = {
 /**
  * Returns a middleware function that processes the request body into the given
  * API format, and then sequentially runs the given additional preprocessors.
+ *
+ * These run first in the request lifecycle, a single time per request before it
+ * is added to the request queue. They aren't run again if the request is
+ * re-attempted after a rate limit.
+ *
+ * To run a preprocessor on every re-attempt, pass it to createQueueMiddleware.
+ * It will run after these preprocessors, but before the request is sent to
+ * http-proxy-middleware.
  */
 export const createPreprocessorMiddleware = (
   apiFormat: Parameters<typeof setApiFormat>[0],

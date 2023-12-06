@@ -1,6 +1,6 @@
 import { Request } from "express";
-import { APIFormat, LLMService } from "../../../shared/key-management";
-import { RequestPreprocessor } from ".";
+import { APIFormat, LLMService } from "../../../../shared/key-management";
+import { RequestPreprocessor } from "../index";
 
 export const setApiFormat = (api: {
   inApi: Request["inboundApi"];

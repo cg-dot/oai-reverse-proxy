@@ -1,8 +1,8 @@
 import { Request } from "express";
-import { config } from "../../../config";
-import { assertNever } from "../../../shared/utils";
-import { RequestPreprocessor } from ".";
-import { UserInputError } from "../../../shared/errors";
+import { config } from "../../../../config";
+import { assertNever } from "../../../../shared/utils";
+import { RequestPreprocessor } from "../index";
+import { UserInputError } from "../../../../shared/errors";
 import { OpenAIChatMessage } from "./transform-outbound-payload";
 
 const rejectedClients = new Map<string, number>();

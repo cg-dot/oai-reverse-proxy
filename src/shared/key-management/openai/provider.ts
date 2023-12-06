@@ -170,12 +170,6 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
       throw new Error(`No keys available for model family '${neededFamily}'.`);
     }
 
-    if (!config.allowedModelFamilies.includes(neededFamily)) {
-      throw new Error(
-        `Proxy operator has disabled model family '${neededFamily}'.`
-      );
-    }
-
     // Select a key, from highest priority to lowest priority:
     // 1. Keys which are not rate limited
     //    a. We ignore rate limits from >30 seconds ago

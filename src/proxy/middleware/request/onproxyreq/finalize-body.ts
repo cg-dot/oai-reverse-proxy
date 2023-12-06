@@ -1,8 +1,8 @@
 import { fixRequestBody } from "http-proxy-middleware";
-import type { ProxyRequestMiddleware } from ".";
+import type { HPMRequestCallback } from "../index";
 
 /** Finalize the rewritten request body. Must be the last rewriter. */
-export const finalizeBody: ProxyRequestMiddleware = (proxyReq, req) => {
+export const finalizeBody: HPMRequestCallback = (proxyReq, req) => {
   if (["POST", "PUT", "PATCH"].includes(req.method ?? "") && req.body) {
     // For image generation requests, remove stream flag.
     if (req.outboundApi === "openai-image") {

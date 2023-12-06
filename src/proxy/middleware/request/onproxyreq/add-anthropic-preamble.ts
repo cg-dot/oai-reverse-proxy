@@ -1,13 +1,13 @@
-import { AnthropicKey, Key } from "../../../shared/key-management";
-import { isTextGenerationRequest } from "../common";
-import { ProxyRequestMiddleware } from ".";
+import { AnthropicKey, Key } from "../../../../shared/key-management";
+import { isTextGenerationRequest } from "../../common";
+import { HPMRequestCallback } from "../index";
 
 /**
  * Some keys require the prompt to start with `\n\nHuman:`. There is no way to
  * know this without trying to send the request and seeing if it fails. If a
  * key is marked as requiring a preamble, it will be added here.
  */
-export const addAnthropicPreamble: ProxyRequestMiddleware = (
+export const addAnthropicPreamble: HPMRequestCallback = (
   _proxyReq,
   req
 ) => {

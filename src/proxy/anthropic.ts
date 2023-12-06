@@ -7,12 +7,9 @@ import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
 import {
   addKey,
-  applyQuotaLimits,
   addAnthropicPreamble,
-  blockZoomerOrigins,
   createPreprocessorMiddleware,
   finalizeBody,
-  stripHeaders,
   createOnProxyReqHandler,
 } from "./middleware/request";
 import {
@@ -137,14 +134,7 @@ const anthropicProxy = createQueueMiddleware({
     logger,
     on: {
       proxyReq: createOnProxyReqHandler({
-        pipeline: [
-          applyQuotaLimits,
-          addKey,
-          addAnthropicPreamble,
-          blockZoomerOrigins,
-          stripHeaders,
-          finalizeBody,
-        ],
+        pipeline: [addKey, addAnthropicPreamble, finalizeBody],
       }),
       proxyRes: createOnProxyResHandler([anthropicResponseHandler]),
       error: handleProxyError,

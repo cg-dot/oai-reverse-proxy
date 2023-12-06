@@ -1,6 +1,8 @@
 // Don't import anything here, this is imported by config.ts
 
 import pino from "pino";
+import type { Request } from "express";
+import { assertNever } from "./utils";
 
 export type OpenAIModelFamily =
   | "turbo"
@@ -102,4 +104,39 @@ export function assertIsKnownModelFamily(
   if (!MODEL_FAMILIES.includes(modelFamily as ModelFamily)) {
     throw new Error(`Unknown model family: ${modelFamily}`);
   }
+}
+
+export function getModelFamilyForRequest(req: Request): ModelFamily {
+  if (req.modelFamily) return req.modelFamily;
+  // There is a single request queue, but it is partitioned by model family.
+  // Model families are typically separated on cost/rate limit boundaries so
+  // they should be treated as separate queues.
+  const model = req.body.model ?? "gpt-3.5-turbo";
+  let modelFamily: ModelFamily;
+
+  // Weird special case for AWS/Azure because they serve multiple models from
+  // different vendors, even if currently only one is supported.
+  if (req.service === "aws") {
+    modelFamily = getAwsBedrockModelFamily(model);
+  } else if (req.service === "azure") {
+    modelFamily = getAzureOpenAIModelFamily(model);
+  } else {
+    switch (req.outboundApi) {
+      case "anthropic":
+        modelFamily = getClaudeModelFamily(model);
+        break;
+      case "openai":
+      case "openai-text":
+      case "openai-image":
+        modelFamily = getOpenAIModelFamily(model);
+        break;
+      case "google-palm":
+        modelFamily = getGooglePalmModelFamily(model);
+        break;
+      default:
+        assertNever(req.outboundApi);
+    }
+  }
+
+  return (req.modelFamily = modelFamily);
 }

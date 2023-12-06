@@ -7,11 +7,8 @@ import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
 import {
   addKey,
-  applyQuotaLimits,
-  blockZoomerOrigins,
   createPreprocessorMiddleware,
   finalizeBody,
-  stripHeaders,
   createOnProxyReqHandler,
 } from "./middleware/request";
 import {
@@ -113,15 +110,7 @@ const openaiImagesProxy = createQueueMiddleware({
       "^/v1/chat/completions": "/v1/images/generations",
     },
     on: {
-      proxyReq: createOnProxyReqHandler({
-        pipeline: [
-          applyQuotaLimits,
-          addKey,
-          blockZoomerOrigins,
-          stripHeaders,
-          finalizeBody,
-        ],
-      }),
+      proxyReq: createOnProxyReqHandler({ pipeline: [addKey, finalizeBody] }),
       proxyRes: createOnProxyResHandler([openaiImagesResponseHandler]),
       error: handleProxyError,
     },

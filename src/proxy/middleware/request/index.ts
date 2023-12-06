@@ -2,29 +2,30 @@ import type { Request } from "express";
 import type { ClientRequest } from "http";
 import type { ProxyReqCallback } from "http-proxy";
 
-export { createOnProxyReqHandler } from "./rewrite";
+export { createOnProxyReqHandler } from "./onproxyreq-factory";
 export {
   createPreprocessorMiddleware,
   createEmbeddingsPreprocessorMiddleware,
-} from "./preprocess";
+} from "./preprocessor-factory";
 
 // Express middleware (runs before http-proxy-middleware, can be async)
-export { applyQuotaLimits } from "./apply-quota-limits";
-export { validateContextSize } from "./validate-context-size";
-export { countPromptTokens } from "./count-prompt-tokens";
-export { languageFilter } from "./language-filter";
-export { setApiFormat } from "./set-api-format";
-export { signAwsRequest } from "./sign-aws-request";
-export { transformOutboundPayload } from "./transform-outbound-payload";
+export { addAzureKey } from "./preprocessors/add-azure-key";
+export { applyQuotaLimits } from "./preprocessors/apply-quota-limits";
+export { validateContextSize } from "./preprocessors/validate-context-size";
+export { countPromptTokens } from "./preprocessors/count-prompt-tokens";
+export { languageFilter } from "./preprocessors/language-filter";
+export { setApiFormat } from "./preprocessors/set-api-format";
+export { signAwsRequest } from "./preprocessors/sign-aws-request";
+export { transformOutboundPayload } from "./preprocessors/transform-outbound-payload";
 
-// HPM middleware (runs on onProxyReq, cannot be async)
-export { addKey, addKeyForEmbeddingsRequest } from "./add-key";
-export { addAnthropicPreamble } from "./add-anthropic-preamble";
-export { blockZoomerOrigins } from "./block-zoomer-origins";
-export { finalizeBody } from "./finalize-body";
-export { finalizeSignedRequest } from "./finalize-signed-request";
-export { limitCompletions } from "./limit-completions";
-export { stripHeaders } from "./strip-headers";
+// http-proxy-middleware callbacks (runs on onProxyReq, cannot be async)
+export { addKey, addKeyForEmbeddingsRequest } from "./onproxyreq/add-key";
+export { addAnthropicPreamble } from "./onproxyreq/add-anthropic-preamble";
+export { blockZoomerOrigins } from "./onproxyreq/block-zoomer-origins";
+export { checkModelFamily } from "./onproxyreq/check-model-family";
+export { finalizeBody } from "./onproxyreq/finalize-body";
+export { finalizeSignedRequest } from "./onproxyreq/finalize-signed-request";
+export { stripHeaders } from "./onproxyreq/strip-headers";
 
 /**
  * Middleware that runs prior to the request being handled by http-proxy-
@@ -43,7 +44,7 @@ export { stripHeaders } from "./strip-headers";
 export type RequestPreprocessor = (req: Request) => void | Promise<void>;
 
 /**
- * Middleware that runs immediately before the request is sent to the API in
+ * Callbacks that run immediately before the request is sent to the API in
  * response to http-proxy-middleware's `proxyReq` event.
  *
  * Async functions cannot be used here as HPM's event emitter is not async and
@@ -53,7 +54,7 @@ export type RequestPreprocessor = (req: Request) => void | Promise<void>;
  * first attempt is rate limited and the request is automatically retried by the
  * request queue middleware.
  */
-export type ProxyRequestMiddleware = ProxyReqCallback<ClientRequest, Request>;
+export type HPMRequestCallback = ProxyReqCallback<ClientRequest, Request>;
 
 export const forceModel = (model: string) => (req: Request) =>
   void (req.body.model = model);

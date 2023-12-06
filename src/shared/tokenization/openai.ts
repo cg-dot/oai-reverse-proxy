@@ -2,7 +2,7 @@ import { Tiktoken } from "tiktoken/lite";
 import cl100k_base from "tiktoken/encoders/cl100k_base.json";
 import { logger } from "../../logger";
 import { libSharp } from "../file-storage";
-import type { OpenAIChatMessage } from "../../proxy/middleware/request/transform-outbound-payload";
+import type { OpenAIChatMessage } from "../../proxy/middleware/request/preprocessors/transform-outbound-payload";
 
 const log = logger.child({ module: "tokenizer", service: "openai" });
 const GPT4_VISION_SYSTEM_PROMPT_SIZE = 170;

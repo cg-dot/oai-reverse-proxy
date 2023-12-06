@@ -1,6 +1,6 @@
-import { hasAvailableQuota } from "../../../shared/users/user-store";
-import { isImageGenerationRequest, isTextGenerationRequest } from "../common";
-import { ProxyRequestMiddleware } from ".";
+import { hasAvailableQuota } from "../../../../shared/users/user-store";
+import { isImageGenerationRequest, isTextGenerationRequest } from "../../common";
+import { HPMRequestCallback } from "../index";
 
 export class QuotaExceededError extends Error {
   public quotaInfo: any;
@@ -11,7 +11,7 @@ export class QuotaExceededError extends Error {
   }
 }
 
-export const applyQuotaLimits: ProxyRequestMiddleware = (_proxyReq, req) => {
+export const applyQuotaLimits: HPMRequestCallback = (_proxyReq, req) => {
   const subjectToQuota =
     isTextGenerationRequest(req) || isImageGenerationRequest(req);
   if (!subjectToQuota || !req.user) return;

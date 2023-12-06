@@ -1,10 +1,10 @@
-import { Key, OpenAIKey, keyPool } from "../../../shared/key-management";
-import { isEmbeddingsRequest } from "../common";
-import { ProxyRequestMiddleware } from ".";
-import { assertNever } from "../../../shared/utils";
+import { Key, OpenAIKey, keyPool } from "../../../../shared/key-management";
+import { isEmbeddingsRequest } from "../../common";
+import { HPMRequestCallback } from "../index";
+import { assertNever } from "../../../../shared/utils";
 
 /** Add a key that can service this request to the request object. */
-export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
+export const addKey: HPMRequestCallback = (proxyReq, req) => {
   let assignedKey: Key;
 
   if (!req.inboundApi || !req.outboundApi) {
@@ -97,7 +97,7 @@ export const addKey: ProxyRequestMiddleware = (proxyReq, req) => {
  * Special case for embeddings requests which don't go through the normal
  * request pipeline.
  */
-export const addKeyForEmbeddingsRequest: ProxyRequestMiddleware = (
+export const addKeyForEmbeddingsRequest: HPMRequestCallback = (
   proxyReq,
   req
 ) => {

@@ -1,10 +1,10 @@
-import { ProxyRequestMiddleware } from ".";
+import { HPMRequestCallback } from "../index";
 
 /**
  * Removes origin and referer headers before sending the request to the API for
  * privacy reasons.
  **/
-export const stripHeaders: ProxyRequestMiddleware = (proxyReq) => {
+export const stripHeaders: HPMRequestCallback = (proxyReq) => {
   proxyReq.setHeader("origin", "");
   proxyReq.setHeader("referer", "");
 

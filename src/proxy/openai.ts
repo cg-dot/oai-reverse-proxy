@@ -2,7 +2,11 @@ import { RequestHandler, Router } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
 import { keyPool } from "../shared/key-management";
-import { getOpenAIModelFamily, ModelFamily, OpenAIModelFamily } from "../shared/models";
+import {
+  getOpenAIModelFamily,
+  ModelFamily,
+  OpenAIModelFamily,
+} from "../shared/models";
 import { logger } from "../logger";
 import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";
@@ -10,18 +14,17 @@ import { handleProxyError } from "./middleware/common";
 import {
   addKey,
   addKeyForEmbeddingsRequest,
-  applyQuotaLimits,
-  blockZoomerOrigins,
   createEmbeddingsPreprocessorMiddleware,
   createOnProxyReqHandler,
   createPreprocessorMiddleware,
   finalizeBody,
   forceModel,
-  limitCompletions,
   RequestPreprocessor,
-  stripHeaders,
 } from "./middleware/request";
-import { createOnProxyResHandler, ProxyResHandlerWithBody } from "./middleware/response";
+import {
+  createOnProxyResHandler,
+  ProxyResHandlerWithBody,
+} from "./middleware/response";
 
 // https://platform.openai.com/docs/models/overview
 export const KNOWN_OPENAI_MODELS = [
@@ -159,14 +162,7 @@ const openaiProxy = createQueueMiddleware({
     logger,
     on: {
       proxyReq: createOnProxyReqHandler({
-        pipeline: [
-          applyQuotaLimits,
-          addKey,
-          limitCompletions,
-          blockZoomerOrigins,
-          stripHeaders,
-          finalizeBody,
-        ],
+        pipeline: [addKey, finalizeBody],
       }),
       proxyRes: createOnProxyResHandler([openaiResponseHandler]),
       error: handleProxyError,
@@ -181,7 +177,7 @@ const openaiEmbeddingsProxy = createProxyMiddleware({
   logger,
   on: {
     proxyReq: createOnProxyReqHandler({
-      pipeline: [addKeyForEmbeddingsRequest, stripHeaders, finalizeBody],
+      pipeline: [addKeyForEmbeddingsRequest, finalizeBody],
     }),
     error: handleProxyError,
   },

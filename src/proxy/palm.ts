@@ -9,13 +9,10 @@ import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
 import {
   addKey,
-  applyQuotaLimits,
-  blockZoomerOrigins,
   createOnProxyReqHandler,
   createPreprocessorMiddleware,
   finalizeBody,
   forceModel,
-  stripHeaders,
 } from "./middleware/request";
 import {
   createOnProxyResHandler,
@@ -149,14 +146,7 @@ const googlePalmProxy = createQueueMiddleware({
     logger,
     on: {
       proxyReq: createOnProxyReqHandler({
-        beforeRewrite: [reassignPathForPalmModel],
-        pipeline: [
-          applyQuotaLimits,
-          addKey,
-          blockZoomerOrigins,
-          stripHeaders,
-          finalizeBody,
-        ],
+        pipeline: [reassignPathForPalmModel, addKey, finalizeBody],
       }),
       proxyRes: createOnProxyResHandler([palmResponseHandler]),
       error: handleProxyError,

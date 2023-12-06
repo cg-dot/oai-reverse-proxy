@@ -13,19 +13,15 @@ import { createQueueMiddleware } from "./queue";
 import { ipLimiter } from "./rate-limit";
 import { handleProxyError } from "./middleware/common";
 import {
-  applyQuotaLimits,
-  blockZoomerOrigins,
+  addAzureKey,
   createOnProxyReqHandler,
   createPreprocessorMiddleware,
   finalizeSignedRequest,
-  limitCompletions,
-  stripHeaders,
 } from "./middleware/request";
 import {
   createOnProxyResHandler,
   ProxyResHandlerWithBody,
 } from "./middleware/response";
-import { addAzureKey } from "./middleware/request/add-azure-key";
 
 let modelsCache: any = null;
 let modelsCacheTime = 0;
@@ -109,15 +105,7 @@ const azureOpenAIProxy = createQueueMiddleware({
     selfHandleResponse: true,
     logger,
     on: {
-      proxyReq: createOnProxyReqHandler({
-        pipeline: [
-          applyQuotaLimits,
-          limitCompletions,
-          blockZoomerOrigins,
-          stripHeaders,
-          finalizeSignedRequest,
-        ],
-      }),
+      proxyReq: createOnProxyReqHandler({ pipeline: [finalizeSignedRequest] }),
       proxyRes: createOnProxyResHandler([azureOpenaiResponseHandler]),
       error: handleProxyError,
     },

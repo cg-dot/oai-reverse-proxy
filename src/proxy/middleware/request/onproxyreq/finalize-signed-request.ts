@@ -1,11 +1,11 @@
-import type { ProxyRequestMiddleware } from ".";
+import type { HPMRequestCallback } from "../index";
 
 /**
  * For AWS/Azure requests, the body is signed earlier in the request pipeline,
  * before the proxy middleware. This function just assigns the path and headers
  * to the proxy request.
  */
-export const finalizeSignedRequest: ProxyRequestMiddleware = (proxyReq, req) => {
+export const finalizeSignedRequest: HPMRequestCallback = (proxyReq, req) => {
   if (!req.signedRequest) {
     throw new Error("Expected req.signedRequest to be set");
   }
