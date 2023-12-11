@@ -48,13 +48,14 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
   protected handleAxiosError(key: AnthropicKey, error: AxiosError) {
     if (error.response && AnthropicKeyChecker.errorIsAnthropicAPIError(error)) {
       const { status, data } = error.response;
-      if (status === 401) {
+      if (status === 401 || status === 403) {
         this.log.warn(
           { key: key.hash, error: data },
           "Key is invalid or revoked. Disabling key."
         );
         this.updateKey(key.hash, { isDisabled: true, isRevoked: true });
-      } else if (status === 429) {
+      }
+      else if (status === 429) {
         switch (data.error.type) {
           case "rate_limit_error":
             this.log.warn(

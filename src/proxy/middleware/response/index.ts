@@ -314,7 +314,11 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     keyPool.disable(req.key!, "revoked");
     errorPayload.proxy_note = `API key is invalid or revoked. ${tryAgainMessage}`;
   } else if (statusCode === 403) {
-    // Amazon is the only service that returns 403.
+    if (service === "anthropic") {
+      keyPool.disable(req.key!, "revoked");
+      errorPayload.proxy_note = `API key is invalid or revoked. ${tryAgainMessage}`;
+      return;
+    }
     switch (errorType) {
       case "UnrecognizedClientException":
         // Key is invalid.
