@@ -19,8 +19,12 @@ type Config = {
   openaiKey?: string;
   /** Comma-delimited list of Anthropic API keys. */
   anthropicKey?: string;
-  /** Comma-delimited list of Google PaLM API keys. */
-  googlePalmKey?: string;
+  /**
+   * Comma-delimited list of Google AI API keys. Note that these are not the
+   * same as the GCP keys/credentials used for Vertex AI; the models are the
+   * same but the APIs are different. Vertex is the GCP product for enterprise.
+   **/
+  googleAIKey?: string;
   /**
    * Comma-delimited list of AWS credentials. Each credential item should be a
    * colon-delimited list of access key, secret key, and AWS region.
@@ -197,7 +201,7 @@ export const config: Config = {
   port: getEnvWithDefault("PORT", 7860),
   openaiKey: getEnvWithDefault("OPENAI_KEY", ""),
   anthropicKey: getEnvWithDefault("ANTHROPIC_KEY", ""),
-  googlePalmKey: getEnvWithDefault("GOOGLE_PALM_KEY", ""),
+  googleAIKey: getEnvWithDefault("GOOGLE_AI_KEY", ""),
   awsCredentials: getEnvWithDefault("AWS_CREDENTIALS", ""),
   azureCredentials: getEnvWithDefault("AZURE_CREDENTIALS", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
@@ -229,7 +233,7 @@ export const config: Config = {
     "gpt4-32k",
     "gpt4-turbo",
     "claude",
-    "bison",
+    "gemini-pro",
     "aws-claude",
     "azure-turbo",
     "azure-gpt4",
@@ -366,7 +370,7 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "logLevel",
   "openaiKey",
   "anthropicKey",
-  "googlePalmKey",
+  "googleAIKey",
   "awsCredentials",
   "azureCredentials",
   "proxyKey",
@@ -433,7 +437,7 @@ function getEnvWithDefault<T>(env: string | string[], defaultValue: T): T {
       [
         "OPENAI_KEY",
         "ANTHROPIC_KEY",
-        "GOOGLE_PALM_KEY",
+        "GOOGLE_AI_KEY",
         "AWS_CREDENTIALS",
         "AZURE_CREDENTIALS",
       ].includes(String(env))

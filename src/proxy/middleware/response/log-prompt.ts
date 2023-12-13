@@ -73,7 +73,7 @@ const getPromptForRequest = (
       };
     case "anthropic":
       return req.body.prompt;
-    case "google-palm":
+    case "google-ai":
       return req.body.prompt.text;
     default:
       assertNever(req.outboundApi);

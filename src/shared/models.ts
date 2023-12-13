@@ -11,7 +11,7 @@ export type OpenAIModelFamily =
   | "gpt4-turbo"
   | "dall-e";
 export type AnthropicModelFamily = "claude";
-export type GooglePalmModelFamily = "bison";
+export type GoogleAIModelFamily = "gemini-pro";
 export type AwsBedrockModelFamily = "aws-claude";
 export type AzureOpenAIModelFamily = `azure-${Exclude<
   OpenAIModelFamily,
@@ -20,7 +20,7 @@ export type AzureOpenAIModelFamily = `azure-${Exclude<
 export type ModelFamily =
   | OpenAIModelFamily
   | AnthropicModelFamily
-  | GooglePalmModelFamily
+  | GoogleAIModelFamily
   | AwsBedrockModelFamily
   | AzureOpenAIModelFamily;
 
@@ -33,7 +33,7 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "gpt4-turbo",
   "dall-e",
   "claude",
-  "bison",
+  "gemini-pro",
   "aws-claude",
   "azure-turbo",
   "azure-gpt4",
@@ -53,7 +53,7 @@ export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^dall-e-\\d{1}$": "dall-e",
 };
 
-const modelLogger = pino({ level: "debug" }).child({ module: "startup" });
+pino({ level: "debug" }).child({ module: "startup" });
 
 export function getOpenAIModelFamily(
   model: string,
@@ -70,10 +70,8 @@ export function getClaudeModelFamily(model: string): ModelFamily {
   return "claude";
 }
 
-export function getGooglePalmModelFamily(model: string): ModelFamily {
-  if (model.match(/^\w+-bison-\d{3}$/)) return "bison";
-  modelLogger.warn({ model }, "Could not determine Google PaLM model family");
-  return "bison";
+export function getGoogleAIModelFamily(_model: string): ModelFamily {
+  return "gemini-pro";
 }
 
 export function getAwsBedrockModelFamily(_model: string): ModelFamily {
@@ -130,8 +128,8 @@ export function getModelFamilyForRequest(req: Request): ModelFamily {
       case "openai-image":
         modelFamily = getOpenAIModelFamily(model);
         break;
-      case "google-palm":
-        modelFamily = getGooglePalmModelFamily(model);
+      case "google-ai":
+        modelFamily = getGoogleAIModelFamily(model);
         break;
       default:
         assertNever(req.outboundApi);

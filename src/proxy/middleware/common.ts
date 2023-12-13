@@ -177,8 +177,11 @@ export function getCompletionFromBody(req: Request, body: Record<string, any>) {
         return "";
       }
       return body.completion.trim();
-    case "google-palm":
-      return body.candidates[0].output;
+    case "google-ai":
+      if ("choices" in body) {
+        return body.choices[0].message.content;
+      }
+      return body.candidates[0].content.parts[0].text;
     case "openai-image":
       return body.data?.map((item: any) => item.url).join("\n");
     default:
@@ -197,7 +200,7 @@ export function getModelFromBody(req: Request, body: Record<string, any>) {
     case "anthropic":
       // Anthropic confirms the model in the response, but AWS Claude doesn't.
       return body.model || req.body.model;
-    case "google-palm":
+    case "google-ai":
       // Google doesn't confirm the model in the response.
       return req.body.model;
     default:

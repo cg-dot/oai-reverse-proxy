@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-const concurrentRequests = 5;
+const concurrentRequests = 75;
 const headers = {
   Authorization: "Bearer test",
   "Content-Type": "application/json",
@@ -16,7 +16,7 @@ const payload = {
 const makeRequest = async (i) => {
   try {
     const response = await axios.post(
-      "http://localhost:7860/proxy/azure/openai/v1/chat/completions",
+      "http://localhost:7860/proxy/google-ai/v1/chat/completions",
       payload,
       { headers }
     );
@@ -25,7 +25,8 @@ const makeRequest = async (i) => {
       response.data
     );
   } catch (error) {
-    console.error(`Error in req ${i}:`, error.message);
+    const msg = error.response
+    console.error(`Error in req ${i}:`, error.message, msg || "");
   }
 };
 

@@ -7,9 +7,10 @@ import {
   anthropicV2ToOpenAI,
   OpenAIChatCompletionStreamEvent,
   openAITextToOpenAIChat,
+  googleAIToOpenAI,
+  passthroughToOpenAI,
   StreamingCompletionTransformer,
 } from "./index";
-import { passthroughToOpenAI } from "./transformers/passthrough-to-openai";
 
 const genlog = logger.child({ module: "sse-transformer" });
 
@@ -111,7 +112,8 @@ function getTransformer(
       return version === "2023-01-01"
         ? anthropicV1ToOpenAI
         : anthropicV2ToOpenAI;
-    case "google-palm":
+    case "google-ai":
+      return googleAIToOpenAI;
     case "openai-image":
       throw new Error(`SSE transformation not supported for ${responseApi}`);
     default:

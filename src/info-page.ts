@@ -7,7 +7,7 @@ import {
   AnthropicKey,
   AwsBedrockKey,
   AzureOpenAIKey,
-  GooglePalmKey,
+  GoogleAIKey,
   keyPool,
   OpenAIKey,
 } from "./shared/key-management";
@@ -33,8 +33,8 @@ const keyIsAzureKey = (k: KeyPoolKey): k is AzureOpenAIKey =>
   k.service === "azure";
 const keyIsAnthropicKey = (k: KeyPoolKey): k is AnthropicKey =>
   k.service === "anthropic";
-const keyIsGooglePalmKey = (k: KeyPoolKey): k is GooglePalmKey =>
-  k.service === "google-palm";
+const keyIsGoogleAIKey = (k: KeyPoolKey): k is GoogleAIKey =>
+  k.service === "google-ai";
 const keyIsAwsKey = (k: KeyPoolKey): k is AwsBedrockKey => k.service === "aws";
 
 type ModelAggregates = {
@@ -54,7 +54,7 @@ type ServiceAggregates = {
   openaiKeys?: number;
   openaiOrgs?: number;
   anthropicKeys?: number;
-  palmKeys?: number;
+  googleAIKeys?: number;
   awsKeys?: number;
   azureKeys?: number;
   proompts: number;
@@ -100,7 +100,7 @@ export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
 
   const openaiKeys = serviceStats.get("openaiKeys") || 0;
   const anthropicKeys = serviceStats.get("anthropicKeys") || 0;
-  const palmKeys = serviceStats.get("palmKeys") || 0;
+  const googleAIKeys = serviceStats.get("googleAIKeys") || 0;
   const awsKeys = serviceStats.get("awsKeys") || 0;
   const azureKeys = serviceStats.get("azureKeys") || 0;
   const proompts = serviceStats.get("proompts") || 0;
@@ -116,7 +116,7 @@ export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
       ? { ["openai-image"]: baseUrl + "/openai-image" }
       : {}),
     ...(anthropicKeys ? { anthropic: baseUrl + "/anthropic" } : {}),
-    ...(palmKeys ? { "google-palm": baseUrl + "/google-palm" } : {}),
+    ...(googleAIKeys ? { "google-ai": baseUrl + "/google-ai" } : {}),
     ...(awsKeys ? { aws: baseUrl + "/aws/claude" } : {}),
     ...(azureKeys ? { azure: baseUrl + "/azure/openai" } : {}),
   };
@@ -127,7 +127,13 @@ export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
     ...(config.textModelRateLimit ? { proomptersNow: getUniqueIps() } : {}),
   };
 
-  const keyInfo = { openaiKeys, anthropicKeys, palmKeys, awsKeys, azureKeys };
+  const keyInfo = {
+    openaiKeys,
+    anthropicKeys,
+    googleAIKeys,
+    awsKeys,
+    azureKeys,
+  };
   for (const key of Object.keys(keyInfo)) {
     if (!(keyInfo as any)[key]) delete (keyInfo as any)[key];
   }
@@ -135,7 +141,7 @@ export function buildInfoPageHtml(baseUrl: string, asAdmin = false) {
   const providerInfo = {
     ...(openaiKeys ? getOpenAIInfo() : {}),
     ...(anthropicKeys ? getAnthropicInfo() : {}),
-    ...(palmKeys ? getPalmInfo() : {}),
+    ...(googleAIKeys ? getGoogleAIInfo() : {}),
     ...(awsKeys ? getAwsInfo() : {}),
     ...(azureKeys ? getAzureInfo() : {}),
   };
@@ -197,7 +203,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
   increment(serviceStats, "proompts", k.promptCount);
   increment(serviceStats, "openaiKeys", k.service === "openai" ? 1 : 0);
   increment(serviceStats, "anthropicKeys", k.service === "anthropic" ? 1 : 0);
-  increment(serviceStats, "palmKeys", k.service === "google-palm" ? 1 : 0);
+  increment(serviceStats, "googleAIKeys", k.service === "google-ai" ? 1 : 0);
   increment(serviceStats, "awsKeys", k.service === "aws" ? 1 : 0);
   increment(serviceStats, "azureKeys", k.service === "azure" ? 1 : 0);
 
@@ -251,14 +257,14 @@ function addKeyToAggregates(k: KeyPoolKey) {
       );
       break;
     }
-    case "google-palm": {
-      if (!keyIsGooglePalmKey(k)) throw new Error("Invalid key type");
-      const family = "bison";
-      sumTokens += k.bisonTokens;
-      sumCost += getTokenCostUsd(family, k.bisonTokens);
+    case "google-ai": {
+      if (!keyIsGoogleAIKey(k)) throw new Error("Invalid key type");
+      const family = "gemini-pro";
+      sumTokens += k["gemini-proTokens"];
+      sumCost += getTokenCostUsd(family, k["gemini-proTokens"]);
       increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
       increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
-      increment(modelStats, `${family}__tokens`, k.bisonTokens);
+      increment(modelStats, `${family}__tokens`, k["gemini-proTokens"]);
       break;
     }
     case "aws": {
@@ -388,26 +394,26 @@ function getAnthropicInfo() {
   };
 }
 
-function getPalmInfo() {
-  const bisonInfo: Partial<ModelAggregates> = {
-    active: modelStats.get("bison__active") || 0,
-    revoked: modelStats.get("bison__revoked") || 0,
+function getGoogleAIInfo() {
+  const googleAIInfo: Partial<ModelAggregates> = {
+    active: modelStats.get("gemini-pro__active") || 0,
+    revoked: modelStats.get("gemini-pro__revoked") || 0,
   };
 
-  const queue = getQueueInformation("bison");
-  bisonInfo.queued = queue.proomptersInQueue;
-  bisonInfo.queueTime = queue.estimatedQueueTime;
+  const queue = getQueueInformation("gemini-pro");
+  googleAIInfo.queued = queue.proomptersInQueue;
+  googleAIInfo.queueTime = queue.estimatedQueueTime;
 
-  const tokens = modelStats.get("bison__tokens") || 0;
-  const cost = getTokenCostUsd("bison", tokens);
+  const tokens = modelStats.get("gemini-pro__tokens") || 0;
+  const cost = getTokenCostUsd("gemini-pro", tokens);
 
   return {
-    bison: {
+    gemini: {
       usage: `${prettyTokens(tokens)} tokens${getCostString(cost)}`,
-      activeKeys: bisonInfo.active,
-      revokedKeys: bisonInfo.revoked,
-      proomptersInQueue: bisonInfo.queued,
-      estimatedQueueTime: bisonInfo.queueTime,
+      activeKeys: googleAIInfo.active,
+      revokedKeys: googleAIInfo.revoked,
+      proomptersInQueue: googleAIInfo.queued,
+      estimatedQueueTime: googleAIInfo.queueTime,
     },
   };
 }

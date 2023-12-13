@@ -62,7 +62,6 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
               { key: key.hash, error: error.message },
               "Key is rate limited. Rechecking in 10 seconds."
             );
-            0;
             const next = Date.now() - (KEY_CHECK_PERIOD - 10 * 1000);
             this.updateKey(key.hash, { lastChecked: next });
             break;

@@ -74,7 +74,7 @@ export function buildFakeSse(type: string, string: string, req: Request) {
         log_id: "proxy-req-" + req.id,
       };
       break;
-    case "google-palm":
+    case "google-ai":
     case "openai-image":
       throw new Error(`SSE not supported for ${req.inboundApi} requests`);
     default:

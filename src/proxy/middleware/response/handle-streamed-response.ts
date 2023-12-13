@@ -1,4 +1,3 @@
-import express from "express";
 import { pipeline } from "stream";
 import { promisify } from "util";
 import {
@@ -59,7 +58,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
   const prefersNativeEvents = req.inboundApi === req.outboundApi;
   const contentType = proxyRes.headers["content-type"];
 
-  const adapter = new SSEStreamAdapter({ contentType });
+  const adapter = new SSEStreamAdapter({ contentType, api: req.outboundApi });
   const aggregator = new EventAggregator({ format: req.outboundApi });
   const transformer = new SSEMessageTransformer({
     inputFormat: req.outboundApi,

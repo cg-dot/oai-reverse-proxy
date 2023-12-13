@@ -14,7 +14,7 @@ import { config, getFirebaseApp } from "../../config";
 import {
   getAzureOpenAIModelFamily,
   getClaudeModelFamily,
-  getGooglePalmModelFamily,
+  getGoogleAIModelFamily,
   getOpenAIModelFamily,
   MODEL_FAMILIES,
   ModelFamily,
@@ -33,7 +33,7 @@ const INITIAL_TOKENS: Required<UserTokenCounts> = {
   "gpt4-turbo": 0,
   "dall-e": 0,
   claude: 0,
-  bison: 0,
+  "gemini-pro": 0,
   "aws-claude": 0,
   "azure-turbo": 0,
   "azure-gpt4": 0,
@@ -397,8 +397,8 @@ function getModelFamilyForQuotaUsage(
       return getOpenAIModelFamily(model);
     case "anthropic":
       return getClaudeModelFamily(model);
-    case "google-palm":
-      return getGooglePalmModelFamily(model);
+    case "google-ai":
+      return getGoogleAIModelFamily(model);
     default:
       assertNever(api);
   }

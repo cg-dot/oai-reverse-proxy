@@ -1,7 +1,10 @@
 import { Request } from "express";
 import { z } from "zod";
 import { config } from "../../../../config";
-import { isTextGenerationRequest, isImageGenerationRequest } from "../../common";
+import {
+  isTextGenerationRequest,
+  isImageGenerationRequest,
+} from "../../common";
 import { RequestPreprocessor } from "../index";
 import { APIFormat } from "../../../../shared/key-management";
 
@@ -121,30 +124,43 @@ const OpenAIV1ImagesGenerationSchema = z.object({
   user: z.string().optional(),
 });
 
-// https://developers.generativeai.google/api/rest/generativelanguage/models/generateText
-const PalmV1GenerateTextSchema = z.object({
-  model: z.string(),
-  prompt: z.object({ text: z.string() }),
-  temperature: z.number().optional(),
-  maxOutputTokens: z.coerce
-    .number()
-    .int()
-    .optional()
-    .default(16)
-    .transform((v) => Math.min(v, 1024)), // TODO: Add config
-  candidateCount: z.literal(1).optional(),
-  topP: z.number().optional(),
-  topK: z.number().optional(),
+// https://developers.generativeai.google/api/rest/generativelanguage/models/generateContent
+const GoogleAIV1GenerateContentSchema = z.object({
+  model: z.string(), //actually specified in path but we need it for the router
+  stream: z.boolean().optional().default(false), // also used for router
+  contents: z.array(
+    z.object({
+      parts: z.array(z.object({ text: z.string() })),
+      role: z.enum(["user", "model"]),
+    })
+  ),
+  tools: z.array(z.object({})).max(0).optional(),
   safetySettings: z.array(z.object({})).max(0).optional(),
-  stopSequences: z.array(z.string()).max(5).optional(),
+  generationConfig: z.object({
+    temperature: z.number().optional(),
+    maxOutputTokens: z.coerce
+      .number()
+      .int()
+      .optional()
+      .default(16)
+      .transform((v) => Math.min(v, 1024)), // TODO: Add config
+    candidateCount: z.literal(1).optional(),
+    topP: z.number().optional(),
+    topK: z.number().optional(),
+    stopSequences: z.array(z.string()).max(5).optional(),
+  }),
 });
+
+export type GoogleAIChatMessage = z.infer<
+  typeof GoogleAIV1GenerateContentSchema
+>["contents"][0];
 
 const VALIDATORS: Record<APIFormat, z.ZodSchema<any>> = {
   anthropic: AnthropicV1CompleteSchema,
   openai: OpenAIV1ChatCompletionSchema,
   "openai-text": OpenAIV1TextCompletionSchema,
   "openai-image": OpenAIV1ImagesGenerationSchema,
-  "google-palm": PalmV1GenerateTextSchema,
+  "google-ai": GoogleAIV1GenerateContentSchema,
 };
 
 /** Transforms an incoming request body to one that matches the target API. */
@@ -174,8 +190,8 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
     return;
   }
 
-  if (req.inboundApi === "openai" && req.outboundApi === "google-palm") {
-    req.body = openaiToPalm(req);
+  if (req.inboundApi === "openai" && req.outboundApi === "google-ai") {
+    req.body = openaiToGoogleAI(req);
     return;
   }
 
@@ -310,7 +326,9 @@ function openaiToOpenaiImage(req: Request) {
   return OpenAIV1ImagesGenerationSchema.parse(transformed);
 }
 
-function openaiToPalm(req: Request): z.infer<typeof PalmV1GenerateTextSchema> {
+function openaiToGoogleAI(
+  req: Request
+): z.infer<typeof GoogleAIV1GenerateContentSchema> {
   const { body } = req;
   const result = OpenAIV1ChatCompletionSchema.safeParse({
     ...body,
@@ -319,13 +337,16 @@ function openaiToPalm(req: Request): z.infer<typeof PalmV1GenerateTextSchema> {
   if (!result.success) {
     req.log.warn(
       { issues: result.error.issues, body },
-      "Invalid OpenAI-to-Palm request"
+      "Invalid OpenAI-to-Google AI request"
     );
     throw result.error;
   }
 
   const { messages, ...rest } = result.data;
-  const prompt = flattenOpenAIChatMessages(messages);
+  const contents = messages.map((m) => ({
+    parts: [{ text: flattenOpenAIMessageContent(m.content) }],
+    role: m.role === "user" ? "user" as const : "model" as const,
+  }));
 
   let stops = rest.stop
     ? Array.isArray(rest.stop)
@@ -339,20 +360,22 @@ function openaiToPalm(req: Request): z.infer<typeof PalmV1GenerateTextSchema> {
   z.array(z.string()).max(5).parse(stops);
 
   return {
-    prompt: { text: prompt },
-    maxOutputTokens: rest.max_tokens,
-    stopSequences: stops,
-    model: "text-bison-001",
-    topP: rest.top_p,
-    temperature: rest.temperature,
+    model: "gemini-pro",
+    stream: rest.stream,
+    contents,
+    tools: [],
+    generationConfig: {
+      maxOutputTokens: rest.max_tokens,
+      stopSequences: stops,
+      topP: rest.top_p,
+      topK: 40, // openai schema doesn't have this, google ai defaults to 40
+      temperature: rest.temperature,
+    },
     safetySettings: [
-      { category: "HARM_CATEGORY_UNSPECIFIED", threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_DEROGATORY", threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_TOXICITY", threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_VIOLENCE", threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_SEXUAL", threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_MEDICAL", threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_DANGEROUS", threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
     ],
   };
 }
@@ -428,3 +451,4 @@ function flattenOpenAIMessageContent(
         .join("\n")
     : content;
 }
+

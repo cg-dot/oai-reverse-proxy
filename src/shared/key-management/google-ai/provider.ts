@@ -2,13 +2,17 @@ import crypto from "crypto";
 import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
-import type { GooglePalmModelFamily } from "../../models";
+import type { GoogleAIModelFamily } from "../../models";
 
-// https://developers.generativeai.google.com/models/language
-export type GooglePalmModel = "text-bison-001";
+// Note that Google AI is not the same as Vertex AI, both are provided by Google
+// but Vertex is the GCP product for enterprise. while Google AI is the
+// consumer-ish product. The API is different, and keys are not compatible.
+// https://ai.google.dev/docs/migrate_to_cloud
 
-export type GooglePalmKeyUpdate = Omit<
-  Partial<GooglePalmKey>,
+export type GoogleAIModel = "gemini-pro";
+
+export type GoogleAIKeyUpdate = Omit<
+  Partial<GoogleAIKey>,
   | "key"
   | "hash"
   | "lastUsed"
@@ -17,13 +21,13 @@ export type GooglePalmKeyUpdate = Omit<
   | "rateLimitedUntil"
 >;
 
-type GooglePalmKeyUsage = {
-  [K in GooglePalmModelFamily as `${K}Tokens`]: number;
+type GoogleAIKeyUsage = {
+  [K in GoogleAIModelFamily as `${K}Tokens`]: number;
 };
 
-export interface GooglePalmKey extends Key, GooglePalmKeyUsage {
-  readonly service: "google-palm";
-  readonly modelFamilies: GooglePalmModelFamily[];
+export interface GoogleAIKey extends Key, GoogleAIKeyUsage {
+  readonly service: "google-ai";
+  readonly modelFamilies: GoogleAIModelFamily[];
   /** The time at which this key was last rate limited. */
   rateLimitedAt: number;
   /** The time until which this key is rate limited. */
@@ -42,27 +46,27 @@ const RATE_LIMIT_LOCKOUT = 2000;
  */
 const KEY_REUSE_DELAY = 500;
 
-export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
-  readonly service = "google-palm";
+export class GoogleAIKeyProvider implements KeyProvider<GoogleAIKey> {
+  readonly service = "google-ai";
 
-  private keys: GooglePalmKey[] = [];
+  private keys: GoogleAIKey[] = [];
   private log = logger.child({ module: "key-provider", service: this.service });
 
   constructor() {
-    const keyConfig = config.googlePalmKey?.trim();
+    const keyConfig = config.googleAIKey?.trim();
     if (!keyConfig) {
       this.log.warn(
-        "GOOGLE_PALM_KEY is not set. PaLM API will not be available."
+        "GOOGLE_AI_KEY is not set. Google AI API will not be available."
       );
       return;
     }
     let bareKeys: string[];
     bareKeys = [...new Set(keyConfig.split(",").map((k) => k.trim()))];
     for (const key of bareKeys) {
-      const newKey: GooglePalmKey = {
+      const newKey: GoogleAIKey = {
         key,
         service: this.service,
-        modelFamilies: ["bison"],
+        modelFamilies: ["gemini-pro"],
         isDisabled: false,
         isRevoked: false,
         promptCount: 0,
@@ -75,11 +79,11 @@ export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
           .digest("hex")
           .slice(0, 8)}`,
         lastChecked: 0,
-        bisonTokens: 0,
+        "gemini-proTokens": 0,
       };
       this.keys.push(newKey);
     }
-    this.log.info({ keyCount: this.keys.length }, "Loaded PaLM keys.");
+    this.log.info({ keyCount: this.keys.length }, "Loaded Google AI keys.");
   }
 
   public init() {}
@@ -88,10 +92,10 @@ export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(_model: GooglePalmModel) {
+  public get(_model: GoogleAIModel) {
     const availableKeys = this.keys.filter((k) => !k.isDisabled);
     if (availableKeys.length === 0) {
-      throw new Error("No Google PaLM keys available");
+      throw new Error("No Google AI keys available");
     }
 
     // (largely copied from the OpenAI provider, without trial key support)
@@ -122,14 +126,14 @@ export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
     return { ...selectedKey };
   }
 
-  public disable(key: GooglePalmKey) {
+  public disable(key: GoogleAIKey) {
     const keyFromPool = this.keys.find((k) => k.hash === key.hash);
     if (!keyFromPool || keyFromPool.isDisabled) return;
     keyFromPool.isDisabled = true;
     this.log.warn({ key: key.hash }, "Key disabled");
   }
 
-  public update(hash: string, update: Partial<GooglePalmKey>) {
+  public update(hash: string, update: Partial<GoogleAIKey>) {
     const keyFromPool = this.keys.find((k) => k.hash === hash)!;
     Object.assign(keyFromPool, { lastChecked: Date.now(), ...update });
   }
@@ -142,7 +146,7 @@ export class GooglePalmKeyProvider implements KeyProvider<GooglePalmKey> {
     const key = this.keys.find((k) => k.hash === hash);
     if (!key) return;
     key.promptCount++;
-    key.bisonTokens += tokens;
+    key["gemini-proTokens"] += tokens;
   }
 
   public getLockoutPeriod() {

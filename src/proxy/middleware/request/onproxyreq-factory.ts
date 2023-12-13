@@ -29,7 +29,9 @@ export const createOnProxyReqHandler = ({
     // The streaming flag must be set before any other onProxyReq handler runs,
     // as it may influence the behavior of subsequent handlers.
     // Image generation requests can't be streamed.
-    req.isStreaming = req.body.stream === true || req.body.stream === "true";
+    // TODO: this flag is set in too many places
+    req.isStreaming =
+      req.isStreaming || req.body.stream === true || req.body.stream === "true";
     req.body.stream = req.isStreaming;
 
     try {

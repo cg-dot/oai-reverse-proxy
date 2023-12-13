@@ -1,9 +1,9 @@
 import type { HPMRequestCallback } from "../index";
 
 /**
- * For AWS/Azure requests, the body is signed earlier in the request pipeline,
- * before the proxy middleware. This function just assigns the path and headers
- * to the proxy request.
+ * For AWS/Azure/Google requests, the body is signed earlier in the request
+ * pipeline, before the proxy middleware. This function just assigns the path
+ * and headers to the proxy request.
  */
 export const finalizeSignedRequest: HPMRequestCallback = (proxyReq, req) => {
   if (!req.signedRequest) {

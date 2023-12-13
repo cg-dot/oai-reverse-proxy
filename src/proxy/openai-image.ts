@@ -17,7 +17,6 @@ import {
 } from "./middleware/response";
 import { generateModelList } from "./openai";
 import {
-  mirrorGeneratedImage,
   OpenAIImageGenerationResult,
 } from "../shared/file-storage/mirror-generated-image";
 

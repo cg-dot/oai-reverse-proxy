@@ -1,13 +1,19 @@
 import { Transform, TransformOptions } from "stream";
+
 import { StringDecoder } from "string_decoder";
 // @ts-ignore
 import { Parser } from "lifion-aws-event-stream";
 import { logger } from "../../../../logger";
 import { RetryableError } from "../index";
+import { APIFormat } from "../../../../shared/key-management";
+import StreamArray from "stream-json/streamers/StreamArray";
 
 const log = logger.child({ module: "sse-stream-adapter" });
 
-type SSEStreamAdapterOptions = TransformOptions & { contentType?: string };
+type SSEStreamAdapterOptions = TransformOptions & {
+  contentType?: string;
+  api: APIFormat;
+};
 type AwsEventStreamMessage = {
   headers: {
     ":message-type": "event" | "exception";
@@ -22,7 +28,9 @@ type AwsEventStreamMessage = {
  */
 export class SSEStreamAdapter extends Transform {
   private readonly isAwsStream;
+  private readonly isGoogleStream;
   private parser = new Parser();
+  private jsonStream = StreamArray.withParser();
   private partialMessage = "";
   private decoder = new StringDecoder("utf8");
 
@@ -30,9 +38,16 @@ export class SSEStreamAdapter extends Transform {
     super(options);
     this.isAwsStream =
       options?.contentType === "application/vnd.amazon.eventstream";
+    this.isGoogleStream = options?.api === "google-ai";
 
     this.parser.on("data", (data: AwsEventStreamMessage) => {
       const message = this.processAwsEvent(data);
+      if (message) {
+        this.push(Buffer.from(message + "\n\n"), "utf8");
+      }
+    });
+    this.jsonStream.on("data", (data: { value: any }) => {
+      const message = this.processGoogleValue(data.value);
       if (message) {
         this.push(Buffer.from(message + "\n\n"), "utf8");
       }
@@ -73,17 +88,38 @@ export class SSEStreamAdapter extends Transform {
     }
   }
 
+  // Google doesn't use event streams and just sends elements in an array over
+  // a long-lived HTTP connection. Needs stream-json to parse the array.
+  protected processGoogleValue(value: any): string | null {
+    if ("candidates" in value) {
+      return `data: ${JSON.stringify(value)}`;
+    } else {
+      log.error(
+        { value },
+        "Received unexpected Google AI event stream message"
+      );
+      return getFakeErrorCompletion(
+        "proxy Google AI error",
+        JSON.stringify(value)
+      );
+    }
+  }
+
   _transform(chunk: Buffer, _encoding: BufferEncoding, callback: Function) {
     try {
       if (this.isAwsStream) {
         this.parser.write(chunk);
+      } else if (this.isGoogleStream) {
+        this.jsonStream.write(chunk);
       } else {
         // We may receive multiple (or partial) SSE messages in a single chunk,
         // so we need to buffer and emit separate stream events for full
         // messages so we can parse/transform them properly.
         const str = this.decoder.write(chunk);
 
-        const fullMessages = (this.partialMessage + str).split(/\r\r|\n\n|\r\n\r\n/);
+        const fullMessages = (this.partialMessage + str).split(
+          /\r\r|\n\n|\r\n\r\n/
+        );
         this.partialMessage = fullMessages.pop() || "";
 
         for (const message of fullMessages) {

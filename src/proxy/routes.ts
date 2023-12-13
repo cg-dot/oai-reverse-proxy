@@ -4,7 +4,7 @@ import { checkRisuToken } from "./check-risu-token";
 import { openai } from "./openai";
 import { openaiImage } from "./openai-image";
 import { anthropic } from "./anthropic";
-import { googlePalm } from "./palm";
+import { googleAI } from "./google-ai";
 import { aws } from "./aws";
 import { azure } from "./azure";
 
@@ -31,7 +31,7 @@ proxyRouter.use((req, _res, next) => {
 proxyRouter.use("/openai", addV1, openai);
 proxyRouter.use("/openai-image", addV1, openaiImage);
 proxyRouter.use("/anthropic", addV1, anthropic);
-proxyRouter.use("/google-palm", addV1, googlePalm);
+proxyRouter.use("/google-ai", addV1, googleAI);
 proxyRouter.use("/aws/claude", addV1, aws);
 proxyRouter.use("/azure/openai", addV1, azure);
 // Redirect browser requests to the homepage.

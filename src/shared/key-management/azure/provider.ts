@@ -6,7 +6,6 @@ import type { AzureOpenAIModelFamily } from "../../models";
 import { getAzureOpenAIModelFamily } from "../../models";
 import { OpenAIModel } from "../openai/provider";
 import { AzureOpenAIKeyChecker } from "./checker";
-import { AwsKeyChecker } from "../aws/checker";
 
 export type AzureOpenAIModel = Exclude<OpenAIModel, "dall-e">;
 

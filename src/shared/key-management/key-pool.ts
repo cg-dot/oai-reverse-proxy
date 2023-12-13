@@ -7,7 +7,7 @@ import { logger } from "../../logger";
 import { Key, Model, KeyProvider, LLMService } from "./index";
 import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
 import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
-import { GooglePalmKeyProvider } from "./palm/provider";
+import { GoogleAIKeyProvider } from "./google-ai/provider";
 import { AwsBedrockKeyProvider } from "./aws/provider";
 import { ModelFamily } from "../models";
 import { assertNever } from "../utils";
@@ -24,7 +24,7 @@ export class KeyPool {
   constructor() {
     this.keyProviders.push(new OpenAIKeyProvider());
     this.keyProviders.push(new AnthropicKeyProvider());
-    this.keyProviders.push(new GooglePalmKeyProvider());
+    this.keyProviders.push(new GoogleAIKeyProvider());
     this.keyProviders.push(new AwsBedrockKeyProvider());
     this.keyProviders.push(new AzureOpenAIKeyProvider());
   }
@@ -119,9 +119,9 @@ export class KeyPool {
     } else if (model.startsWith("claude-")) {
       // https://console.anthropic.com/docs/api/reference#parameters
       return "anthropic";
-    } else if (model.includes("bison")) {
+    } else if (model.includes("gemini")) {
       // https://developers.generativeai.google.com/models/language
-      return "google-palm";
+      return "google-ai";
     } else if (model.startsWith("anthropic.claude")) {
       // AWS offers models from a few providers
       // https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html
@@ -142,8 +142,8 @@ export class KeyPool {
         return "openai";
       case "claude":
         return "anthropic";
-      case "bison":
-        return "google-palm";
+      case "gemini-pro":
+        return "google-ai";
       case "aws-claude":
         return "aws";
       case "azure-turbo":

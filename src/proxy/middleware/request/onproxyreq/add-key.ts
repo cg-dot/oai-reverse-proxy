@@ -31,10 +31,6 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
       case "anthropic":
         assignedKey = keyPool.get("claude-v1");
         break;
-      case "google-palm":
-        assignedKey = keyPool.get("text-bison-001");
-        delete req.body.stream;
-        break;
       case "openai-text":
         assignedKey = keyPool.get("gpt-3.5-turbo-instruct");
         break;
@@ -42,6 +38,8 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
         throw new Error(
           "OpenAI Chat as an API translation target is not supported"
         );
+      case "google-ai":
+        throw new Error("add-key should not be used for this model.");
       case "openai-image":
         assignedKey = keyPool.get("dall-e-3");
         break;
@@ -73,21 +71,13 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
       }
       proxyReq.setHeader("Authorization", `Bearer ${assignedKey.key}`);
       break;
-    case "google-palm":
-      const originalPath = proxyReq.path;
-      proxyReq.path = originalPath.replace(
-        /(\?.*)?$/,
-        `?key=${assignedKey.key}`
-      );
-      break;
     case "azure":
       const azureKey = assignedKey.key;
       proxyReq.setHeader("api-key", azureKey);
       break;
     case "aws":
-      throw new Error(
-        "add-key should not be used for AWS security credentials. Use sign-aws-request instead."
-      );
+    case "google-ai":
+      throw new Error("add-key should not be used for this service.");
     default:
       assertNever(assignedKey.service);
   }

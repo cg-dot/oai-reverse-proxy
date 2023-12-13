@@ -68,7 +68,7 @@ function getPromptFromRequest(req: Request) {
     case "openai-text":
     case "openai-image":
       return body.prompt;
-    case "google-palm":
+    case "google-ai":
       return body.prompt.text;
     default:
       assertNever(service);

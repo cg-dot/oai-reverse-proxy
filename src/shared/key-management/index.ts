@@ -1,6 +1,6 @@
 import { OpenAIModel } from "./openai/provider";
 import { AnthropicModel } from "./anthropic/provider";
-import { GooglePalmModel } from "./palm/provider";
+import { GoogleAIModel } from "./google-ai/provider";
 import { AwsBedrockModel } from "./aws/provider";
 import { AzureOpenAIModel } from "./azure/provider";
 import { KeyPool } from "./key-pool";
@@ -10,20 +10,20 @@ import type { ModelFamily } from "../models";
 export type APIFormat =
   | "openai"
   | "anthropic"
-  | "google-palm"
+  | "google-ai"
   | "openai-text"
   | "openai-image";
 /** The service that a model is hosted on; distinct because services like AWS provide multiple APIs, but have their own endpoints and authentication. */
 export type LLMService =
   | "openai"
   | "anthropic"
-  | "google-palm"
+  | "google-ai"
   | "aws"
   | "azure";
 export type Model =
   | OpenAIModel
   | AnthropicModel
-  | GooglePalmModel
+  | GoogleAIModel
   | AwsBedrockModel
   | AzureOpenAIModel;
 
@@ -77,6 +77,6 @@ export interface KeyProvider<T extends Key = Key> {
 export const keyPool = new KeyPool();
 export { AnthropicKey } from "./anthropic/provider";
 export { OpenAIKey } from "./openai/provider";
-export { GooglePalmKey } from "./palm/provider";
+export { GoogleAIKey } from "././google-ai/provider";
 export { AwsBedrockKey } from "./aws/provider";
 export { AzureOpenAIKey } from "./azure/provider";

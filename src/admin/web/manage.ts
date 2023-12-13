@@ -200,7 +200,7 @@ router.post("/maintenance", (req, res) => {
       keyPool.recheck("anthropic");
       const size = keyPool
         .list()
-        .filter((k) => k.service !== "google-palm").length;
+        .filter((k) => k.service !== "google-ai").length;
       flash.type = "success";
       flash.message = `Scheduled recheck of ${size} keys for OpenAI and Anthropic.`;
       break;
