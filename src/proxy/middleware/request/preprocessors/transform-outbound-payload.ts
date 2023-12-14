@@ -354,7 +354,8 @@ function openaiToGoogleAI(
       // as well as real names.
       const text = flattenOpenAIMessageContent(m.content);
       const propName = m.name?.trim();
-      const textName = text.match(/^(.*?): /)?.[1]?.trim();
+      const textName =
+        m.role === "system" ? "" : text.match(/^(.{0,50}?): /)?.[1]?.trim();
       const name =
         propName || textName || (role === "model" ? "Character" : "User");
 
@@ -366,7 +367,7 @@ function openaiToGoogleAI(
       // paragraph and switch perspectives.
       // The response will be very likely to include this prefix so frontends
       // will need to strip it out.
-      const textPrefix = propName ? `${propName}: ` : "";
+      const textPrefix = textName ? "" : `${name}: `;
       return {
         parts: [{ text: textPrefix + text }],
         role: m.role === "assistant" ? ("model" as const) : ("user" as const),
