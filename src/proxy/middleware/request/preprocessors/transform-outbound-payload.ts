@@ -345,7 +345,7 @@ function openaiToGoogleAI(
   const { messages, ...rest } = result.data;
   const contents = messages.map((m) => ({
     parts: [{ text: flattenOpenAIMessageContent(m.content) }],
-    role: m.role === "user" ? "user" as const : "model" as const,
+    role: m.role === "assistant" ? "model" as const : "user" as const,
   }));
 
   let stops = rest.stop
