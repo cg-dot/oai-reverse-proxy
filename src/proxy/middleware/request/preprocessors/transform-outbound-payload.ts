@@ -343,21 +343,37 @@ function openaiToGoogleAI(
   }
 
   const { messages, ...rest } = result.data;
-  const contents = messages.map((m) => ({
-    parts: [{ text: flattenOpenAIMessageContent(m.content) }],
-    role: m.role === "assistant" ? "model" as const : "user" as const,
-  }));
+  const foundNames = new Set<string>();
+  const contents = messages
+    .map((m) => {
+      // Detects character names so we can set stop sequences for them as Gemini
+      // is prone to continuing as the next character.
+      const text = flattenOpenAIMessageContent(m.content);
+      const name = m.name?.trim() || text.match(/^(.*?): /)?.[1]?.trim();
+      if (name) foundNames.add(name);
+
+      return {
+        parts: [{ text }],
+        role: m.role === "assistant" ? ("model" as const) : ("user" as const),
+      };
+    })
+    .reduce<GoogleAIChatMessage[]>((acc, msg) => {
+      const last = acc[acc.length - 1];
+      if (last?.role === msg.role) {
+        last.parts[0].text += "\n\n" + msg.parts[0].text;
+      } else {
+        acc.push(msg);
+      }
+      return acc;
+    }, []);
 
   let stops = rest.stop
     ? Array.isArray(rest.stop)
       ? rest.stop
       : [rest.stop]
     : [];
-
-  stops.push("\n\nUser:");
-  stops = [...new Set(stops)];
-
-  z.array(z.string()).max(5).parse(stops);
+  stops.push(...Array.from(foundNames).map((name) => `\n${name}:`));
+  stops = [...new Set(stops)].slice(0, 5);
 
   return {
     model: "gemini-pro",
@@ -451,4 +467,3 @@ function flattenOpenAIMessageContent(
         .join("\n")
     : content;
 }
-
