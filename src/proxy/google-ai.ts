@@ -79,10 +79,12 @@ const googleAIResponseHandler: ProxyResHandlerWithBody = async (
 };
 
 function transformGoogleAIResponse(
-  googleAIResp: Record<string, any>,
+  resBody: Record<string, any>,
   req: Request
 ): Record<string, any> {
   const totalTokens = (req.promptTokens ?? 0) + (req.outputTokens ?? 0);
+  const parts = resBody.candidates[0].content?.parts ?? [{ text: "" }];
+  const content = parts[0].text.replace(/^(.{0,50}?): /, () => "");
   return {
     id: "goo-" + v4(),
     object: "chat.completion",
@@ -95,11 +97,8 @@ function transformGoogleAIResponse(
     },
     choices: [
       {
-        message: {
-          role: "assistant",
-          content: googleAIResp.candidates[0].content.parts[0].text,
-        },
-        finish_reason: googleAIResp.candidates[0].finishReason,
+        message: { role: "assistant", content },
+        finish_reason: resBody.candidates[0].finishReason,
         index: 0,
       },
     ],

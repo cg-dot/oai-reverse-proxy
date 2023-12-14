@@ -22,7 +22,7 @@ type GoogleAIStreamEvent = {
  * chat.completion.chunk SSE.
  */
 export const googleAIToOpenAI: StreamingCompletionTransformer = (params) => {
-  const { data } = params;
+  const { data, index } = params;
 
   const rawEvent = parseEvent(data);
   if (!rawEvent.data || rawEvent.data === "[DONE]") {
@@ -35,7 +35,14 @@ export const googleAIToOpenAI: StreamingCompletionTransformer = (params) => {
   }
 
   const parts = completionEvent.candidates[0].content.parts;
-  const text = parts[0]?.text ?? "";
+  let content = parts[0]?.text ?? "";
+
+  // If this is the first chunk, try stripping speaker names from the response
+  // e.g. "John: Hello" -> "Hello"
+  if (index === 0) {
+    content = content.replace(/^(.*?): /, "").trim();
+  }
+
   const newEvent = {
     id: "goo-" + params.fallbackId,
     object: "chat.completion.chunk" as const,
@@ -44,7 +51,7 @@ export const googleAIToOpenAI: StreamingCompletionTransformer = (params) => {
     choices: [
       {
         index: 0,
-        delta: { content: text },
+        delta: { content },
         finish_reason: completionEvent.candidates[0].finishReason ?? null,
       },
     ],

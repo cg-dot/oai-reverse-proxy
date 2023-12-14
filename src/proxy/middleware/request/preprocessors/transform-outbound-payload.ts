@@ -346,14 +346,29 @@ function openaiToGoogleAI(
   const foundNames = new Set<string>();
   const contents = messages
     .map((m) => {
+      const role = m.role === "assistant" ? "model" : "user";
       // Detects character names so we can set stop sequences for them as Gemini
       // is prone to continuing as the next character.
+      // If names are not available, we'll still try to prefix the message
+      // with generic names so we can set stops for them but they don't work
+      // as well as real names.
       const text = flattenOpenAIMessageContent(m.content);
-      const name = m.name?.trim() || text.match(/^(.*?): /)?.[1]?.trim();
-      if (name) foundNames.add(name);
+      const propName = m.name?.trim();
+      const textName = text.match(/^(.*?): /)?.[1]?.trim();
+      const name =
+        propName || textName || (role === "model" ? "Character" : "User");
 
+      foundNames.add(name);
+
+      // Prefixing messages with their character name seems to help avoid
+      // Gemini trying to continue as the next character, or at the very least
+      // ensures it will hit the stop sequence.  Otherwise it will start a new
+      // paragraph and switch perspectives.
+      // The response will be very likely to include this prefix so frontends
+      // will need to strip it out.
+      const textPrefix = propName ? `${propName}: ` : "";
       return {
-        parts: [{ text }],
+        parts: [{ text: textPrefix + text }],
         role: m.role === "assistant" ? ("model" as const) : ("user" as const),
       };
     })
