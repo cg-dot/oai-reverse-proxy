@@ -1,7 +1,7 @@
 import { pipeline } from "stream";
 import { promisify } from "util";
 import {
-  buildFakeSse,
+  makeCompletionSSE,
   copySseResponseHeaders,
   initializeSseStream,
 } from "../../../shared/streaming";
@@ -90,8 +90,18 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
       req.retryCount++;
       enqueue(req);
     } else {
-      const errorEvent = buildFakeSse("stream-error", err.message, req);
-      res.write(`${errorEvent}data: [DONE]\n\n`);
+      const { message, stack, lastEvent } = err;
+      const eventText = JSON.stringify(lastEvent, null, 2) ?? "undefined"
+      const errorEvent = makeCompletionSSE({
+        format: req.inboundApi,
+        title: "Proxy stream error",
+        message: "An unexpected error occurred while streaming the response.",
+        obj: { message, stack, lastEvent: eventText },
+        reqId: req.id,
+        model: req.body?.model,
+      });
+      res.write(errorEvent);
+      res.write(`data: [DONE]\n\n`);
       res.end();
     }
     throw err;

@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import httpProxy from "http-proxy";
 import { ZodError } from "zod";
 import { generateErrorMessage } from "zod-error";
-import { buildFakeSse } from "../../shared/streaming";
+import { makeCompletionSSE } from "../../shared/streaming";
 import { assertNever } from "../../shared/utils";
 import { QuotaExceededError } from "./request/preprocessors/apply-quota-limits";
 
@@ -40,11 +40,13 @@ export function writeErrorResponse(
   req: Request,
   res: Response,
   statusCode: number,
+  statusMessage: string,
   errorPayload: Record<string, any>
 ) {
-  const errorSource = errorPayload.error?.type?.startsWith("proxy")
-    ? "proxy"
-    : "upstream";
+  const msg =
+    statusCode === 500
+      ? `The proxy encountered an error while trying to process your prompt.`
+      : `The proxy encountered an error while trying to send your prompt to the upstream service.`;
 
   // If we're mid-SSE stream, send a data event with the error payload and end
   // the stream. Otherwise just send a normal error response.
@@ -52,10 +54,15 @@ export function writeErrorResponse(
     res.headersSent ||
     String(res.getHeader("content-type")).startsWith("text/event-stream")
   ) {
-    const errorTitle = `${errorSource} error (${statusCode})`;
-    const errorContent = JSON.stringify(errorPayload, null, 2);
-    const msg = buildFakeSse(errorTitle, errorContent, req);
-    res.write(msg);
+    const event = makeCompletionSSE({
+      format: req.inboundApi,
+      title: `Proxy error (HTTP ${statusCode} ${statusMessage})`,
+      message: `${msg} Further technical details are provided below.`,
+      obj: errorPayload,
+      reqId: req.id,
+      model: req.body?.model,
+    });
+    res.write(event);
     res.write(`data: [DONE]\n\n`);
     res.end();
   } else {
@@ -77,8 +84,9 @@ export const classifyErrorAndSend = (
   res: Response
 ) => {
   try {
-    const { status, userMessage, ...errorDetails } = classifyError(err);
-    writeErrorResponse(req, res, status, {
+    const { statusCode, statusMessage, userMessage, ...errorDetails } =
+      classifyError(err);
+    writeErrorResponse(req, res, statusCode, statusMessage, {
       error: { message: userMessage, ...errorDetails },
     });
   } catch (error) {
@@ -88,14 +96,17 @@ export const classifyErrorAndSend = (
 
 function classifyError(err: Error): {
   /** HTTP status code returned to the client. */
-  status: number;
+  statusCode: number;
+  /** HTTP status message returned to the client. */
+  statusMessage: string;
   /** Message displayed to the user. */
   userMessage: string;
   /** Short error type, e.g. "proxy_validation_error". */
   type: string;
 } & Record<string, any> {
   const defaultError = {
-    status: 500,
+    statusCode: 500,
+    statusMessage: "Internal Server Error",
     userMessage: `Reverse proxy error: ${err.message}`,
     type: "proxy_internal_error",
     stack: err.stack,
@@ -112,19 +123,26 @@ function classifyError(err: Error): {
           return `At '${rest.pathComponent}': ${issue.message}`;
         },
       });
-      return { status: 400, userMessage, type: "proxy_validation_error" };
+      return {
+        statusCode: 400,
+        statusMessage: "Bad Request",
+        userMessage,
+        type: "proxy_validation_error",
+      };
     case "ForbiddenError":
       // Mimics a ban notice from OpenAI, thrown when blockZoomerOrigins blocks
       // a request.
       return {
-        status: 403,
+        statusCode: 403,
+        statusMessage: "Forbidden",
         userMessage: `Your account has been disabled for violating our terms of service.`,
         type: "organization_account_disabled",
         code: "policy_violation",
       };
     case "QuotaExceededError":
       return {
-        status: 429,
+        statusCode: 429,
+        statusMessage: "Too Many Requests",
         userMessage: `You've exceeded your token quota for this model type.`,
         type: "proxy_quota_exceeded",
         info: (err as QuotaExceededError).quotaInfo,
@@ -134,21 +152,24 @@ function classifyError(err: Error): {
         switch (err.code) {
           case "ENOTFOUND":
             return {
-              status: 502,
+              statusCode: 502,
+              statusMessage: "Bad Gateway",
               userMessage: `Reverse proxy encountered a DNS error while trying to connect to the upstream service.`,
               type: "proxy_network_error",
               code: err.code,
             };
           case "ECONNREFUSED":
             return {
-              status: 502,
+              statusCode: 502,
+              statusMessage: "Bad Gateway",
               userMessage: `Reverse proxy couldn't connect to the upstream service.`,
               type: "proxy_network_error",
               code: err.code,
             };
           case "ECONNRESET":
             return {
-              status: 504,
+              statusCode: 504,
+              statusMessage: "Gateway Timeout",
               userMessage: `Reverse proxy timed out while waiting for the upstream service to respond.`,
               type: "proxy_network_error",
               code: err.code,

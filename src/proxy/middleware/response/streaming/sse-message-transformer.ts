@@ -93,6 +93,7 @@ export class SSEMessageTransformer extends Transform {
       this.push(transformedMessage);
       callback();
     } catch (err) {
+      err.lastEvent = chunk?.toString();
       this.log.error(err, "Error transforming SSE message");
       callback(err);
     }

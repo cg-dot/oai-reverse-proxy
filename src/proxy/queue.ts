@@ -14,8 +14,12 @@
 import crypto from "crypto";
 import type { Handler, Request } from "express";
 import { keyPool } from "../shared/key-management";
-import { getModelFamilyForRequest, MODEL_FAMILIES, ModelFamily } from "../shared/models";
-import { buildFakeSse, initializeSseStream } from "../shared/streaming";
+import {
+  getModelFamilyForRequest,
+  MODEL_FAMILIES,
+  ModelFamily,
+} from "../shared/models";
+import { makeCompletionSSE, initializeSseStream } from "../shared/streaming";
 import { logger } from "../logger";
 import { getUniqueIps, SHARED_IP_ADDRESSES } from "./rate-limit";
 import { RequestPreprocessor } from "./middleware/request";
@@ -189,10 +193,10 @@ function processQueue() {
   reqs.filter(Boolean).forEach((req) => {
     if (req?.proceed) {
       const modelFamily = getModelFamilyForRequest(req!);
-      req.log.info({
-        retries: req.retryCount,
-        partition: modelFamily,
-      }, `Dequeuing request.`);
+      req.log.info(
+        { retries: req.retryCount, partition: modelFamily },
+        `Dequeuing request.`
+      );
       req.proceed();
     }
   });
@@ -367,8 +371,15 @@ function killQueuedRequest(req: Request) {
   try {
     const message = `Your request has been terminated by the proxy because it has been in the queue for more than 5 minutes.`;
     if (res.headersSent) {
-      const fakeErrorEvent = buildFakeSse("proxy queue error", message, req);
-      res.write(fakeErrorEvent);
+      const event = makeCompletionSSE({
+        format: req.inboundApi,
+        title: "Proxy queue error",
+        message,
+        reqId: String(req.id),
+        model: req.body?.model,
+      });
+      res.write(event);
+      res.write(`data: [DONE]\n\n`);
       res.end();
     } else {
       res.status(500).json({ error: message });
@@ -450,14 +461,6 @@ function removeProxyMiddlewareEventListeners(req: Request) {
 
 export function registerHeartbeat(req: Request) {
   const res = req.res!;
-
-  const currentSize = getHeartbeatSize();
-  req.log.debug({
-    currentSize,
-    HEARTBEAT_INTERVAL,
-    PAYLOAD_SCALE_FACTOR,
-    MAX_HEARTBEAT_SIZE,
-  }, "Joining queue with heartbeat.");
 
   let isBufferFull = false;
   let bufferFullCount = 0;

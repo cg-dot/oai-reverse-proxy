@@ -1,6 +1,7 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import { IncomingMessage } from "http";
 import { assertNever } from "./utils";
+import { APIFormat } from "./key-management";
 
 export function initializeSseStream(res: Response) {
   res.statusCode = 200;
@@ -39,54 +40,83 @@ export function copySseResponseHeaders(
  * that the request is being proxied to. Used to send error messages to the
  * client in the middle of a streaming request.
  */
-export function buildFakeSse(type: string, string: string, req: Request) {
-  let fakeEvent;
-  const content = `\`\`\`\n[${type}: ${string}]\n\`\`\`\n`;
+export function makeCompletionSSE({
+  format,
+  title,
+  message,
+  obj,
+  reqId,
+  model = "unknown",
+}: {
+  format: APIFormat;
+  title: string;
+  message: string;
+  obj?: object;
+  reqId: string | number | object;
+  model?: string;
+}) {
+  const id = String(reqId);
+  const content = `\n\n**${title}**\n${message}${
+    obj ? `\n\`\`\`\n${JSON.stringify(obj, null, 2)}\n\`\`\`\n` : ""
+  }`;
 
-  switch (req.inboundApi) {
+  let event;
+
+  switch (format) {
     case "openai":
-      fakeEvent = {
-        id: "chatcmpl-" + req.id,
+      event = {
+        id: "chatcmpl-" + id,
         object: "chat.completion.chunk",
         created: Date.now(),
-        model: req.body?.model,
-        choices: [{ delta: { content }, index: 0, finish_reason: type }],
+        model,
+        choices: [{ delta: { content }, index: 0, finish_reason: title }],
       };
       break;
     case "openai-text":
-      fakeEvent = {
-        id: "cmpl-" + req.id,
+      event = {
+        id: "cmpl-" + id,
         object: "text_completion",
         created: Date.now(),
         choices: [
-          { text: content, index: 0, logprobs: null, finish_reason: type },
+          { text: content, index: 0, logprobs: null, finish_reason: title },
         ],
-        model: req.body?.model,
+        model,
       };
       break;
     case "anthropic":
-      fakeEvent = {
+      event = {
         completion: content,
-        stop_reason: type,
-        truncated: false, // I've never seen this be true
+        stop_reason: title,
+        truncated: false,
         stop: null,
-        model: req.body?.model,
-        log_id: "proxy-req-" + req.id,
+        model,
+        log_id: "proxy-req-" + id,
       };
       break;
     case "google-ai":
+      return JSON.stringify({
+        candidates: [
+          {
+            content: { parts: [{ text: content }], role: "model" },
+            finishReason: title,
+            index: 0,
+            tokenCount: null,
+            safetyRatings: [],
+          },
+        ],
+      });
     case "openai-image":
-      throw new Error(`SSE not supported for ${req.inboundApi} requests`);
+      throw new Error(`SSE not supported for ${format} requests`);
     default:
-      assertNever(req.inboundApi);
+      assertNever(format);
   }
 
-  if (req.inboundApi === "anthropic") {
+  if (format === "anthropic") {
     return (
-      ["event: completion", `data: ${JSON.stringify(fakeEvent)}`].join("\n") +
+      ["event: completion", `data: ${JSON.stringify(event)}`].join("\n") +
       "\n\n"
     );
   }
 
-  return `data: ${JSON.stringify(fakeEvent)}\n\n`;
+  return `data: ${JSON.stringify(event)}\n\n`;
 }

@@ -192,7 +192,7 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
         } else {
           const errorMessage = `Proxy received response with unsupported content-encoding: ${contentEncoding}`;
           req.log.warn({ contentEncoding, key: req.key?.hash }, errorMessage);
-          writeErrorResponse(req, res, 500, {
+          writeErrorResponse(req, res, 500, "Internal Server Error", {
             error: errorMessage,
             contentEncoding,
           });
@@ -209,7 +209,9 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
       } catch (error: any) {
         const errorMessage = `Proxy received response with invalid JSON: ${error.message}`;
         req.log.warn({ error: error.stack, key: req.key?.hash }, errorMessage);
-        writeErrorResponse(req, res, 500, { error: errorMessage });
+        writeErrorResponse(req, res, 500, "Internal Server Error", {
+          error: errorMessage,
+        });
         return reject(errorMessage);
       }
     });
@@ -237,6 +239,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   body
 ) => {
   const statusCode = proxyRes.statusCode || 500;
+  const statusMessage = proxyRes.statusMessage || "Internal Server Error";
 
   if (statusCode < 400) {
     return;
@@ -253,16 +256,16 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   } catch (parseError) {
     // Likely Bad Gateway or Gateway Timeout from upstream's reverse proxy
     const hash = req.key?.hash;
-    const statusMessage = proxyRes.statusMessage || "Unknown error";
     req.log.warn({ statusCode, statusMessage, key: hash }, parseError.message);
 
     const errorObject = {
-      statusCode,
-      statusMessage: proxyRes.statusMessage,
       error: parseError.message,
-      proxy_note: `This is likely a temporary error with the upstream service.`,
+      status: statusCode,
+      statusMessage,
+      proxy_note: `Proxy got back an error, but it was not in JSON format. This is likely a temporary problem with the upstream service.`,
     };
-    writeErrorResponse(req, res, statusCode, errorObject);
+
+    writeErrorResponse(req, res, statusCode, statusMessage, errorObject);
     throw new HttpError(statusCode, parseError.message);
   }
 
@@ -397,7 +400,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     );
   }
 
-  writeErrorResponse(req, res, statusCode, errorPayload);
+  writeErrorResponse(req, res, statusCode, statusMessage, errorPayload);
   throw new HttpError(statusCode, errorPayload.error?.message);
 };
 

@@ -7,6 +7,7 @@ import { logger } from "../../../../logger";
 import { RetryableError } from "../index";
 import { APIFormat } from "../../../../shared/key-management";
 import StreamArray from "stream-json/streamers/StreamArray";
+import { makeCompletionSSE } from "../../../../shared/streaming";
 
 const log = logger.child({ module: "sse-stream-adapter" });
 
@@ -29,8 +30,8 @@ type AwsEventStreamMessage = {
 export class SSEStreamAdapter extends Transform {
   private readonly isAwsStream;
   private readonly isGoogleStream;
-  private parser = new Parser();
-  private jsonStream = StreamArray.withParser();
+  private awsParser = new Parser();
+  private jsonParser = StreamArray.withParser();
   private partialMessage = "";
   private decoder = new StringDecoder("utf8");
 
@@ -40,13 +41,14 @@ export class SSEStreamAdapter extends Transform {
       options?.contentType === "application/vnd.amazon.eventstream";
     this.isGoogleStream = options?.api === "google-ai";
 
-    this.parser.on("data", (data: AwsEventStreamMessage) => {
+    this.awsParser.on("data", (data: AwsEventStreamMessage) => {
       const message = this.processAwsEvent(data);
       if (message) {
         this.push(Buffer.from(message + "\n\n"), "utf8");
       }
     });
-    this.jsonStream.on("data", (data: { value: any }) => {
+
+    this.jsonParser.on("data", (data: { value: any }) => {
       const message = this.processGoogleValue(data.value);
       if (message) {
         this.push(Buffer.from(message + "\n\n"), "utf8");
@@ -70,11 +72,16 @@ export class SSEStreamAdapter extends Transform {
         );
         throw new RetryableError("AWS request throttled mid-stream");
       } else {
-        log.error(
-          { event: eventStr },
-          "Received unexpected AWS event stream message"
-        );
-        return getFakeErrorCompletion("proxy AWS error", eventStr);
+        log.error({ event: eventStr }, "Received bad AWS stream event");
+        return makeCompletionSSE({
+          format: "anthropic",
+          title: "Proxy stream error",
+          message:
+            "The proxy received malformed or unexpected data from AWS while streaming.",
+          obj: event,
+          reqId: "proxy-sse-adapter-message",
+          model: "",
+        });
       }
     } else {
       const { bytes } = payload;
@@ -91,26 +98,36 @@ export class SSEStreamAdapter extends Transform {
   // Google doesn't use event streams and just sends elements in an array over
   // a long-lived HTTP connection. Needs stream-json to parse the array.
   protected processGoogleValue(value: any): string | null {
-    if ("candidates" in value) {
-      return `data: ${JSON.stringify(value)}`;
-    } else {
-      log.error(
-        { value },
-        "Received unexpected Google AI event stream message"
-      );
-      return getFakeErrorCompletion(
-        "proxy Google AI error",
-        JSON.stringify(value)
-      );
+    try {
+      const candidates = value.candidates ?? [{}];
+      const hasParts = candidates[0].content?.parts?.length > 0;
+      if (hasParts) {
+        return `data: ${JSON.stringify(value)}`;
+      } else {
+        log.error({ event: value }, "Received bad Google AI event");
+        return `data: ${makeCompletionSSE({
+          format: "google-ai",
+          title: "Proxy stream error",
+          message:
+            "The proxy received malformed or unexpected data from Google AI while streaming.",
+          obj: value,
+          reqId: "proxy-sse-adapter-message",
+          model: "",
+        })}`;
+      }
+    } catch (error) {
+      error.lastEvent = value;
+      this.emit("error", error);
+      return null;
     }
   }
 
   _transform(chunk: Buffer, _encoding: BufferEncoding, callback: Function) {
     try {
       if (this.isAwsStream) {
-        this.parser.write(chunk);
+        this.awsParser.write(chunk);
       } else if (this.isGoogleStream) {
-        this.jsonStream.write(chunk);
+        this.jsonParser.write(chunk);
       } else {
         // We may receive multiple (or partial) SSE messages in a single chunk,
         // so we need to buffer and emit separate stream events for full
@@ -131,22 +148,9 @@ export class SSEStreamAdapter extends Transform {
       }
       callback();
     } catch (error) {
+      error.lastEvent = chunk?.toString();
       this.emit("error", error);
       callback(error);
     }
   }
-}
-
-function getFakeErrorCompletion(type: string, message: string) {
-  const content = `\`\`\`\n[${type}: ${message}]\n\`\`\`\n`;
-  const fakeEvent = JSON.stringify({
-    log_id: "aws-proxy-sse-message",
-    stop_reason: type,
-    completion:
-      "\nProxy encountered an error during streaming response.\n" + content,
-    truncated: false,
-    stop: null,
-    model: "",
-  });
-  return ["event: completion", `data: ${fakeEvent}\n\n`].join("\n");
 }
