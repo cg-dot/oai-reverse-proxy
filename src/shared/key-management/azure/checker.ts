@@ -36,33 +36,9 @@ export class AzureOpenAIKeyChecker extends KeyCheckerBase<AzureOpenAIKey> {
 
   protected async testKeyOrFail(key: AzureOpenAIKey) {
     const model = await this.testModel(key);
-    this.log.info(
-      { key: key.hash, deploymentModel: model },
-      "Checked key."
-    );
+    this.log.info({ key: key.hash, deploymentModel: model }, "Checked key.");
     this.updateKey(key.hash, { modelFamilies: [model] });
   }
-
-  // provided api-key header isn't valid (401)
-  // {
-  //   "error": {
-  //     "code": "401",
-  //     "message": "Access denied due to invalid subscription key or wrong API endpoint. Make sure to provide a valid key for an active subscription and use a correct regional API endpoint for your resource."
-  //   }
-  // }
-
-  // api key correct but deployment id is wrong (404)
-  // {
-  //   "error": {
-  //     "code": "DeploymentNotFound",
-  //     "message": "The API deployment for this resource does not exist. If you created the deployment within the last 5 minutes, please wait a moment and try again."
-  //   }
-  // }
-
-  // resource name is wrong (node will throw ENOTFOUND)
-
-  // rate limited (429)
-  // TODO: try to reproduce this
 
   protected handleAxiosError(key: AzureOpenAIKey, error: AxiosError) {
     if (error.response && AzureOpenAIKeyChecker.errorIsAzureError(error)) {
@@ -88,6 +64,20 @@ export class AzureOpenAIKeyChecker extends KeyCheckerBase<AzureOpenAIKey> {
             isDisabled: true,
             isRevoked: true,
           });
+        case "429":
+          this.log.warn(
+            { key: key.hash, errorType, error: error.response.data },
+            "Key is rate limited. Rechecking key in 1 minute."
+          );
+          this.updateKey(key.hash, { lastChecked: Date.now() });
+          setTimeout(async () => {
+            this.log.info(
+              { key: key.hash },
+              "Rechecking Azure key after rate limit."
+            );
+            await this.checkKey(key);
+          }, 1000 * 60);
+          return;
         default:
           this.log.error(
             { key: key.hash, errorType, error: error.response.data, status },
@@ -129,7 +119,32 @@ export class AzureOpenAIKeyChecker extends KeyCheckerBase<AzureOpenAIKey> {
       headers: { "Content-Type": "application/json", "api-key": apiKey },
     });
 
-    return getAzureOpenAIModelFamily(data.model);
+    const family = getAzureOpenAIModelFamily(data.model);
+
+    // Azure returns "gpt-4" even for GPT-4 Turbo, so we need further checks.
+    // Otherwise we can use the model family Azure returned.
+    if (family !== "azure-gpt4") {
+      return family;
+    }
+
+    // Try to send an oversized prompt. GPT-4 Turbo can handle this but regular
+    // GPT-4 will return a Bad Request error.
+    const contextText = {
+      max_tokens: 9000,
+      stream: false,
+      temperature: 0,
+      seed: 0,
+      messages: [{ role: "user", content: "" }],
+    };
+    const { data: contextTest, status } = await axios.post(url, contextText, {
+      headers: { "Content-Type": "application/json", "api-key": apiKey },
+      validateStatus: (status) => status === 400 || status === 200,
+    });
+    const code = contextTest.error?.code;
+    this.log.debug({ code, status }, "Performed Azure GPT4 context size test.");
+
+    if (code === "context_length_exceeded") return "azure-gpt4";
+    return "azure-gpt4-turbo";
   }
 
   static errorIsAzureError(error: AxiosError): error is AxiosError<AzureError> {
