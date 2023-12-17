@@ -4,13 +4,12 @@ import os from "os";
 import schedule from "node-schedule";
 import { config } from "../../config";
 import { logger } from "../../logger";
-import { Key, Model, KeyProvider, LLMService } from "./index";
+import { LLMService, MODEL_FAMILY_SERVICE, ModelFamily } from "../models";
+import { Key, Model, KeyProvider } from "./index";
 import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
 import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
 import { GoogleAIKeyProvider } from "./google-ai/provider";
 import { AwsBedrockKeyProvider } from "./aws/provider";
-import { ModelFamily } from "../models";
-import { assertNever } from "../utils";
 import { AzureOpenAIKeyProvider } from "./azure/provider";
 
 type AllowedPartial = OpenAIKeyUpdate | AnthropicKeyUpdate;
@@ -82,7 +81,7 @@ export class KeyPool {
   }
 
   public getLockoutPeriod(family: ModelFamily): number {
-    const service = this.getServiceForModelFamily(family);
+    const service = MODEL_FAMILY_SERVICE[family];
     return this.getKeyProvider(service).getLockoutPeriod(family);
   }
 
@@ -130,30 +129,6 @@ export class KeyPool {
       return "azure";
     }
     throw new Error(`Unknown service for model '${model}'`);
-  }
-
-  private getServiceForModelFamily(modelFamily: ModelFamily): LLMService {
-    switch (modelFamily) {
-      case "gpt4":
-      case "gpt4-32k":
-      case "gpt4-turbo":
-      case "turbo":
-      case "dall-e":
-        return "openai";
-      case "claude":
-        return "anthropic";
-      case "gemini-pro":
-        return "google-ai";
-      case "aws-claude":
-        return "aws";
-      case "azure-turbo":
-      case "azure-gpt4":
-      case "azure-gpt4-32k":
-      case "azure-gpt4-turbo":
-        return "azure";
-      default:
-        assertNever(modelFamily);
-    }
   }
 
   private getKeyProvider(service: LLMService): KeyProvider {

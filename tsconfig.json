@@ -15,5 +15,5 @@
   },
   "include": ["src"],
   "exclude": ["node_modules"],
-  "files": ["src/types/custom.d.ts"]
+  "files": ["src/shared/custom.d.ts"]
 }

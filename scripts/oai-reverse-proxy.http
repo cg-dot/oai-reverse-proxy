@@ -81,7 +81,7 @@ Authorization: Bearer {{proxy-key}}
 Content-Type: application/json
 
 {
-  "model": "gpt-3.5-turbo",
+  "model": "gpt-4-1106-preview",
   "max_tokens": 20,
   "stream": true,
   "temperature": 1,
@@ -231,8 +231,36 @@ Content-Type: application/json
 }
 
 ###
-# @name Proxy / Google PaLM -- OpenAI-to-PaLM API Translation
-POST {{proxy-host}}/proxy/google-palm/v1/chat/completions
+# @name Proxy / Azure OpenAI -- Native Chat Completions
+POST {{proxy-host}}/proxy/azure/openai/chat/completions
+Authorization: Bearer {{proxy-key}}
+Content-Type: application/json
+
+{
+  "model": "gpt-4",
+  "max_tokens": 20,
+  "stream": true,
+  "temperature": 1,
+  "seed": 2,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi what is the name of the fourth president of the united states?"
+    },
+    {
+      "role": "assistant",
+      "content": "That would be George Washington."
+    },
+    {
+      "role": "user",
+      "content": "That's not right."
+    }
+  ]
+}
+
+###
+# @name Proxy / Google AI -- OpenAI-to-Google AI API Translation
+POST {{proxy-host}}/proxy/google-ai/v1/chat/completions
 Authorization: Bearer {{proxy-key}}
 Content-Type: application/json
 

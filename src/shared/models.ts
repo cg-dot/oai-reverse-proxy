@@ -1,8 +1,14 @@
-// Don't import anything here, this is imported by config.ts
+// Don't import any other project files here as this is one of the first modules
+// loaded and it will cause circular imports.
 
 import pino from "pino";
 import type { Request } from "express";
-import { assertNever } from "./utils";
+
+/**
+ * The service that a model is hosted on. Distinct from `APIFormat` because some
+ * services have interoperable APIs (eg Anthropic/AWS, OpenAI/Azure).
+ */
+export type LLMService = "openai" | "anthropic" | "google-ai" | "aws" | "azure";
 
 export type OpenAIModelFamily =
   | "turbo"
@@ -41,6 +47,10 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "azure-gpt4-turbo",
 ] as const);
 
+export const LLM_SERVICES = (<A extends readonly LLMService[]>(
+  arr: A & ([LLMService] extends [A[number]] ? unknown : never)
+) => arr)(["openai", "anthropic", "google-ai", "aws", "azure"] as const);
+
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^gpt-4-1106(-preview)?$": "gpt4-turbo",
   "^gpt-4(-\\d{4})?-vision(-preview)?$": "gpt4-turbo",
@@ -51,6 +61,23 @@ export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^gpt-3.5-turbo": "turbo",
   "^text-embedding-ada-002$": "turbo",
   "^dall-e-\\d{1}$": "dall-e",
+};
+
+export const MODEL_FAMILY_SERVICE: {
+  [f in ModelFamily]: LLMService;
+} = {
+  turbo: "openai",
+  gpt4: "openai",
+  "gpt4-turbo": "openai",
+  "gpt4-32k": "openai",
+  "dall-e": "openai",
+  claude: "anthropic",
+  "aws-claude": "aws",
+  "azure-turbo": "azure",
+  "azure-gpt4": "azure",
+  "azure-gpt4-32k": "azure",
+  "azure-gpt4-turbo": "azure",
+  "gemini-pro": "google-ai",
 };
 
 pino({ level: "debug" }).child({ module: "startup" });
@@ -137,4 +164,8 @@ export function getModelFamilyForRequest(req: Request): ModelFamily {
   }
 
   return (req.modelFamily = modelFamily);
+}
+
+function assertNever(x: never): never {
+  throw new Error(`Called assertNever with argument ${x}.`);
 }

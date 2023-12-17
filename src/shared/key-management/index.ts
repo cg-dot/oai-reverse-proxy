@@ -1,10 +1,10 @@
+import type { LLMService, ModelFamily } from "../models";
 import { OpenAIModel } from "./openai/provider";
 import { AnthropicModel } from "./anthropic/provider";
 import { GoogleAIModel } from "./google-ai/provider";
 import { AwsBedrockModel } from "./aws/provider";
 import { AzureOpenAIModel } from "./azure/provider";
 import { KeyPool } from "./key-pool";
-import type { ModelFamily } from "../models";
 
 /** The request and response format used by a model's API. */
 export type APIFormat =
@@ -13,13 +13,6 @@ export type APIFormat =
   | "google-ai"
   | "openai-text"
   | "openai-image";
-/** The service that a model is hosted on; distinct because services like AWS provide multiple APIs, but have their own endpoints and authentication. */
-export type LLMService =
-  | "openai"
-  | "anthropic"
-  | "google-ai"
-  | "aws"
-  | "azure";
 export type Model =
   | OpenAIModel
   | AnthropicModel

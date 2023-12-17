@@ -1,3 +1,4 @@
+import { config } from "../config";
 import { ModelFamily } from "./models";
 
 // technically slightly underestimates, because completion tokens cost more
@@ -39,4 +40,9 @@ export function prettyTokens(tokens: number): string {
   } else {
     return (tokens / 1000000000).toFixed(3) + "b";
   }
+}
+
+export function getCostSuffix(cost: number) {
+  if (!config.showTokenCosts) return "";
+  return ` ($${cost.toFixed(2)})`;
 }

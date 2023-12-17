@@ -129,7 +129,7 @@ function classifyError(err: Error): {
         userMessage,
         type: "proxy_validation_error",
       };
-    case "ForbiddenError":
+    case "ZoomerForbiddenError":
       // Mimics a ban notice from OpenAI, thrown when blockZoomerOrigins blocks
       // a request.
       return {
@@ -138,6 +138,13 @@ function classifyError(err: Error): {
         userMessage: `Your account has been disabled for violating our terms of service.`,
         type: "organization_account_disabled",
         code: "policy_violation",
+      };
+    case "ForbiddenError":
+      return {
+        statusCode: 403,
+        statusMessage: "Forbidden",
+        userMessage: `Request is not allowed. (${err.message})`,
+        type: "proxy_forbidden",
       };
     case "QuotaExceededError":
       return {

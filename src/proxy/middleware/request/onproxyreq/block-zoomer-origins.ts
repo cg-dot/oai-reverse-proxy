@@ -2,10 +2,10 @@ import { HPMRequestCallback } from "../index";
 
 const DISALLOWED_ORIGIN_SUBSTRINGS = "janitorai.com,janitor.ai".split(",");
 
-class ForbiddenError extends Error {
+class ZoomerForbiddenError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "ForbiddenError";
+    this.name = "ZoomerForbiddenError";
   }
 }
 
@@ -22,7 +22,7 @@ export const blockZoomerOrigins: HPMRequestCallback = (_proxyReq, req) => {
       return;
     }
 
-    throw new ForbiddenError(
+    throw new ZoomerForbiddenError(
       `Your access was terminated due to violation of our policies, please check your email for more information. If you believe this is in error and would like to appeal, please contact us through our help center at help.openai.com.`
     );
   }

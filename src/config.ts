@@ -4,6 +4,7 @@ import path from "path";
 import pino from "pino";
 import type { ModelFamily } from "./shared/models";
 import { MODEL_FAMILIES } from "./shared/models";
+
 dotenv.config();
 
 const startupLogger = pino({ level: "debug" }).child({ module: "startup" });
@@ -365,7 +366,7 @@ export const SENSITIVE_KEYS: (keyof Config)[] = ["googleSheetsSpreadsheetId"];
  * Config keys that are not displayed on the info page at all, generally because
  * they are not relevant to the user or can be inferred from other config.
  */
-export const OMITTED_KEYS: (keyof Config)[] = [
+export const OMITTED_KEYS = [
   "port",
   "logLevel",
   "openaiKey",
@@ -391,34 +392,46 @@ export const OMITTED_KEYS: (keyof Config)[] = [
   "staticServiceInfo",
   "checkKeys",
   "allowedModelFamilies",
-];
+] satisfies (keyof Config)[];
+type OmitKeys = (typeof OMITTED_KEYS)[number];
+
+type Printable<T> = {
+  [P in keyof T as Exclude<P, OmitKeys>]: T[P] extends object
+    ? Printable<T[P]>
+    : string;
+};
+type PublicConfig = Printable<Config>;
 
 const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;
 
-export function listConfig(obj: Config = config): Record<string, any> {
-  const result: Record<string, any> = {};
+export function listConfig(obj: Config = config) {
+  const result: Record<string, unknown> = {};
   for (const key of getKeys(obj)) {
     const value = obj[key]?.toString() || "";
 
-    const shouldOmit =
-      OMITTED_KEYS.includes(key) || value === "" || value === "undefined";
     const shouldMask = SENSITIVE_KEYS.includes(key);
+    const shouldOmit =
+      OMITTED_KEYS.includes(key as OmitKeys) ||
+      value === "" ||
+      value === "undefined";
 
     if (shouldOmit) {
       continue;
     }
 
+    const validKey = key as keyof Printable<Config>;
+
     if (value && shouldMask) {
-      result[key] = "********";
+      result[validKey] = "********";
     } else {
-      result[key] = value;
+      result[validKey] = value;
     }
 
     if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
       result[key] = listConfig(obj[key] as unknown as Config);
     }
   }
-  return result;
+  return result as PublicConfig;
 }
 
 /**

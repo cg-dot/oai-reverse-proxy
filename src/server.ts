@@ -12,7 +12,8 @@ import { setupAssetsDir } from "./shared/file-storage/setup-assets-dir";
 import { keyPool } from "./shared/key-management";
 import { adminRouter } from "./admin/routes";
 import { proxyRouter } from "./proxy/routes";
-import { handleInfoPage } from "./info-page";
+import { handleInfoPage, renderPage } from "./info-page";
+import { buildInfo } from "./service-info";
 import { logQueue } from "./shared/prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
 import { init as initUserStore } from "./shared/users/user-store";
@@ -67,13 +68,14 @@ app.get("/health", (_req, res) => res.sendStatus(200));
 app.use(cors());
 app.use(checkOrigin);
 
-// routes
 app.get("/", handleInfoPage);
+app.get("/status", (req, res) => {
+  res.json(buildInfo(req.protocol + "://" + req.get("host"), false));
+});
 app.use("/admin", adminRouter);
 app.use("/proxy", proxyRouter);
 app.use("/user", userRouter);
 
-// 500 and 404
 app.use((err: any, _req: unknown, res: express.Response, _next: unknown) => {
   if (err.status) {
     res.status(err.status).json({ error: err.message });
