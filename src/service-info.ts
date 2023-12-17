@@ -153,6 +153,7 @@ export function buildInfo(baseUrl: string, forAdmin = false): ServiceInfo {
       .concat("turbo")
   );
 
+  modelStats.clear();
   serviceStats.clear();
   keys.forEach(addKeyToAggregates);
 
@@ -385,10 +386,11 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
         break;
       case "aws":
         const logged = modelStats.get(`${family}__awsLogged`) || 0;
-        const logMsg = config.allowAwsLogging
-          ? `${logged} active keys are potentially logged.`
-          : `${logged} active keys are potentially logged and can't be used. Set ALLOW_AWS_LOGGING=true to override.`;
-        info.privacy = logMsg;
+        if (logged > 0) {
+          info.privacy = config.allowAwsLogging
+            ? `${logged} active keys are potentially logged.`
+            : `${logged} active keys are potentially logged and can't be used. Set ALLOW_AWS_LOGGING=true to override.`;
+        }
         break;
     }
   }
