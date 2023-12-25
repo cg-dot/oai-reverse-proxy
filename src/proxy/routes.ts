@@ -5,6 +5,7 @@ import { openai } from "./openai";
 import { openaiImage } from "./openai-image";
 import { anthropic } from "./anthropic";
 import { googleAI } from "./google-ai";
+import { mistralAI } from "./mistral-ai";
 import { aws } from "./aws";
 import { azure } from "./azure";
 
@@ -32,6 +33,7 @@ proxyRouter.use("/openai", addV1, openai);
 proxyRouter.use("/openai-image", addV1, openaiImage);
 proxyRouter.use("/anthropic", addV1, anthropic);
 proxyRouter.use("/google-ai", addV1, googleAI);
+proxyRouter.use("/mistral-ai", addV1, mistralAI);
 proxyRouter.use("/aws/claude", addV1, aws);
 proxyRouter.use("/azure/openai", addV1, azure);
 // Redirect browser requests to the homepage.

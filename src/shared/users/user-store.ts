@@ -15,6 +15,7 @@ import {
   getAzureOpenAIModelFamily,
   getClaudeModelFamily,
   getGoogleAIModelFamily,
+  getMistralAIModelFamily,
   getOpenAIModelFamily,
   MODEL_FAMILIES,
   ModelFamily,
@@ -34,6 +35,9 @@ const INITIAL_TOKENS: Required<UserTokenCounts> = {
   "dall-e": 0,
   claude: 0,
   "gemini-pro": 0,
+  "mistral-tiny": 0,
+  "mistral-small": 0,
+  "mistral-medium": 0,
   "aws-claude": 0,
   "azure-turbo": 0,
   "azure-gpt4": 0,
@@ -399,6 +403,8 @@ function getModelFamilyForQuotaUsage(
       return getClaudeModelFamily(model);
     case "google-ai":
       return getGoogleAIModelFamily(model);
+    case "mistral-ai":
+      return getMistralAIModelFamily(model);
     default:
       assertNever(api);
   }

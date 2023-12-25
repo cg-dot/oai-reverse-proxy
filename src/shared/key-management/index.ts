@@ -11,6 +11,7 @@ export type APIFormat =
   | "openai"
   | "anthropic"
   | "google-ai"
+  | "mistral-ai"
   | "openai-text"
   | "openai-image";
 export type Model =

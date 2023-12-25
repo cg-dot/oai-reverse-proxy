@@ -25,6 +25,15 @@ export function getTokenCostUsd(model: ModelFamily, tokens: number) {
     case "claude":
       cost = 0.00001102;
       break;
+    case "mistral-tiny":
+      cost = 0.00000031;
+      break;
+    case "mistral-small":
+      cost = 0.00000132;
+      break;
+    case "mistral-medium":
+      cost = 0.0000055;
+      break;
   }
   return cost * Math.max(0, tokens);
 }

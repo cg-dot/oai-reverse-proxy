@@ -40,6 +40,8 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
         );
       case "google-ai":
         throw new Error("add-key should not be used for this model.");
+      case "mistral-ai":
+        throw new Error("Mistral AI should never be translated");
       case "openai-image":
         assignedKey = keyPool.get("dall-e-3");
         break;
@@ -69,6 +71,7 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
       if (key.organizationId) {
         proxyReq.setHeader("OpenAI-Organization", key.organizationId);
       }
+    case "mistral-ai":
       proxyReq.setHeader("Authorization", `Bearer ${assignedKey.key}`);
       break;
     case "azure":

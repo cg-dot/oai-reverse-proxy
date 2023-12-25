@@ -16,6 +16,7 @@ import {
   GoogleAIModelFamily,
   LLM_SERVICES,
   LLMService,
+  MistralAIModelFamily,
   MODEL_FAMILY_SERVICE,
   ModelFamily,
   OpenAIModelFamily,
@@ -24,6 +25,7 @@ import { getCostSuffix, getTokenCostUsd, prettyTokens } from "./shared/stats";
 import { getUniqueIps } from "./proxy/rate-limit";
 import { assertNever } from "./shared/utils";
 import { getEstimatedWaitTime, getQueueLength } from "./proxy/queue";
+import { MistralAIKey } from "./shared/key-management/mistral-ai/provider";
 
 const CACHE_TTL = 2000;
 
@@ -36,6 +38,8 @@ const keyIsAnthropicKey = (k: KeyPoolKey): k is AnthropicKey =>
   k.service === "anthropic";
 const keyIsGoogleAIKey = (k: KeyPoolKey): k is GoogleAIKey =>
   k.service === "google-ai";
+const keyIsMistralAIKey = (k: KeyPoolKey): k is MistralAIKey =>
+  k.service === "mistral-ai";
 const keyIsAwsKey = (k: KeyPoolKey): k is AwsBedrockKey => k.service === "aws";
 
 /** Stats aggregated across all keys for a given service. */
@@ -86,6 +90,7 @@ export type ServiceInfo = {
     "openai-image"?: string;
     anthropic?: string;
     "google-ai"?: string;
+    "mistral-ai"?: string;
     aws?: string;
     azure?: string;
   };
@@ -99,7 +104,8 @@ export type ServiceInfo = {
   & { [f in AnthropicModelFamily]?: AnthropicInfo; }
   & { [f in AwsBedrockModelFamily]?: AwsInfo }
   & { [f in AzureOpenAIModelFamily]?: BaseFamilyInfo; }
-  & { [f in GoogleAIModelFamily]?: BaseFamilyInfo };
+  & { [f in GoogleAIModelFamily]?: BaseFamilyInfo }
+  & { [f in MistralAIModelFamily]?: BaseFamilyInfo };
 
 // https://stackoverflow.com/a/66661477
 // type DeepKeyOf<T> = (
@@ -127,6 +133,9 @@ const SERVICE_ENDPOINTS: { [s in LLMService]: Record<string, string> } = {
   },
   "google-ai": {
     "google-ai": `%BASE%/google-ai`,
+  },
+  "mistral-ai": {
+    "mistral-ai": `%BASE%/mistral-ai`,
   },
   aws: {
     aws: `%BASE%/aws/claude`,
@@ -268,6 +277,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
   increment(serviceStats, "openai__keys", k.service === "openai" ? 1 : 0);
   increment(serviceStats, "anthropic__keys", k.service === "anthropic" ? 1 : 0);
   increment(serviceStats, "google-ai__keys", k.service === "google-ai" ? 1 : 0);
+  increment(serviceStats, "mistral-ai__keys", k.service === "mistral-ai" ? 1 : 0);
   increment(serviceStats, "aws__keys", k.service === "aws" ? 1 : 0);
   increment(serviceStats, "azure__keys", k.service === "azure" ? 1 : 0);
 
@@ -329,6 +339,18 @@ function addKeyToAggregates(k: KeyPoolKey) {
       increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
       increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
       increment(modelStats, `${family}__tokens`, k["gemini-proTokens"]);
+      break;
+    }
+    case "mistral-ai": {
+      if (!keyIsMistralAIKey(k)) throw new Error("Invalid key type");
+      k.modelFamilies.forEach((f) => {
+        const tokens = k[`${f}Tokens`];
+        sumTokens += tokens;
+        sumCost += getTokenCostUsd(f, tokens);
+        increment(modelStats, `${f}__tokens`, tokens);
+        increment(modelStats, `${f}__revoked`, k.isRevoked ? 1 : 0);
+        increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
+      });
       break;
     }
     case "aws": {

@@ -4,7 +4,7 @@ import {
   mergeEventsForAnthropic,
   mergeEventsForOpenAIChat,
   mergeEventsForOpenAIText,
-  OpenAIChatCompletionStreamEvent
+  OpenAIChatCompletionStreamEvent,
 } from "./index";
 
 /**
@@ -28,6 +28,7 @@ export class EventAggregator {
     switch (this.format) {
       case "openai":
       case "google-ai":
+      case "mistral-ai":
         return mergeEventsForOpenAIChat(this.events);
       case "openai-text":
         return mergeEventsForOpenAIText(this.events);

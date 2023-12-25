@@ -9,7 +9,10 @@ import {
 } from "../common";
 import { ProxyResHandlerWithBody } from ".";
 import { assertNever } from "../../../shared/utils";
-import { OpenAIChatMessage } from "../request/preprocessors/transform-outbound-payload";
+import {
+  MistralAIChatMessage,
+  OpenAIChatMessage,
+} from "../request/preprocessors/transform-outbound-payload";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */
 export const logPrompt: ProxyResHandlerWithBody = async (
@@ -54,12 +57,13 @@ type OaiImageResult = {
 const getPromptForRequest = (
   req: Request,
   responseBody: Record<string, any>
-): string | OpenAIChatMessage[] | OaiImageResult => {
+): string | OpenAIChatMessage[] | MistralAIChatMessage[] | OaiImageResult => {
   // Since the prompt logger only runs after the request has been proxied, we
   // can assume the body has already been transformed to the target API's
   // format.
   switch (req.outboundApi) {
     case "openai":
+    case "mistral-ai":
       return req.body.messages;
     case "openai-text":
       return req.body.prompt;
@@ -81,7 +85,7 @@ const getPromptForRequest = (
 };
 
 const flattenMessages = (
-  val: string | OpenAIChatMessage[] | OaiImageResult
+  val: string | OpenAIChatMessage[] | MistralAIChatMessage[] | OaiImageResult
 ): string => {
   if (typeof val === "string") {
     return val.trim();

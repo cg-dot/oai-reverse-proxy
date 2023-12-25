@@ -64,6 +64,7 @@ export function makeCompletionSSE({
 
   switch (format) {
     case "openai":
+    case "mistral-ai":
       event = {
         id: "chatcmpl-" + id,
         object: "chat.completion.chunk",

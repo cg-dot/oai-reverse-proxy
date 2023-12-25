@@ -27,6 +27,10 @@ type Config = {
    **/
   googleAIKey?: string;
   /**
+   * Comma-delimited list of Mistral AI API keys.
+   */
+  mistralAIKey?: string;
+  /**
    * Comma-delimited list of AWS credentials. Each credential item should be a
    * colon-delimited list of access key, secret key, and AWS region.
    *
@@ -203,6 +207,7 @@ export const config: Config = {
   openaiKey: getEnvWithDefault("OPENAI_KEY", ""),
   anthropicKey: getEnvWithDefault("ANTHROPIC_KEY", ""),
   googleAIKey: getEnvWithDefault("GOOGLE_AI_KEY", ""),
+  mistralAIKey: getEnvWithDefault("MISTRAL_AI_KEY", ""),
   awsCredentials: getEnvWithDefault("AWS_CREDENTIALS", ""),
   azureCredentials: getEnvWithDefault("AZURE_CREDENTIALS", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
@@ -235,6 +240,9 @@ export const config: Config = {
     "gpt4-turbo",
     "claude",
     "gemini-pro",
+    "mistral-tiny",
+    "mistral-small",
+    "mistral-medium",
     "aws-claude",
     "azure-turbo",
     "azure-gpt4",
@@ -372,6 +380,7 @@ export const OMITTED_KEYS = [
   "openaiKey",
   "anthropicKey",
   "googleAIKey",
+  "mistralAIKey",
   "awsCredentials",
   "azureCredentials",
   "proxyKey",

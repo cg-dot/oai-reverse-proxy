@@ -1,6 +1,7 @@
 import { Request } from "express";
 import type {
   GoogleAIChatMessage,
+  MistralAIChatMessage,
   OpenAIChatMessage,
 } from "../../proxy/middleware/request/preprocessors/transform-outbound-payload";
 import { assertNever } from "../utils";
@@ -14,11 +15,16 @@ import {
   getOpenAIImageCost,
   estimateGoogleAITokenCount,
 } from "./openai";
+import {
+  init as initMistralAI,
+  getTokenCount as getMistralAITokenCount,
+} from "./mistral";
 import { APIFormat } from "../key-management";
 
 export async function init() {
   initClaude();
   initOpenAi();
+  initMistralAI();
 }
 
 /** Tagged union via `service` field of the different types of requests that can
@@ -31,6 +37,7 @@ type TokenCountRequest = { req: Request } & (
       service: "openai-text" | "anthropic" | "google-ai";
     }
   | { prompt?: GoogleAIChatMessage[]; completion?: never; service: "google-ai" }
+  | { prompt: MistralAIChatMessage[]; completion?: never; service: "mistral-ai" }
   | { prompt?: never; completion: string; service: APIFormat }
   | { prompt?: never; completion?: never; service: "openai-image" }
 );
@@ -75,6 +82,11 @@ export async function countTokens({
       // endpoint for it but it adds significant latency to the request.
       return {
         ...estimateGoogleAITokenCount(prompt ?? (completion || [])),
+        tokenization_duration_ms: getElapsedMs(time),
+      };
+    case "mistral-ai":
+      return {
+        ...getMistralAITokenCount(prompt ?? completion),
         tokenization_duration_ms: getElapsedMs(time),
       };
     default:

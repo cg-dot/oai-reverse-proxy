@@ -155,12 +155,38 @@ export type GoogleAIChatMessage = z.infer<
   typeof GoogleAIV1GenerateContentSchema
 >["contents"][0];
 
+// https://docs.mistral.ai/api#operation/createChatCompletion
+const MistralAIV1ChatCompletionsSchema = z.object({
+  model: z.string(),
+  messages: z.array(
+    z.object({
+      role: z.enum(["system", "user", "assistant"]),
+      content: z.string(),
+    })
+  ),
+  temperature: z.number().optional().default(0.7),
+  top_p: z.number().optional().default(1),
+  max_tokens: z.coerce
+    .number()
+    .int()
+    .nullish()
+    .transform((v) => Math.min(v ?? OPENAI_OUTPUT_MAX, OPENAI_OUTPUT_MAX)),
+  stream: z.boolean().optional().default(false),
+  safe_mode: z.boolean().optional().default(false),
+  random_seed: z.number().int().optional(),
+});
+
+export type MistralAIChatMessage = z.infer<
+  typeof MistralAIV1ChatCompletionsSchema
+>["messages"][0];
+
 const VALIDATORS: Record<APIFormat, z.ZodSchema<any>> = {
   anthropic: AnthropicV1CompleteSchema,
   openai: OpenAIV1ChatCompletionSchema,
   "openai-text": OpenAIV1TextCompletionSchema,
   "openai-image": OpenAIV1ImagesGenerationSchema,
   "google-ai": GoogleAIV1GenerateContentSchema,
+  "mistral-ai": MistralAIV1ChatCompletionsSchema,
 };
 
 /** Transforms an incoming request body to one that matches the target API. */

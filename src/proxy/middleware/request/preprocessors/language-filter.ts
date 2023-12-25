@@ -3,7 +3,10 @@ import { config } from "../../../../config";
 import { assertNever } from "../../../../shared/utils";
 import { RequestPreprocessor } from "../index";
 import { UserInputError } from "../../../../shared/errors";
-import { OpenAIChatMessage } from "./transform-outbound-payload";
+import {
+  MistralAIChatMessage,
+  OpenAIChatMessage,
+} from "./transform-outbound-payload";
 
 const rejectedClients = new Map<string, number>();
 
@@ -53,8 +56,9 @@ function getPromptFromRequest(req: Request) {
     case "anthropic":
       return body.prompt;
     case "openai":
+    case "mistral-ai":
       return body.messages
-        .map((msg: OpenAIChatMessage) => {
+        .map((msg: OpenAIChatMessage | MistralAIChatMessage) => {
           const text = Array.isArray(msg.content)
             ? msg.content
                 .map((c) => {

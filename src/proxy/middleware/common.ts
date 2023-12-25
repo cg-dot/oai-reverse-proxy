@@ -193,6 +193,7 @@ export function getCompletionFromBody(req: Request, body: Record<string, any>) {
   const format = req.outboundApi;
   switch (format) {
     case "openai":
+    case "mistral-ai":
       return body.choices[0].message.content;
     case "openai-text":
       return body.choices[0].text;
@@ -222,6 +223,7 @@ export function getModelFromBody(req: Request, body: Record<string, any>) {
   switch (format) {
     case "openai":
     case "openai-text":
+    case "mistral-ai":
       return body.model;
     case "openai-image":
       return req.body.model;

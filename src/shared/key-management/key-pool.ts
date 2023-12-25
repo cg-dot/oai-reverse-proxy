@@ -11,6 +11,7 @@ import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
 import { GoogleAIKeyProvider } from "./google-ai/provider";
 import { AwsBedrockKeyProvider } from "./aws/provider";
 import { AzureOpenAIKeyProvider } from "./azure/provider";
+import { MistralAIKeyProvider } from "./mistral-ai/provider";
 
 type AllowedPartial = OpenAIKeyUpdate | AnthropicKeyUpdate;
 
@@ -24,6 +25,7 @@ export class KeyPool {
     this.keyProviders.push(new OpenAIKeyProvider());
     this.keyProviders.push(new AnthropicKeyProvider());
     this.keyProviders.push(new GoogleAIKeyProvider());
+    this.keyProviders.push(new MistralAIKeyProvider());
     this.keyProviders.push(new AwsBedrockKeyProvider());
     this.keyProviders.push(new AzureOpenAIKeyProvider());
   }
@@ -121,6 +123,9 @@ export class KeyPool {
     } else if (model.includes("gemini")) {
       // https://developers.generativeai.google.com/models/language
       return "google-ai";
+    } else if (model.includes("mistral")) {
+      // https://docs.mistral.ai/platform/endpoints
+      return "mistral-ai";
     } else if (model.startsWith("anthropic.claude")) {
       // AWS offers models from a few providers
       // https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html

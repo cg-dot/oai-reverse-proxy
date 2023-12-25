@@ -8,7 +8,13 @@ import type { Request } from "express";
  * The service that a model is hosted on. Distinct from `APIFormat` because some
  * services have interoperable APIs (eg Anthropic/AWS, OpenAI/Azure).
  */
-export type LLMService = "openai" | "anthropic" | "google-ai" | "aws" | "azure";
+export type LLMService =
+  | "openai"
+  | "anthropic"
+  | "google-ai"
+  | "mistral-ai"
+  | "aws"
+  | "azure";
 
 export type OpenAIModelFamily =
   | "turbo"
@@ -18,6 +24,10 @@ export type OpenAIModelFamily =
   | "dall-e";
 export type AnthropicModelFamily = "claude";
 export type GoogleAIModelFamily = "gemini-pro";
+export type MistralAIModelFamily =
+  | "mistral-tiny"
+  | "mistral-small"
+  | "mistral-medium";
 export type AwsBedrockModelFamily = "aws-claude";
 export type AzureOpenAIModelFamily = `azure-${Exclude<
   OpenAIModelFamily,
@@ -27,6 +37,7 @@ export type ModelFamily =
   | OpenAIModelFamily
   | AnthropicModelFamily
   | GoogleAIModelFamily
+  | MistralAIModelFamily
   | AwsBedrockModelFamily
   | AzureOpenAIModelFamily;
 
@@ -40,6 +51,9 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "dall-e",
   "claude",
   "gemini-pro",
+  "mistral-tiny",
+  "mistral-small",
+  "mistral-medium",
   "aws-claude",
   "azure-turbo",
   "azure-gpt4",
@@ -49,7 +63,14 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
 
 export const LLM_SERVICES = (<A extends readonly LLMService[]>(
   arr: A & ([LLMService] extends [A[number]] ? unknown : never)
-) => arr)(["openai", "anthropic", "google-ai", "aws", "azure"] as const);
+) => arr)([
+  "openai",
+  "anthropic",
+  "google-ai",
+  "mistral-ai",
+  "aws",
+  "azure",
+] as const);
 
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
   "^gpt-4-1106(-preview)?$": "gpt4-turbo",
@@ -78,6 +99,9 @@ export const MODEL_FAMILY_SERVICE: {
   "azure-gpt4-32k": "azure",
   "azure-gpt4-turbo": "azure",
   "gemini-pro": "google-ai",
+  "mistral-tiny": "mistral-ai",
+  "mistral-small": "mistral-ai",
+  "mistral-medium": "mistral-ai",
 };
 
 pino({ level: "debug" }).child({ module: "startup" });
@@ -99,6 +123,17 @@ export function getClaudeModelFamily(model: string): ModelFamily {
 
 export function getGoogleAIModelFamily(_model: string): ModelFamily {
   return "gemini-pro";
+}
+
+export function getMistralAIModelFamily(model: string): MistralAIModelFamily {
+  switch (model) {
+    case "mistral-tiny":
+    case "mistral-small":
+    case "mistral-medium":
+      return model;
+    default:
+      return "mistral-tiny";
+  }
 }
 
 export function getAwsBedrockModelFamily(_model: string): ModelFamily {
@@ -157,6 +192,9 @@ export function getModelFamilyForRequest(req: Request): ModelFamily {
         break;
       case "google-ai":
         modelFamily = getGoogleAIModelFamily(model);
+        break;
+      case "mistral-ai":
+        modelFamily = getMistralAIModelFamily(model);
         break;
       default:
         assertNever(req.outboundApi);

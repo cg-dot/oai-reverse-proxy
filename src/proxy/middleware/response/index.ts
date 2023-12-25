@@ -292,6 +292,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     switch (service) {
       case "openai":
       case "google-ai":
+      case "mistral-ai":
       case "azure":
         const filteredCodes = ["content_policy_violation", "content_filter"];
         if (filteredCodes.includes(errorPayload.error?.code)) {
@@ -351,6 +352,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         handleAwsRateLimitError(req, errorPayload);
         break;
       case "azure":
+      case "mistral-ai":
         handleAzureRateLimitError(req, errorPayload);
         break;
       case "google-ai":
@@ -378,6 +380,9 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         break;
       case "google-ai":
         errorPayload.proxy_note = `The requested Google AI model might not exist, or the key might not be provisioned for it.`;
+        break;
+      case "mistral-ai":
+        errorPayload.proxy_note = `The requested Mistral AI model might not exist, or the key might not be provisioned for it.`;
         break;
       case "aws":
         errorPayload.proxy_note = `The requested AWS resource might not exist, or the key might not have access to it.`;

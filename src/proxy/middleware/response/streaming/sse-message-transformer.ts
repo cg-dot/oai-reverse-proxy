@@ -106,6 +106,7 @@ function getTransformer(
 ): StreamingCompletionTransformer {
   switch (responseApi) {
     case "openai":
+    case "mistral-ai":
       return passthroughToOpenAI;
     case "openai-text":
       return openAITextToOpenAIChat;

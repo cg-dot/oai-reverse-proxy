@@ -7,6 +7,7 @@ import { RequestPreprocessor } from "../index";
 const CLAUDE_MAX_CONTEXT = config.maxContextTokensAnthropic;
 const OPENAI_MAX_CONTEXT = config.maxContextTokensOpenAI;
 const GOOGLE_AI_MAX_CONTEXT = 32000;
+const MISTRAL_AI_MAX_CONTENT = 32768;
 
 /**
  * Assigns `req.promptTokens` and `req.outputTokens` based on the request body
@@ -34,6 +35,8 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     case "google-ai":
       proxyMax = GOOGLE_AI_MAX_CONTEXT;
       break;
+    case "mistral-ai":
+      proxyMax = MISTRAL_AI_MAX_CONTENT;
     case "openai-image":
       return;
     default:
@@ -64,6 +67,8 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     modelMax = 200000;
   } else if (model.match(/^gemini-\d{3}$/)) {
     modelMax = GOOGLE_AI_MAX_CONTEXT;
+  } else if (model.match(/^mistral-(tiny|small|medium)$/)) {
+    modelMax = MISTRAL_AI_MAX_CONTENT;
   } else if (model.match(/^anthropic\.claude/)) {
     // Not sure if AWS Claude has the same context limit as Anthropic Claude.
     modelMax = 100000;
