@@ -19,7 +19,7 @@ const MODEL_FAMILY_FRIENDLY_NAME: { [f in ModelFamily]: string } = {
   "gemini-pro": "Gemini Pro",
   "mistral-tiny": "Mistral 7B",
   "mistral-small": "Mixtral 8x7B",
-  "mistral-medium": "Mistral prototype",
+  "mistral-medium": "Mistral Medium (prototype)",
   "aws-claude": "AWS Claude",
   "azure-turbo": "Azure GPT-3.5 Turbo",
   "azure-gpt4": "Azure GPT-4",
