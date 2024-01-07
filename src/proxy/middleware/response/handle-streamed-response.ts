@@ -88,7 +88,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
         `Re-enqueueing request due to retryable error during streaming response.`
       );
       req.retryCount++;
-      enqueue(req);
+      await enqueue(req);
     } else {
       const { message, stack, lastEvent } = err;
       const eventText = JSON.stringify(lastEvent, null, 2) ?? "undefined"

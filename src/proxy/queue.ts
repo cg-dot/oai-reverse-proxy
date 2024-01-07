@@ -41,6 +41,7 @@ const LOAD_THRESHOLD = parseFloat(process.env.LOAD_THRESHOLD ?? "50");
 const PAYLOAD_SCALE_FACTOR = parseFloat(
   process.env.PAYLOAD_SCALE_FACTOR ?? "6"
 );
+const QUEUE_JOIN_TIMEOUT = 5000;
 
 /**
  * Returns an identifier for a request. This is used to determine if a
@@ -64,7 +65,7 @@ const sharesIdentifierWith = (incoming: Request) => (queued: Request) =>
 
 const isFromSharedIp = (req: Request) => SHARED_IP_ADDRESSES.has(req.ip);
 
-export function enqueue(req: Request) {
+export async function enqueue(req: Request) {
   const enqueuedRequestCount = queue.filter(sharesIdentifierWith(req)).length;
   let isGuest = req.user?.token === undefined;
 
@@ -96,7 +97,7 @@ export function enqueue(req: Request) {
   if (stream === "true" || stream === true || req.isStreaming) {
     const res = req.res!;
     if (!res.headersSent) {
-      initStreaming(req);
+      await initStreaming(req);
     }
     registerHeartbeat(req);
   } else if (getProxyLoad() > LOAD_THRESHOLD) {
@@ -391,20 +392,39 @@ function killQueuedRequest(req: Request) {
   }
 }
 
-function initStreaming(req: Request) {
+async function initStreaming(req: Request) {
   const res = req.res!;
   initializeSseStream(res);
 
-  if (req.query.badSseParser) {
-    // Some clients have a broken SSE parser that doesn't handle comments
-    // correctly. These clients can pass ?badSseParser=true to
-    // disable comments in the SSE stream.
-    res.write(getHeartbeatPayload());
-    return;
-  }
+  const joinMsg = `: joining queue at position ${
+    queue.length
+  }\n\n${getHeartbeatPayload()}`;
 
-  res.write(`: joining queue at position ${queue.length}\n\n`);
-  res.write(getHeartbeatPayload());
+  let drainTimeout: NodeJS.Timeout;
+  const welcome = new Promise<void>((resolve, reject) => {
+    const onDrain = () => {
+      clearTimeout(drainTimeout);
+      req.log.debug(`Client finished consuming join message.`);
+      res.off("drain", onDrain);
+      resolve();
+    };
+
+    drainTimeout = setTimeout(() => {
+      res.off("drain", onDrain);
+      res.destroy();
+      reject(new Error("Unreponsive streaming client; killing connection"));
+    }, QUEUE_JOIN_TIMEOUT);
+
+    if (!res.write(joinMsg)) {
+      req.log.warn("Kernel buffer is full; holding client request.");
+      res.once("drain", onDrain);
+    } else {
+      clearTimeout(drainTimeout);
+      resolve();
+    }
+  });
+
+  await welcome;
 }
 
 /**
