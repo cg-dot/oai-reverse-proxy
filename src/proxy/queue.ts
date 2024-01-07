@@ -334,7 +334,7 @@ export function createQueueMiddleware({
   beforeProxy?: RequestPreprocessor;
   proxyMiddleware: Handler;
 }): Handler {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     req.proceed = async () => {
       if (beforeProxy) {
         try {
@@ -352,7 +352,7 @@ export function createQueueMiddleware({
     };
 
     try {
-      enqueue(req);
+      await enqueue(req);
     } catch (err: any) {
       req.res!.status(429).json({
         type: "proxy_error",
