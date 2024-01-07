@@ -10,4 +10,5 @@ COPY Dockerfile greeting.md* .env* ./
 RUN npm run build
 EXPOSE 7860
 ENV NODE_ENV=production
-CMD [ "npm", "start" ]
+# Huggigface free VMs have 16GB of RAM so we can be greedy
+CMD [ "npm", "start", "--", "--max-old-space-size=12288" ]
