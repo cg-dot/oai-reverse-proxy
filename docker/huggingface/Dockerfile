@@ -11,4 +11,5 @@ RUN npm run build
 EXPOSE 7860
 ENV NODE_ENV=production
 # Huggigface free VMs have 16GB of RAM so we can be greedy
-CMD [ "npm", "start", "--", "--max-old-space-size=12288" ]
+ENV NODE_OPTIONS="--max-old-space-size=12882"
+CMD [ "npm", "start" ]

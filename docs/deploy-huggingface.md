@@ -32,7 +32,8 @@ COPY Dockerfile greeting.md* .env* ./
 RUN npm run build
 EXPOSE 7860
 ENV NODE_ENV=production
-CMD [ "npm", "start", "--", "--max-old-space-size=12288" ]
+ENV NODE_OPTIONS="--max-old-space-size=12882"
+CMD [ "npm", "start" ]
 ```
 - Click "Commit new file to `main`" to save the Dockerfile.
 
