@@ -14,23 +14,24 @@ const OPENAI_OUTPUT_MAX = config.maxOutputTokensOpenAI;
 // TODO: move schemas to shared
 
 // https://console.anthropic.com/docs/api/reference#-v1-complete
-export const AnthropicV1CompleteSchema = z.object({
-  model: z.string(),
-  prompt: z.string({
-    required_error:
-      "No prompt found. Are you sending an OpenAI-formatted request to the Claude endpoint?",
-  }),
-  max_tokens_to_sample: z.coerce
-    .number()
-    .int()
-    .transform((v) => Math.min(v, CLAUDE_OUTPUT_MAX)),
-  stop_sequences: z.array(z.string()).optional(),
-  stream: z.boolean().optional().default(false),
-  temperature: z.coerce.number().optional().default(1),
-  top_k: z.coerce.number().optional(),
-  top_p: z.coerce.number().optional(),
-  metadata: z.any().optional(),
-});
+export const AnthropicV1CompleteSchema = z
+  .object({
+    model: z.string().max(100),
+    prompt: z.string({
+      required_error:
+        "No prompt found. Are you sending an OpenAI-formatted request to the Claude endpoint?",
+    }),
+    max_tokens_to_sample: z.coerce
+      .number()
+      .int()
+      .transform((v) => Math.min(v, CLAUDE_OUTPUT_MAX)),
+    stop_sequences: z.array(z.string().max(500)).optional(),
+    stream: z.boolean().optional().default(false),
+    temperature: z.coerce.number().optional().default(1),
+    top_k: z.coerce.number().optional(),
+    top_p: z.coerce.number().optional(),
+  })
+  .strip();
 
 // https://platform.openai.com/docs/api-reference/chat/create
 const OpenAIV1ChatContentArraySchema = z.array(
@@ -46,44 +47,48 @@ const OpenAIV1ChatContentArraySchema = z.array(
   ])
 );
 
-export const OpenAIV1ChatCompletionSchema = z.object({
-  model: z.string(),
-  messages: z.array(
-    z.object({
-      role: z.enum(["system", "user", "assistant"]),
-      content: z.union([z.string(), OpenAIV1ChatContentArraySchema]),
-      name: z.string().optional(),
-    }),
-    {
-      required_error:
-        "No `messages` found. Ensure you've set the correct completion endpoint.",
-      invalid_type_error:
-        "Messages were not formatted correctly. Refer to the OpenAI Chat API documentation for more information.",
-    }
-  ),
-  temperature: z.number().optional().default(1),
-  top_p: z.number().optional().default(1),
-  n: z
-    .literal(1, {
-      errorMap: () => ({
-        message: "You may only request a single completion at a time.",
+export const OpenAIV1ChatCompletionSchema = z
+  .object({
+    model: z.string().max(100),
+    messages: z.array(
+      z.object({
+        role: z.enum(["system", "user", "assistant"]),
+        content: z.union([z.string(), OpenAIV1ChatContentArraySchema]),
+        name: z.string().optional(),
       }),
-    })
-    .optional(),
-  stream: z.boolean().optional().default(false),
-  stop: z.union([z.string(), z.array(z.string())]).optional(),
-  max_tokens: z.coerce
-    .number()
-    .int()
-    .nullish()
-    .default(16)
-    .transform((v) => Math.min(v ?? OPENAI_OUTPUT_MAX, OPENAI_OUTPUT_MAX)),
-  frequency_penalty: z.number().optional().default(0),
-  presence_penalty: z.number().optional().default(0),
-  logit_bias: z.any().optional(),
-  user: z.string().optional(),
-  seed: z.number().int().optional(),
-});
+      {
+        required_error:
+          "No `messages` found. Ensure you've set the correct completion endpoint.",
+        invalid_type_error:
+          "Messages were not formatted correctly. Refer to the OpenAI Chat API documentation for more information.",
+      }
+    ),
+    temperature: z.number().optional().default(1),
+    top_p: z.number().optional().default(1),
+    n: z
+      .literal(1, {
+        errorMap: () => ({
+          message: "You may only request a single completion at a time.",
+        }),
+      })
+      .optional(),
+    stream: z.boolean().optional().default(false),
+    stop: z
+      .union([z.string().max(500), z.array(z.string().max(500))])
+      .optional(),
+    max_tokens: z.coerce
+      .number()
+      .int()
+      .nullish()
+      .default(16)
+      .transform((v) => Math.min(v ?? OPENAI_OUTPUT_MAX, OPENAI_OUTPUT_MAX)),
+    frequency_penalty: z.number().optional().default(0),
+    presence_penalty: z.number().optional().default(0),
+    logit_bias: z.any().optional(),
+    user: z.string().max(500).optional(),
+    seed: z.number().int().optional(),
+  })
+  .strip();
 
 export type OpenAIChatMessage = z.infer<
   typeof OpenAIV1ChatCompletionSchema
@@ -93,6 +98,7 @@ const OpenAIV1TextCompletionSchema = z
   .object({
     model: z
       .string()
+      .max(100)
       .regex(
         /^gpt-3.5-turbo-instruct/,
         "Model must start with 'gpt-3.5-turbo-instruct'"
@@ -104,52 +110,59 @@ const OpenAIV1TextCompletionSchema = z
     logprobs: z.number().int().nullish().default(null),
     echo: z.boolean().optional().default(false),
     best_of: z.literal(1).optional(),
-    stop: z.union([z.string(), z.array(z.string()).max(4)]).optional(),
-    suffix: z.string().optional(),
+    stop: z
+      .union([z.string().max(500), z.array(z.string().max(500)).max(4)])
+      .optional(),
+    suffix: z.string().max(1000).optional(),
   })
+  .strip()
   .merge(OpenAIV1ChatCompletionSchema.omit({ messages: true }));
 
 // https://platform.openai.com/docs/api-reference/images/create
-const OpenAIV1ImagesGenerationSchema = z.object({
-  prompt: z.string().max(4000),
-  model: z.string().optional(),
-  quality: z.enum(["standard", "hd"]).optional().default("standard"),
-  n: z.number().int().min(1).max(4).optional().default(1),
-  response_format: z.enum(["url", "b64_json"]).optional(),
-  size: z
-    .enum(["256x256", "512x512", "1024x1024", "1792x1024", "1024x1792"])
-    .optional()
-    .default("1024x1024"),
-  style: z.enum(["vivid", "natural"]).optional().default("vivid"),
-  user: z.string().optional(),
-});
+const OpenAIV1ImagesGenerationSchema = z
+  .object({
+    prompt: z.string().max(4000),
+    model: z.string().max(100).optional(),
+    quality: z.enum(["standard", "hd"]).optional().default("standard"),
+    n: z.number().int().min(1).max(4).optional().default(1),
+    response_format: z.enum(["url", "b64_json"]).optional(),
+    size: z
+      .enum(["256x256", "512x512", "1024x1024", "1792x1024", "1024x1792"])
+      .optional()
+      .default("1024x1024"),
+    style: z.enum(["vivid", "natural"]).optional().default("vivid"),
+    user: z.string().max(500).optional(),
+  })
+  .strip();
 
 // https://developers.generativeai.google/api/rest/generativelanguage/models/generateContent
-const GoogleAIV1GenerateContentSchema = z.object({
-  model: z.string(), //actually specified in path but we need it for the router
-  stream: z.boolean().optional().default(false), // also used for router
-  contents: z.array(
-    z.object({
-      parts: z.array(z.object({ text: z.string() })),
-      role: z.enum(["user", "model"]),
-    })
-  ),
-  tools: z.array(z.object({})).max(0).optional(),
-  safetySettings: z.array(z.object({})).max(0).optional(),
-  generationConfig: z.object({
-    temperature: z.number().optional(),
-    maxOutputTokens: z.coerce
-      .number()
-      .int()
-      .optional()
-      .default(16)
-      .transform((v) => Math.min(v, 1024)), // TODO: Add config
-    candidateCount: z.literal(1).optional(),
-    topP: z.number().optional(),
-    topK: z.number().optional(),
-    stopSequences: z.array(z.string()).max(5).optional(),
-  }),
-});
+const GoogleAIV1GenerateContentSchema = z
+  .object({
+    model: z.string().max(100), //actually specified in path but we need it for the router
+    stream: z.boolean().optional().default(false), // also used for router
+    contents: z.array(
+      z.object({
+        parts: z.array(z.object({ text: z.string() })),
+        role: z.enum(["user", "model"]),
+      })
+    ),
+    tools: z.array(z.object({})).max(0).optional(),
+    safetySettings: z.array(z.object({})).max(0).optional(),
+    generationConfig: z.object({
+      temperature: z.number().optional(),
+      maxOutputTokens: z.coerce
+        .number()
+        .int()
+        .optional()
+        .default(16)
+        .transform((v) => Math.min(v, 1024)), // TODO: Add config
+      candidateCount: z.literal(1).optional(),
+      topP: z.number().optional(),
+      topK: z.number().optional(),
+      stopSequences: z.array(z.string().max(500)).max(5).optional(),
+    }),
+  })
+  .strip();
 
 export type GoogleAIChatMessage = z.infer<
   typeof GoogleAIV1GenerateContentSchema

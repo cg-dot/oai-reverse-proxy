@@ -123,7 +123,9 @@ export function enqueue(req: Request) {
   if (req.retryCount ?? 0 > 0) {
     req.log.info({ retries: req.retryCount }, `Enqueued request for retry.`);
   } else {
-    req.log.info(`Enqueued new request.`);
+    const size = req.socket.bytesRead;
+    const endpoint = req.url?.split("?")[0];
+    req.log.info({ size, endpoint }, `Enqueued new request.`);
   }
 }
 

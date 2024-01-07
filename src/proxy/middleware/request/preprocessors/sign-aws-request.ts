@@ -32,7 +32,7 @@ export const signAwsRequest: RequestPreprocessor = async (req) => {
     temperature: true,
     top_k: true,
     top_p: true,
-  }).parse(req.body);
+  }).strip().parse(req.body);
 
   const credential = getCredentialParts(req);
   const host = AMZ_HOST.replace("%REGION%", credential.region);
