@@ -386,6 +386,7 @@ export const OMITTED_KEYS = [
   "proxyKey",
   "adminKey",
   "rejectPhrases",
+  "rejectMessage",
   "showTokenCosts",
   "googleSheetsKey",
   "firebaseKey",
