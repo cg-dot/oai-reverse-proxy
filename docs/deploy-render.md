@@ -28,6 +28,8 @@ The service will be created according to the instructions in the `render.yaml` f
   - For example, `OPENAI_KEY=sk-abc123`.
 - Click **Save Changes**.
 
+**IMPORTANT:** Set `TRUSTED_PROXIES=3`, otherwise users' IP addresses will not be recorded correctly (the server will see the IP address of Render's load balancer instead of the user's real IP address).
+
 The service will automatically rebuild and deploy with the new environment variables.  This will take a few minutes.  The link to your deployed proxy will appear at the top of the page.
 
 If you want to change the URL, go to the **Settings** tab of your Web Service and click the **Edit** button next to **Name**.  You can also set a custom domain, though I haven't tried this yet.

@@ -198,6 +198,42 @@ type Config = {
    * configured ADMIN_KEY and go to /admin/service-info.
    **/
   staticServiceInfo?: boolean;
+  /**
+   * Trusted proxy hops. If you are deploying the server behind a reverse proxy
+   * (Nginx, Cloudflare Tunnel, AWS WAF, etc.) the IP address of incoming
+   * requests will be the IP address of the proxy, not the actual user.
+   *
+   * Depending on your hosting configuration, there may be multiple proxies/load
+   * balancers between your server and the user. Each one will append the
+   * incoming IP address to the `X-Forwarded-For` header. The user's real IP
+   * address will be the first one in the list, assuming the header has not been
+   * tampered with. Setting this value correctly ensures that the server doesn't
+   * trust values in `X-Forwarded-For` not added by trusted proxies.
+   *
+   * In order for the server to determine the user's real IP address, you need
+   * to tell it how many proxies are between the user and the server so it can
+   * select the correct IP address from the `X-Forwarded-For` header.
+   *
+   * *WARNING:* If you set it incorrectly, the proxy will either record the
+   * wrong IP address, or it will be possible for users to spoof their IP
+   * addresses and bypass rate limiting. Check the request logs to see what
+   * incoming X-Forwarded-For values look like.
+   *
+   * Examples:
+   *  - X-Forwarded-For: "34.1.1.1, 172.1.1.1, 10.1.1.1" => trustedProxies: 3
+   *  - X-Forwarded-For: "34.1.1.1" => trustedProxies: 1
+   *  - no X-Forwarded-For header => trustedProxies: 0 (the actual IP of the incoming request will be used)
+   *
+   * As of 2024/01/08:
+   * For HuggingFace or Cloudflare Tunnel, use 1.
+   * For Render, use 3.
+   * For deployments not behind a load balancer, use 0.
+   *
+   * You should double check against your actual request logs to be sure.
+   *
+   * Defaults to 1, as most deployments are on HuggingFace or Cloudflare Tunnel.
+   */
+  trustedProxies?: number;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -286,6 +322,7 @@ export const config: Config = {
   showRecentImages: getEnvWithDefault("SHOW_RECENT_IMAGES", true),
   useInsecureCookies: getEnvWithDefault("USE_INSECURE_COOKIES", isDev),
   staticServiceInfo: getEnvWithDefault("STATIC_SERVICE_INFO", false),
+  trustedProxies: getEnvWithDefault("TRUSTED_PROXIES", 1),
 } as const;
 
 function generateCookieSecret() {
@@ -402,6 +439,7 @@ export const OMITTED_KEYS = [
   "staticServiceInfo",
   "checkKeys",
   "allowedModelFamilies",
+  "trustedProxies"
 ] satisfies (keyof Config)[];
 type OmitKeys = (typeof OMITTED_KEYS)[number];
 
