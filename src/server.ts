@@ -53,7 +53,7 @@ app.use(
 // TODO: Detect (or support manual configuration of) whether the app is behind
 // a load balancer/reverse proxy, which is necessary to determine request IP
 // addresses correctly.
-app.set("trust proxy", true);
+app.set("trust proxy", 1);
 
 app.set("view engine", "ejs");
 app.set("views", [
