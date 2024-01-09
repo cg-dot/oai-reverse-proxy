@@ -65,7 +65,11 @@ app.get("/health", (_req, res) => res.sendStatus(200));
 app.use(cors());
 app.use(checkOrigin);
 
-app.get("/", handleInfoPage);
+if (config.staticServiceInfo) {
+  app.get("/", (_req, res) => res.sendStatus(200));
+} else {
+  app.get("/", handleInfoPage);
+}
 app.get("/status", (req, res) => {
   res.json(buildInfo(req.protocol + "://" + req.get("host"), false));
 });
