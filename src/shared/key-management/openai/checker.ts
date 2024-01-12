@@ -80,6 +80,15 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
     //   families.delete("dall-e");
     // }
 
+    // as of 2024-01-10, the models endpoint has a bug and sometimes returns the
+    // gpt-4-32k-0314 snapshot even though the key doesn't have access to
+    // base gpt-4-32k. we will ignore this model if the snapshot is returned
+    // without the base model.
+    const has32k = models.find(({ id }) => id === "gpt-4-32k");
+    if (families.has("gpt4-32k") && !has32k) {
+      families.delete("gpt4-32k");
+    }
+
     // We want to update the key's model families here, but we don't want to
     // update its `lastChecked` timestamp because we need to let the liveness
     // check run before we can consider the key checked.
