@@ -185,7 +185,7 @@ const MistralAIV1ChatCompletionsSchema = z.object({
     .nullish()
     .transform((v) => Math.min(v ?? OPENAI_OUTPUT_MAX, OPENAI_OUTPUT_MAX)),
   stream: z.boolean().optional().default(false),
-  safe_mode: z.boolean().optional().default(false),
+  safe_prompt: z.boolean().optional().default(false),
   random_seed: z.number().int().optional(),
 });
 
