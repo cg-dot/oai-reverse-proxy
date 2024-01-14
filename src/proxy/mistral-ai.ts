@@ -54,7 +54,9 @@ export function generateModelList(models = KNOWN_MISTRAL_AI_MODELS) {
 }
 
 const handleModelRequest: RequestHandler = (_req, res) => {
-  if (new Date().getTime() - modelsCacheTime < 1000 * 60) return modelsCache;
+  if (new Date().getTime() - modelsCacheTime < 1000 * 60){
+    return res.status(200).json(modelsCache);
+  }
   const result = generateModelList();
   modelsCache = { object: "list", data: result };
   modelsCacheTime = new Date().getTime();

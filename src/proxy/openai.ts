@@ -35,7 +35,7 @@ export const KNOWN_OPENAI_MODELS = [
   "gpt-4-0314", // EOL 2024-06-13
   "gpt-4-32k",
   "gpt-4-32k-0613",
-  "gpt-4-32k-0314", // EOL 2024-06-13
+  // "gpt-4-32k-0314", // EOL 2024-06-13
   "gpt-3.5-turbo",
   "gpt-3.5-turbo-0301", // EOL 2024-06-13
   "gpt-3.5-turbo-0613",
@@ -83,7 +83,9 @@ export function generateModelList(models = KNOWN_OPENAI_MODELS) {
 }
 
 const handleModelRequest: RequestHandler = (_req, res) => {
-  if (new Date().getTime() - modelsCacheTime < 1000 * 60) return modelsCache;
+  if (new Date().getTime() - modelsCacheTime < 1000 * 60) {
+    return res.status(200).json(modelsCache);
+  }
   const result = generateModelList();
   modelsCache = { object: "list", data: result };
   modelsCacheTime = new Date().getTime();

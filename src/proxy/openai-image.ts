@@ -25,7 +25,9 @@ const KNOWN_MODELS = ["dall-e-2", "dall-e-3"];
 let modelListCache: any = null;
 let modelListValid = 0;
 const handleModelRequest: RequestHandler = (_req, res) => {
-  if (new Date().getTime() - modelListValid < 1000 * 60) return modelListCache;
+  if (new Date().getTime() - modelListValid < 1000 * 60) {
+    return res.status(200).json(modelListCache);
+  }
   const result = generateModelList(KNOWN_MODELS);
   modelListCache = { object: "list", data: result };
   modelListValid = new Date().getTime();
