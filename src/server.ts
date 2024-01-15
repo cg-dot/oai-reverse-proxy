@@ -12,7 +12,7 @@ import { setupAssetsDir } from "./shared/file-storage/setup-assets-dir";
 import { keyPool } from "./shared/key-management";
 import { adminRouter } from "./admin/routes";
 import { proxyRouter } from "./proxy/routes";
-import { handleInfoPage, renderPage } from "./info-page";
+import { handleInfoPage } from "./info-page";
 import { buildInfo } from "./service-info";
 import { logQueue } from "./shared/prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
@@ -22,6 +22,7 @@ import { checkOrigin } from "./proxy/check-origin";
 import { userRouter } from "./user/routes";
 
 const PORT = config.port;
+const BIND_ADDRESS = config.bindAddress;
 
 const app = express();
 // middleware
@@ -123,14 +124,17 @@ async function start() {
   logger.info("Starting request queue...");
   startRequestQueue();
 
-  app.listen(PORT, async () => {
-    logger.info({ port: PORT }, "Now listening for connections.");
-    registerUncaughtExceptionHandler();
-  });
-
   const diskSpace = await checkDiskSpace(
     __dirname.startsWith("/app") ? "/app" : os.homedir()
   );
+
+  app.listen(PORT, BIND_ADDRESS, () => {
+    logger.info(
+      { port: PORT, interface: BIND_ADDRESS },
+      "Now listening for connections."
+    );
+    registerUncaughtExceptionHandler();
+  });
 
   logger.info(
     { build: process.env.BUILD_INFO, nodeEnv: process.env.NODE_ENV, diskSpace },
@@ -182,7 +186,6 @@ async function setBuildInfo() {
     logger.info({ build: buildInfo }, "Got build info from Render config.");
     return;
   }
-
 
   // For huggingface and bare metal deployments, we can get the info from git
   try {

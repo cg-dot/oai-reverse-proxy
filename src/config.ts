@@ -16,6 +16,8 @@ export const USER_ASSETS_DIR = path.join(DATA_DIR, "user-files");
 type Config = {
   /** The port the proxy server will listen on. */
   port: number;
+  /** The network interface the proxy server will listen on. */
+  bindAddress: string;
   /** Comma-delimited list of OpenAI API keys. */
   openaiKey?: string;
   /** Comma-delimited list of Anthropic API keys. */
@@ -240,6 +242,7 @@ type Config = {
 // See .env.example for an example.
 export const config: Config = {
   port: getEnvWithDefault("PORT", 7860),
+  bindAddress: getEnvWithDefault("BIND_ADDRESS", "0.0.0.0"),
   openaiKey: getEnvWithDefault("OPENAI_KEY", ""),
   anthropicKey: getEnvWithDefault("ANTHROPIC_KEY", ""),
   googleAIKey: getEnvWithDefault("GOOGLE_AI_KEY", ""),
