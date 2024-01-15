@@ -1,0 +1,22 @@
+stages:
+  - build
+
+build_image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - |
+      if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
+        TAG="latest"
+      else
+        TAG=$CI_COMMIT_REF_NAME
+      fi
+    - echo "Building image with tag $TAG"
+    - BASE64_AUTH=$(echo -n "$DOCKER_HUB_USERNAME:$DOCKER_HUB_ACCESS_TOKEN" | base64)
+    - echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"$BASE64_AUTH\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/docker/ci/Dockerfile --destination docker.io/khanonci/oai-reverse-proxy:$CI_COMMIT_REF_NAME --build-arg CI_COMMIT_REF_NAME=$CI_COMMIT_REF_NAME --build-arg CI_COMMIT_SHA=$CI_COMMIT_SHA --build-arg CI_PROJECT_PATH=$CI_PROJECT_PATH
+  only:
+    - main
+    - gitgud-ci

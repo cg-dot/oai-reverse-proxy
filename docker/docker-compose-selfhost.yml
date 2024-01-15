@@ -1,0 +1,17 @@
+# Before running this, create a .env and greeting.md file.
+# Refer to .env.example for the required environment variables.
+# User-generated content is stored in the data directory.
+# When self-hosting, it's recommended to run this behind a reverse proxy like
+# nginx or Caddy to handle SSL/TLS and rate limiting. Refer to
+# docs/self-hosting.md for more information and an example nginx config.
+version: '3.8'
+services:
+  oai-reverse-proxy:
+    image: khanonci/oai-reverse-proxy:latest
+    ports:
+      - "127.0.0.1:7860:7860"
+    env_file:
+      - ./.env
+    volumes:
+      - ./greeting.md:/app/greeting.md
+      - ./data:/app/data

@@ -1,5 +1,7 @@
 # Deploy to Huggingface Space
 
+**⚠️ This method is no longer recommended.  Please use the [self-hosting instructions](./self-hosting.md) instead.**
+
 This repository can be deployed to a [Huggingface Space](https://huggingface.co/spaces).  This is a free service that allows you to run a simple server in the cloud.  You can use it to safely share your OpenAI API key with a friend.
 
 ### 1. Get an API key

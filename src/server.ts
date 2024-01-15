@@ -161,7 +161,18 @@ function registerUncaughtExceptionHandler() {
  * didn't set it to something misleading.
  */
 async function setBuildInfo() {
-  // Render .dockerignore's the .git directory but provides info in the env
+  // For CI builds, use the env vars set during the build process
+  if (process.env.GITGUD_BRANCH) {
+    const sha = process.env.GITGUD_COMMIT?.slice(0, 7) || "unknown SHA";
+    const branch = process.env.GITGUD_BRANCH;
+    const repo = process.env.GITGUD_PROJECT;
+    const buildInfo = `[ci] ${sha} (${branch}@${repo})`;
+    process.env.BUILD_INFO = buildInfo;
+    logger.info({ build: buildInfo }, "Using build info from CI image.");
+    return;
+  }
+
+  // For render, the git directory is dockerignore'd so we use env vars
   if (process.env.RENDER) {
     const sha = process.env.RENDER_GIT_COMMIT?.slice(0, 7) || "unknown SHA";
     const branch = process.env.RENDER_GIT_BRANCH || "unknown branch";
@@ -172,10 +183,11 @@ async function setBuildInfo() {
     return;
   }
 
+
+  // For huggingface and bare metal deployments, we can get the info from git
   try {
-    // Ignore git's complaints about dubious directory ownership on Huggingface
-    // (which evidently runs dockerized Spaces on Windows with weird NTFS perms)
     if (process.env.SPACE_ID) {
+      // TODO: may not be necessary anymore with adjusted Huggingface dockerfile
       childProcess.execSync("git config --global --add safe.directory /app");
     }
 
@@ -195,7 +207,7 @@ async function setBuildInfo() {
 
     let [sha, branch, remote, status] = await Promise.all(promises);
 
-    remote = remote.match(/.*[\/:]([\w-]+)\/([\w\-\.]+?)(?:\.git)?$/) || [];
+    remote = remote.match(/.*[\/:]([\w-]+)\/([\w\-.]+?)(?:\.git)?$/) || [];
     const repo = remote.slice(-2).join("/");
     status = status
       // ignore Dockerfile changes since that's how the user deploys the app

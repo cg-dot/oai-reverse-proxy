@@ -6,10 +6,10 @@ Reverse proxy server for various LLM APIs.
 - [What is this?](#what-is-this)
 - [Features](#features)
 - [Usage Instructions](#usage-instructions)
-  - [Self-hosting (locally or without Docker)](#self-hosting-locally-or-without-docker)
-  - [Self hosting (with Docker)](#self-hosting-with-docker)
-  - [Huggingface (not advised)](#huggingface-not-advised)
-  - [Render (not advised)](#render-not-advised)
+  - [Self-hosting](#self-hosting)
+  - [Alternatives](#alternatives)
+    - [Huggingface (outdated, not advised)](#huggingface-outdated-not-advised)
+    - [Render (outdated, not advised)](#render-outdated-not-advised)
 - [Local Development](#local-development)
 
 ## What is this?
@@ -36,23 +36,18 @@ This project allows you to run a reverse proxy server for various LLM APIs.
 ## Usage Instructions
 If you'd like to run your own instance of this server, you'll need to deploy it somewhere and configure it with your API keys. A few easy options are provided below, though you can also deploy it to any other service you'd like if you know what you're doing and the service supports Node.js.
 
-### Self-hosting (locally or without Docker)
-Follow the "Local Development" instructions below to set up prerequisites and start the server. Then you can use a service like [ngrok](https://ngrok.com/) or [trycloudflare.com](https://trycloudflare.com/) to securely expose your server to the internet, or you can use a more traditional reverse proxy/WAF like [Cloudflare](https://www.cloudflare.com/) or [Nginx](https://www.nginx.com/).
-
-**Ensure you set the `TRUSTED_PROXIES` environment variable according to your deployment.** Refer to [.env.example](./.env.example) and [config.ts](./src/config.ts) for more information.
-
-### Self hosting (with Docker)
-If you have a Docker-capable VPS or server, use the Huggingface Dockerfile ([./docker/huggingface/Dockerfile](./docker/huggingface/Dockerfile)) to build an image and run it on your server.
+### Self-hosting
+[See here for instructions on how to self-host the application on your own VPS or local machine.](./docs/self-hosting.md)
 
 **Ensure you set the `TRUSTED_PROXIES` environment variable according to your deployment.** Refer to [.env.example](./.env.example) and [config.ts](./src/config.ts) for more information.
 
 ### Alternatives
-Fiz and Sekrit are working on some alternative ways to deploy this conveniently. While I'm not directly involved in writing code or scripts for that project, I'm providing some advice and will include links to their work here when it's ready. 
+Fiz and Sekrit are working on some alternative ways to deploy this conveniently. While I'm not involved in this effort beyond providing technical advice regarding my code, I'll link to their work here for convenience: [Sekrit's rentry](https://rentry.org/sekrit)  
 
-### Huggingface (not advised)
+### Huggingface (outdated, not advised)
 [See here for instructions on how to deploy to a Huggingface Space.](./docs/deploy-huggingface.md)
 
-### Render (not advised)
+### Render (outdated, not advised)
 [See here for instructions on how to deploy to Render.com.](./docs/deploy-render.md)
 
 ## Local Development
