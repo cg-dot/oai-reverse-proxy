@@ -59,3 +59,12 @@ To run the proxy locally for development or testing, install Node.js >= 18.0.0 a
 4. Start the server in development mode with `npm run start:dev`.
 
 You can also use `npm run start:dev:tsc` to enable project-wide type checking at the cost of slower startup times. `npm run type-check` can be used to run type checking without starting the server.
+
+## Building
+To build the project, run `npm run build`. This will compile the TypeScript code to JavaScript and output it to the `build` directory.
+
+Note that if you are trying to build the server on a very memory-constrained (<= 1GB) VPS, you may need to run the build with `NODE_OPTIONS=--max_old_space_size=2048 npm run build` to avoid running out of memory during the build process, assuming you have swap enabled.  The application itself should run fine on a 512MB VPS for most reasonable traffic levels.
+
+## Forking
+
+If you are forking the repository on GitGud, you may wish to disable GitLab CI/CD or you will be spammed with emails about failed builds due not having any CI runners. You can do this by going to *Settings > General > Visibility, project features, permissions* and then disabling the "CI/CD" feature.
