@@ -37,6 +37,7 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
       break;
     case "mistral-ai":
       proxyMax = MISTRAL_AI_MAX_CONTENT;
+      break;
     case "openai-image":
       return;
     default:

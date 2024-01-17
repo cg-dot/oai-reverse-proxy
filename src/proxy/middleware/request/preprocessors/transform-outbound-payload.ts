@@ -279,11 +279,7 @@ function openaiToAnthropic(req: Request) {
   stops = [...new Set(stops)];
 
   return {
-    // Model may be overridden in `calculate-context-size.ts` to avoid having
-    // a circular dependency (`calculate-context-size.ts` needs an already-
-    // transformed request body to count tokens, but this function would like
-    // to know the count to select a model).
-    model: process.env.CLAUDE_SMALL_MODEL || "claude-v1",
+    model: rest.model,
     prompt: prompt,
     max_tokens_to_sample: rest.max_tokens,
     stop_sequences: stops,

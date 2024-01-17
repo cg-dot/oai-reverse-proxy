@@ -527,7 +527,7 @@ function monitorHeartbeat(req: Request) {
     if (bytesSinceLast < minBytes) {
       req.log.warn(
         { minBytes, bytesSinceLast },
-        "Queued request is processing heartbeats enough data or server is overloaded; killing connection."
+        "Queued request is not processing heartbeats enough data or server is overloaded; killing connection."
       );
       res.destroy();
     }

@@ -163,9 +163,7 @@ const openaiProxy = createQueueMiddleware({
     selfHandleResponse: true,
     logger,
     on: {
-      proxyReq: createOnProxyReqHandler({
-        pipeline: [addKey, finalizeBody],
-      }),
+      proxyReq: createOnProxyReqHandler({ pipeline: [addKey, finalizeBody], }),
       proxyRes: createOnProxyResHandler([openaiResponseHandler]),
       error: handleProxyError,
     },

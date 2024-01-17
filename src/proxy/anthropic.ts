@@ -173,16 +173,7 @@ anthropicRouter.post(
 function maybeReassignModel(req: Request) {
   const model = req.body.model;
   if (!model.startsWith("gpt-")) return;
-
-  const bigModel = process.env.CLAUDE_BIG_MODEL || "claude-v1-100k";
-  const contextSize = req.promptTokens! + req.outputTokens!;
-  if (contextSize > 8500) {
-    req.log.debug(
-      { model: bigModel, contextSize },
-      "Using Claude 100k model for OpenAI-to-Anthropic request"
-    );
-    req.body.model = bigModel;
-  }
+  req.body.model = "claude-2.1";
 }
 
 export const anthropic = anthropicRouter;

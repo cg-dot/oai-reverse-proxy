@@ -85,9 +85,6 @@ export class SSEStreamAdapter extends Transform {
       }
     } else {
       const { bytes } = payload;
-      // technically this is a transformation but we don't really distinguish
-      // between aws claude and anthropic claude at the APIFormat level, so
-      // these will short circuit the message transformer
       return [
         "event: completion",
         `data: ${Buffer.from(bytes, "base64").toString("utf8")}`,
@@ -95,8 +92,7 @@ export class SSEStreamAdapter extends Transform {
     }
   }
 
-  // Google doesn't use event streams and just sends elements in an array over
-  // a long-lived HTTP connection. Needs stream-json to parse the array.
+  /** Processes an incoming array element from the Google AI JSON stream. */
   protected processGoogleValue(value: any): string | null {
     try {
       const candidates = value.candidates ?? [{}];
