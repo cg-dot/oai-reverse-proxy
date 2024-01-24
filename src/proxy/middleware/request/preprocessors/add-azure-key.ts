@@ -20,7 +20,7 @@ export const addAzureKey: RequestPreprocessor = (req) => {
   req.body.model = model;
   
   // Handles the sole Azure API deviation from the OpenAI spec (that I know of)
-  if (req.body.logrpobs || req.body.top_logprobs) {
+  if (req.body.logprobs || req.body.top_logprobs) {
     // OpenAI wants logprobs: true/false and top_logprobs: number
     // Azure seems to just want to combine them into logprobs: number
     if (typeof req.body.logprobs === "boolean") {
