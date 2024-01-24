@@ -194,7 +194,9 @@ export function getCompletionFromBody(req: Request, body: Record<string, any>) {
   switch (format) {
     case "openai":
     case "mistral-ai":
-      return body.choices[0].message.content;
+      // Can be null if the model wants to invoke tools rather than return a
+      // completion.
+      return body.choices[0].message.content || "";
     case "openai-text":
       return body.choices[0].text;
     case "anthropic":

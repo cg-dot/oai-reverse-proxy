@@ -92,7 +92,21 @@ export const OpenAIV1ChatCompletionSchema = z
     // special cased it in `addAzureKey` rather than expecting clients to do it.
     logprobs: z.boolean().optional().default(false),
     top_logprobs: z.number().int().optional(),
+    // Quickly adding some newer tool usage params, not tested. They will be
+    // passed through to the API as-is.
+    tools: z.array(z.any()).optional(),
+    functions: z.array(z.any()).optional(),
+    tool_choice: z.any().optional(),
+    function_choice: z.any().optional(),
+    response_format: z.any(),
   })
+  // Tool usage must be enabled via config because we currently have no way to
+  // track quota usage for them or enforce limits.
+  .omit(
+    Boolean(config.allowOpenAIToolUsage)
+      ? {}
+      : { tools: true, functions: true }
+  )
   .strip();
 
 export type OpenAIChatMessage = z.infer<
