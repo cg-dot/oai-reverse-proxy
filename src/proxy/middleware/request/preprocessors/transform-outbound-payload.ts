@@ -87,6 +87,8 @@ export const OpenAIV1ChatCompletionSchema = z
     logit_bias: z.any().optional(),
     user: z.string().max(500).optional(),
     seed: z.number().int().optional(),
+    logprobs: z.boolean().optional().default(false),
+    top_logprobs: z.number().int().optional(),
   })
   .strip();
 
