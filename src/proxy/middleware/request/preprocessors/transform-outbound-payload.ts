@@ -87,6 +87,9 @@ export const OpenAIV1ChatCompletionSchema = z
     logit_bias: z.any().optional(),
     user: z.string().max(500).optional(),
     seed: z.number().int().optional(),
+    // Be warned that Azure OpenAI combines these two into a single field.
+    // It's the only deviation from the OpenAI API that I'm aware of so I have
+    // special cased it in `addAzureKey` rather than expecting clients to do it.
     logprobs: z.boolean().optional().default(false),
     top_logprobs: z.number().int().optional(),
   })
