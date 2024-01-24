@@ -118,7 +118,7 @@ const OpenAIV1TextCompletionSchema = z
     suffix: z.string().max(1000).optional(),
   })
   .strip()
-  .merge(OpenAIV1ChatCompletionSchema.omit({ messages: true }));
+  .merge(OpenAIV1ChatCompletionSchema.omit({ messages: true, logprobs: true }));
 
 // https://platform.openai.com/docs/api-reference/images/create
 const OpenAIV1ImagesGenerationSchema = z
