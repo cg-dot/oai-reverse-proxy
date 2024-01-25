@@ -28,6 +28,8 @@ import {
 
 // https://platform.openai.com/docs/models/overview
 export const KNOWN_OPENAI_MODELS = [
+  "gpt-4-turbo-preview",
+  "gpt-4-0125-preview",
   "gpt-4-1106-preview",
   "gpt-4-vision-preview",
   "gpt-4",

@@ -73,7 +73,8 @@ export const LLM_SERVICES = (<A extends readonly LLMService[]>(
 ] as const);
 
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
-  "^gpt-4-1106(-preview)?$": "gpt4-turbo",
+  "^gpt-4-turbo(-preview)?$": "gpt4-turbo",
+  "^gpt-4-(0125|1106)(-preview)?$": "gpt4-turbo",
   "^gpt-4(-\\d{4})?-vision(-preview)?$": "gpt4-turbo",
   "^gpt-4-32k-\\d{4}$": "gpt4-32k",
   "^gpt-4-32k$": "gpt4-32k",
