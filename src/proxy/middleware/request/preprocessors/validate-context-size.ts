@@ -48,7 +48,9 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
   let modelMax: number;
   if (model.match(/gpt-3.5-turbo-16k/)) {
     modelMax = 16384;
-  } else if (model.match(/gpt-4-1106(-preview)?/)) {
+  } else if (model.match(/gpt-4-turbo(-preview)?$/)) {
+    modelMax = 131072;
+  } else if (model.match(/gpt-4-(0125|1106)(-preview)?$/)) {
     modelMax = 131072;
   } else if (model.match(/^gpt-4(-\d{4})?-vision(-preview)?$/)) {
     modelMax = 131072;
