@@ -20,13 +20,19 @@ export const addAzureKey: RequestPreprocessor = (req) => {
   req.body.model = model;
   
   // Handles the sole Azure API deviation from the OpenAI spec (that I know of)
-  if (req.body.logprobs || req.body.top_logprobs) {
+  const notNullOrUndefined = (x: any) => x !== null && x !== undefined;
+  if ([req.body.logprobs, req.body.top_logprobs].some(notNullOrUndefined)) {
     // OpenAI wants logprobs: true/false and top_logprobs: number
     // Azure seems to just want to combine them into logprobs: number
-    if (typeof req.body.logprobs === "boolean") {
-      req.body.logprobs = req.body.top_logprobs || undefined;
-      delete req.body.top_logprobs
-    }
+    // if (typeof req.body.logprobs === "boolean") {
+    //   req.body.logprobs = req.body.top_logprobs || undefined;
+    //   delete req.body.top_logprobs
+    // }
+    
+    // Temporarily just disabling logprobs for Azure because their model support
+    // is random: `This model does not support the 'logprobs' parameter.`
+    delete req.body.logprobs;
+    delete req.body.top_logprobs;
   }
 
   req.log.info(
