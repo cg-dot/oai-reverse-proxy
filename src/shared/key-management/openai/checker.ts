@@ -73,6 +73,12 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
 
     const families = new Set<OpenAIModelFamily>();
     models.forEach(({ id }) => families.add(getOpenAIModelFamily(id, "turbo")));
+    
+    // disable dall-e for trial keys due to very low per-day quota that tends to
+    // render the key unusable.
+    if (key.isTrial) {
+      families.delete("dall-e");
+    }
 
     // as of 2023-11-18, many keys no longer return the dalle3 model but still
     // have access to it via the api for whatever reason.
