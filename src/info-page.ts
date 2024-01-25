@@ -61,8 +61,25 @@ export function renderPage(info: ServiceInfo) {
     <meta charset="utf-8" />
     <meta name="robots" content="noindex" />
     <title>${title}</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background-color: #f0f0f0;
+        padding: 1em;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #222;
+          color: #eee;
+        }
+        
+        a:link, a:visited {
+          color: #bbe;
+        }
+      }
+    </style>
   </head>
-  <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;">
+  <body>
     ${headerHtml}
     <hr />
     <h2>Service Info</h2>
