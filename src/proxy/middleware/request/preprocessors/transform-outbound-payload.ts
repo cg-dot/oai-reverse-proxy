@@ -38,7 +38,7 @@ const OpenAIV1ChatContentArraySchema = z.array(
   z.union([
     z.object({ type: z.literal("text"), text: z.string() }),
     z.object({
-      type: z.literal("image_url"),
+      type: z.union([z.literal("image"), z.literal("image_url")]),
       image_url: z.object({
         url: z.string().url(),
         detail: z.enum(["low", "auto", "high"]).optional().default("auto"),
@@ -52,9 +52,12 @@ export const OpenAIV1ChatCompletionSchema = z
     model: z.string().max(100),
     messages: z.array(
       z.object({
-        role: z.enum(["system", "user", "assistant"]),
+        role: z.enum(["system", "user", "assistant", "tool", "function"]),
         content: z.union([z.string(), OpenAIV1ChatContentArraySchema]),
         name: z.string().optional(),
+        tool_calls: z.array(z.any()).optional(),
+        function_call: z.array(z.any()).optional(),
+        tool_call_id: z.string().optional(),
       }),
       {
         required_error:
