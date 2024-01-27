@@ -54,7 +54,7 @@ export async function getTokenCount(
           for (const item of value) {
             if (item.type === "text") {
               textContent += item.text;
-            } else if (item.type === "image_url") {
+            } else if (["image", "image_url"].includes(item.type)) {
               const { url, detail } = item.image_url;
               const cost = await getGpt4VisionTokenCost(url, detail);
               numTokens += cost ?? 0;
