@@ -90,7 +90,7 @@ export const OpenAIV1ChatCompletionSchema = z
     // Be warned that Azure OpenAI combines these two into a single field.
     // It's the only deviation from the OpenAI API that I'm aware of so I have
     // special cased it in `addAzureKey` rather than expecting clients to do it.
-    logprobs: z.boolean().optional().default(false),
+    logprobs: z.boolean().optional(),
     top_logprobs: z.number().int().optional(),
     // Quickly adding some newer tool usage params, not tested. They will be
     // passed through to the API as-is.
