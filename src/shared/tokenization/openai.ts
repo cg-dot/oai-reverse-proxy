@@ -2,11 +2,7 @@ import { Tiktoken } from "tiktoken/lite";
 import cl100k_base from "tiktoken/encoders/cl100k_base.json";
 import { logger } from "../../logger";
 import { libSharp } from "../file-storage";
-import type {
-  GoogleAIChatMessage,
-  OpenAIChatMessage,
-} from "../../proxy/middleware/request/preprocessors/transform-outbound-payload";
-import { z } from "zod";
+import { GoogleAIChatMessage, OpenAIChatMessage } from "../api-schemas";
 
 const log = logger.child({ module: "tokenizer", service: "openai" });
 const GPT4_VISION_SYSTEM_PROMPT_SIZE = 170;
@@ -233,7 +229,9 @@ export function getOpenAIImageCost(params: {
   };
 }
 
-export function estimateGoogleAITokenCount(prompt: string | GoogleAIChatMessage[]) {
+export function estimateGoogleAITokenCount(
+  prompt: string | GoogleAIChatMessage[]
+) {
   if (typeof prompt === "string") {
     return getTextTokenCount(prompt);
   }

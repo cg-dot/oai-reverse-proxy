@@ -1,5 +1,5 @@
-import { MistralAIChatMessage } from "../../proxy/middleware/request/preprocessors/transform-outbound-payload";
 import * as tokenizer from "./mistral-tokenizer-js";
+import { MistralAIChatMessage } from "../api-schemas";
 
 export function init() {
   tokenizer.initializemistralTokenizer();

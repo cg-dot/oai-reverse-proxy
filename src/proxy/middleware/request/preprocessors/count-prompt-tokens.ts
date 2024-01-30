@@ -1,11 +1,11 @@
 import { RequestPreprocessor } from "../index";
 import { countTokens } from "../../../../shared/tokenization";
 import { assertNever } from "../../../../shared/utils";
-import type {
+import {
   GoogleAIChatMessage,
   MistralAIChatMessage,
   OpenAIChatMessage,
-} from "./transform-outbound-payload";
+} from "../../../../shared/api-schemas";
 
 /**
  * Given a request with an already-transformed body, counts the number of

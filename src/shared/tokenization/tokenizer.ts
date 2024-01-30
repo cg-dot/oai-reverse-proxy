@@ -1,25 +1,25 @@
 import { Request } from "express";
-import type {
+import { assertNever } from "../utils";
+import {
+  getTokenCount as getClaudeTokenCount,
+  init as initClaude,
+} from "./claude";
+import {
+  estimateGoogleAITokenCount,
+  getOpenAIImageCost,
+  getTokenCount as getOpenAITokenCount,
+  init as initOpenAi,
+} from "./openai";
+import {
+  getTokenCount as getMistralAITokenCount,
+  init as initMistralAI,
+} from "./mistral";
+import { APIFormat } from "../key-management";
+import {
   GoogleAIChatMessage,
   MistralAIChatMessage,
   OpenAIChatMessage,
-} from "../../proxy/middleware/request/preprocessors/transform-outbound-payload";
-import { assertNever } from "../utils";
-import {
-  init as initClaude,
-  getTokenCount as getClaudeTokenCount,
-} from "./claude";
-import {
-  init as initOpenAi,
-  getTokenCount as getOpenAITokenCount,
-  getOpenAIImageCost,
-  estimateGoogleAITokenCount,
-} from "./openai";
-import {
-  init as initMistralAI,
-  getTokenCount as getMistralAITokenCount,
-} from "./mistral";
-import { APIFormat } from "../key-management";
+} from "../api-schemas";
 
 export async function init() {
   initClaude();
@@ -37,7 +37,11 @@ type TokenCountRequest = { req: Request } & (
       service: "openai-text" | "anthropic" | "google-ai";
     }
   | { prompt?: GoogleAIChatMessage[]; completion?: never; service: "google-ai" }
-  | { prompt: MistralAIChatMessage[]; completion?: never; service: "mistral-ai" }
+  | {
+      prompt: MistralAIChatMessage[];
+      completion?: never;
+      service: "mistral-ai";
+    }
   | { prompt?: never; completion: string; service: APIFormat }
   | { prompt?: never; completion?: never; service: "openai-image" }
 );

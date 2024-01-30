@@ -12,7 +12,7 @@ import { assertNever } from "../../../shared/utils";
 import {
   MistralAIChatMessage,
   OpenAIChatMessage,
-} from "../request/preprocessors/transform-outbound-payload";
+} from "../../../shared/api-schemas";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */
 export const logPrompt: ProxyResHandlerWithBody = async (

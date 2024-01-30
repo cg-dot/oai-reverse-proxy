@@ -6,7 +6,7 @@ import { UserInputError } from "../../../../shared/errors";
 import {
   MistralAIChatMessage,
   OpenAIChatMessage,
-} from "./transform-outbound-payload";
+} from "../../../../shared/api-schemas";
 
 const rejectedClients = new Map<string, number>();
 

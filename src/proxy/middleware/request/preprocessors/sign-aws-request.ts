@@ -2,9 +2,9 @@ import express from "express";
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
 import { HttpRequest } from "@smithy/protocol-http";
+import { AnthropicV1CompleteSchema } from "../../../../shared/api-schemas/anthropic";
 import { keyPool } from "../../../../shared/key-management";
 import { RequestPreprocessor } from "../index";
-import { AnthropicV1CompleteSchema } from "./transform-outbound-payload";
 
 const AMZ_HOST =
   process.env.AMZ_HOST || "bedrock-runtime.%REGION%.amazonaws.com";
@@ -32,7 +32,9 @@ export const signAwsRequest: RequestPreprocessor = async (req) => {
     temperature: true,
     top_k: true,
     top_p: true,
-  }).strip().parse(req.body);
+  })
+    .strip()
+    .parse(req.body);
 
   const credential = getCredentialParts(req);
   const host = AMZ_HOST.replace("%REGION%", credential.region);
@@ -68,6 +70,7 @@ type Credential = {
   secretAccessKey: string;
   region: string;
 };
+
 function getCredentialParts(req: express.Request): Credential {
   const [accessKeyId, secretAccessKey, region] = req.key!.key.split(":");
 
