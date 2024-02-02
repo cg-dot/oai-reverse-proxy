@@ -72,6 +72,8 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     modelMax = GOOGLE_AI_MAX_CONTEXT;
   } else if (model.match(/^mistral-(tiny|small|medium)$/)) {
     modelMax = MISTRAL_AI_MAX_CONTENT;
+  } else if (model.match(/^anthropic\.claude-v2:\d/)) {
+    modelMax = 200000;
   } else if (model.match(/^anthropic\.claude/)) {
     // Not sure if AWS Claude has the same context limit as Anthropic Claude.
     modelMax = 100000;
