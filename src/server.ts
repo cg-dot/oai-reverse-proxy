@@ -66,14 +66,14 @@ app.get("/health", (_req, res) => res.sendStatus(200));
 app.use(cors());
 app.use(checkOrigin);
 
+app.use("/admin", adminRouter);
+app.use("/proxy", proxyRouter);
+app.use("/user", userRouter);
 if (config.staticServiceInfo) {
   app.get("/", (_req, res) => res.sendStatus(200));
 } else {
   app.use("/", infoPageRouter);
 }
-app.use("/admin", adminRouter);
-app.use("/proxy", proxyRouter);
-app.use("/user", userRouter);
 
 app.use((err: any, _req: unknown, res: express.Response, _next: unknown) => {
   if (err.status) {
