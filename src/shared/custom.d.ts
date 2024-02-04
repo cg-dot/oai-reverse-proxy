@@ -41,5 +41,6 @@ declare module "express-session" {
     userToken?: string;
     csrf?: string;
     flash?: { type: string; message: string };
+    unlocked?: boolean;
   }
 }

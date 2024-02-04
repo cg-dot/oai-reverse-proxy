@@ -1,14 +1,14 @@
-import {
-  isImageGenerationRequest,
-  isTextGenerationRequest,
-} from "../../common";
-import { RequestPreprocessor } from "../index";
 import { openAIToAnthropic } from "../../../../shared/api-schemas/anthropic";
 import { openAIToOpenAIText } from "../../../../shared/api-schemas/openai-text";
 import { openAIToOpenAIImage } from "../../../../shared/api-schemas/openai-image";
 import { openAIToGoogleAI } from "../../../../shared/api-schemas/google-ai";
 import { fixMistralPrompt } from "../../../../shared/api-schemas/mistral-ai";
 import { API_SCHEMA_VALIDATORS } from "../../../../shared/api-schemas";
+import {
+  isImageGenerationRequest,
+  isTextGenerationRequest,
+} from "../../common";
+import { RequestPreprocessor } from "../index";
 
 /** Transforms an incoming request body to one that matches the target API. */
 export const transformOutboundPayload: RequestPreprocessor = async (req) => {

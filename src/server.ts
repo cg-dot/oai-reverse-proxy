@@ -12,14 +12,14 @@ import { setupAssetsDir } from "./shared/file-storage/setup-assets-dir";
 import { keyPool } from "./shared/key-management";
 import { adminRouter } from "./admin/routes";
 import { proxyRouter } from "./proxy/routes";
-import { handleInfoPage } from "./info-page";
+import { infoPageRouter } from "./info-page";
+import { userRouter } from "./user/routes";
 import { buildInfo } from "./service-info";
 import { logQueue } from "./shared/prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
 import { init as initUserStore } from "./shared/users/user-store";
 import { init as initTokenizers } from "./shared/tokenization";
 import { checkOrigin } from "./proxy/check-origin";
-import { userRouter } from "./user/routes";
 
 const PORT = config.port;
 const BIND_ADDRESS = config.bindAddress;
@@ -69,11 +69,8 @@ app.use(checkOrigin);
 if (config.staticServiceInfo) {
   app.get("/", (_req, res) => res.sendStatus(200));
 } else {
-  app.get("/", handleInfoPage);
+  app.use("/", infoPageRouter);
 }
-app.get("/status", (req, res) => {
-  res.json(buildInfo(req.protocol + "://" + req.get("host"), false));
-});
 app.use("/admin", adminRouter);
 app.use("/proxy", proxyRouter);
 app.use("/user", userRouter);

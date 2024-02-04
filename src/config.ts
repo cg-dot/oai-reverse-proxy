@@ -66,6 +66,11 @@ type Config = {
    */
   adminKey?: string;
   /**
+   * The password required to view the service info/status page. If not set, the
+   * info page will be publicly accessible.
+   */
+  serviceInfoPassword?: string;
+  /**
    * Which user management mode to use.
    * - `none`: No user management. Proxy is open to all requests with basic
    *   abuse protection.
@@ -259,6 +264,7 @@ export const config: Config = {
   azureCredentials: getEnvWithDefault("AZURE_CREDENTIALS", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
   adminKey: getEnvWithDefault("ADMIN_KEY", ""),
+  serviceInfoPassword: getEnvWithDefault("SERVICE_INFO_PASSWORD", ""),
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
   gatekeeperStore: getEnvWithDefault("GATEKEEPER_STORE", "memory"),
   maxIpsPerUser: getEnvWithDefault("MAX_IPS_PER_USER", 0),
@@ -435,6 +441,7 @@ export const OMITTED_KEYS = [
   "azureCredentials",
   "proxyKey",
   "adminKey",
+  "serviceInfoPassword",
   "rejectPhrases",
   "rejectMessage",
   "showTokenCosts",
