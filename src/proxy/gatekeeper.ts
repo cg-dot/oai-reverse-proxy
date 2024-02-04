@@ -46,7 +46,15 @@ export const gatekeeper: RequestHandler = (req, res, next) => {
   }
 
   if (GATEKEEPER === "user_token" && token) {
-    const { user, result } = authenticate(token, req.ip);
+    // RisuAI users all come from a handful of aws lambda IPs so we cannot use
+    // IP alone to distinguish between them and prevent usertoken sharing.
+    // Risu sends a signed token in the request headers with an anonymous user
+    // ID that we can instead use to associate requests with an individual.
+    const ip = req.risuToken?.length ?
+      `risu${req.risuToken}-${req.ip}` :
+      req.ip;
+
+    const { user, result } = authenticate(token, ip);
 
     switch (result) {
       case "success":
