@@ -1,3 +1,4 @@
+import pino from "pino";
 import { Transform, TransformOptions } from "stream";
 import {
   EventStreamCodec,
@@ -5,9 +6,6 @@ import {
   MessageDecoderStream,
 } from "@smithy/eventstream-codec";
 import { fromUtf8, toUtf8 } from "@smithy/util-utf8";
-import { logger } from "../../../../logger";
-
-const log = logger.child({ module: "aws-eventstream-decoder" });
 
 /**
  * Consumes an HTTP response stream and transforms it into a decoded stream of
@@ -21,10 +19,12 @@ export class AWSEventStreamDecoder extends Transform {
   private messageStream: MessageDecoderStream | null = null;
   private queue: Uint8Array[] = [];
   private resolveChunk: ((value: Uint8Array | null) => void) | null = null;
+  private readonly log: pino.Logger;
 
-  constructor(options?: TransformOptions) {
+  constructor(options: TransformOptions & { logger: pino.Logger }) {
     super({ ...options, objectMode: true });
     this.decoder = new EventStreamCodec(toUtf8, fromUtf8);
+    this.log = options.logger.child({ module: "aws-eventstream-decoder" });
     this.setupStream();
   }
 
@@ -49,14 +49,14 @@ export class AWSEventStreamDecoder extends Transform {
 
     // This generator wraps the response stream (via the chunk queue) in an
     // async iterable that can be consumed by the Amazon EventStream library.
-    const inputGenerator = (async function* () {
+    const inputGenerator = async function* () {
       while (true) {
         const chunk = await that.dequeueChunk();
         if (chunk === null) break;
         yield chunk;
       }
-      log.debug("Input stream generator finished");
-    });
+      that.log.debug("Input stream generator finished");
+    };
 
     // MessageDecoderStream is an async iterator that consumes chunks from
     // inputGenerator and yields fully decoded individual messages.
@@ -69,14 +69,14 @@ export class AWSEventStreamDecoder extends Transform {
     let lastMessage: Message | null = null;
     (async function () {
       try {
-        log.debug("Starting generator");
+        that.log.debug("Starting generator");
         for await (const message of that.messageStream!) {
           lastMessage = message;
           that.push(message);
         }
         that.push(null);
       } catch (err) {
-        log.error({ err, lastMessage }, "Error decoding eventstream message");
+        that.log.error({ err, lastMessage }, "Error decoding eventstream message");
         that.emit("error", err);
       }
     })();
@@ -88,10 +88,18 @@ export class AWSEventStreamDecoder extends Transform {
   }
 
   _flush(callback: () => void) {
-    log.debug("Received end of stream; stopping generator");
+    this.log.debug("Received end of stream; stopping generator");
     if (this.resolveChunk) {
       this.resolveChunk(null);
     }
     callback();
+  }
+
+  _destroy(err: Error | null, callback: (error: Error | null) => void) {
+    this.log.debug("Destroying stream");
+    if (this.resolveChunk) {
+      this.resolveChunk(null);
+    }
+    callback(err);
   }
 }

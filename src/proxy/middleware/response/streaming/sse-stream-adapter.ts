@@ -1,59 +1,39 @@
+import pino from "pino";
 import { Transform, TransformOptions } from "stream";
 import { Message } from "@smithy/eventstream-codec";
-import StreamArray from "stream-json/streamers/StreamArray";
-import { StringDecoder } from "string_decoder";
-import { logger } from "../../../../logger";
 import { APIFormat } from "../../../../shared/key-management";
 import { makeCompletionSSE } from "../../../../shared/streaming";
 import { RetryableError } from "../index";
-import { AWSEventStreamDecoder } from "./aws-eventstream-decoder";
-
-const log = logger.child({ module: "sse-stream-adapter" });
 
 type SSEStreamAdapterOptions = TransformOptions & {
   contentType?: string;
   api: APIFormat;
+  logger: pino.Logger;
 };
 
 /**
- * Receives either text chunks or AWS vnd.amazon.eventstream messages and emits
- * full SSE-compliant messages.
+ * Receives a stream of events in a variety of formats and transforms them into
+ * Server-Sent Events.
+ *
+ * This is an object-mode stream, so it expects to receive objects and will emit
+ * strings.
  */
 export class SSEStreamAdapter extends Transform {
   private readonly isAwsStream;
   private readonly isGoogleStream;
-  private awsDecoder = new AWSEventStreamDecoder();
-  private jsonParser = StreamArray.withParser();
   private partialMessage = "";
-  private decoder = new StringDecoder("utf8");
   private textDecoder = new TextDecoder("utf8");
+  private log: pino.Logger;
 
-  constructor(options?: SSEStreamAdapterOptions) {
-    super(options);
+  constructor(options: SSEStreamAdapterOptions) {
+    super({ ...options, objectMode: true });
     this.isAwsStream =
       options?.contentType === "application/vnd.amazon.eventstream";
     this.isGoogleStream = options?.api === "google-ai";
-
-    this.awsDecoder.on("data", (data: Message) => {
-      try {
-        const message = this.processAwsEvent(data);
-        if (message) {
-          this.push(Buffer.from(message + "\n\n"), "utf8");
-        }
-      } catch (error) {
-        this.emit("error", error);
-      }
-    });
-
-    this.jsonParser.on("data", (data: { value: any }) => {
-      const message = this.processGoogleValue(data.value);
-      if (message) {
-        this.push(Buffer.from(message + "\n\n"), "utf8");
-      }
-    });
+    this.log = options.logger.child({ module: "sse-stream-adapter" });
   }
 
-  protected processAwsEvent(message: Message): string | null {
+  protected processAwsMessage(message: Message): string | null {
     // Per amazon, headers and body are always present. headers is an object,
     // body is a Uint8Array, potentially zero-length.
     const { headers, body } = message;
@@ -78,13 +58,13 @@ export class SSEStreamAdapter extends Transform {
         const type = exceptionType || errorCode || "UnknownError";
         switch (type) {
           case "ThrottlingException":
-            log.warn(
+            this.log.warn(
               { message, type },
               "AWS request throttled after streaming has already started; retrying"
             );
             throw new RetryableError("AWS request throttled mid-stream");
           default:
-            log.error({ message, type }, "Received bad AWS stream event");
+            this.log.error({ message, type }, "Received bad AWS stream event");
             return makeCompletionSSE({
               format: "anthropic",
               title: "Proxy stream error",
@@ -97,20 +77,20 @@ export class SSEStreamAdapter extends Transform {
         }
       default:
         // Amazon says this can't ever happen...
-        log.error({ message }, "Received very bad AWS stream event");
+        this.log.error({ message }, "Received very bad AWS stream event");
         return null;
     }
   }
 
   /** Processes an incoming array element from the Google AI JSON stream. */
-  protected processGoogleValue(value: any): string | null {
+  protected processGoogleObject(value: any): string | null {
     try {
       const candidates = value.candidates ?? [{}];
       const hasParts = candidates[0].content?.parts?.length > 0;
       if (hasParts) {
         return `data: ${JSON.stringify(value)}`;
       } else {
-        log.error({ event: value }, "Received bad Google AI event");
+        this.log.error({ event: value }, "Received bad Google AI event");
         return `data: ${makeCompletionSSE({
           format: "google-ai",
           title: "Proxy stream error",
@@ -124,23 +104,23 @@ export class SSEStreamAdapter extends Transform {
     } catch (error) {
       error.lastEvent = value;
       this.emit("error", error);
-      return null;
     }
+    return null;
   }
 
-  _transform(chunk: Buffer, _encoding: BufferEncoding, callback: Function) {
+  _transform(data: any, _enc: string, callback: (err?: Error | null) => void) {
     try {
       if (this.isAwsStream) {
-        this.awsDecoder.write(chunk);
+        // `data` is a Message object
+        const message = this.processAwsMessage(data);
+        if (message) this.push(message + "\n\n");
       } else if (this.isGoogleStream) {
-        this.jsonParser.write(chunk);
+        // `data` is an element from the Google AI JSON stream
+        const message = this.processGoogleObject(data);
+        if (message) this.push(message + "\n\n");
       } else {
-        // We may receive multiple (or partial) SSE messages in a single chunk,
-        // so we need to buffer and emit separate stream events for full
-        // messages so we can parse/transform them properly.
-        const str = this.decoder.write(chunk);
-
-        const fullMessages = (this.partialMessage + str).split(
+        // `data` is a string, but possibly only a partial message
+        const fullMessages = (this.partialMessage + data).split(
           /\r\r|\n\n|\r\n\r\n/
         );
         this.partialMessage = fullMessages.pop() || "";
@@ -154,7 +134,7 @@ export class SSEStreamAdapter extends Transform {
       }
       callback();
     } catch (error) {
-      error.lastEvent = chunk?.toString();
+      error.lastEvent = data?.toString();
       this.emit("error", error);
       callback(error);
     }

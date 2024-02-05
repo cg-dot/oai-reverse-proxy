@@ -1,4 +1,6 @@
-import { pipeline } from "stream";
+import { pipeline, Transform } from "stream";
+import StreamArray from "stream-json/streamers/StreamArray";
+import { StringDecoder } from "string_decoder";
 import { promisify } from "util";
 import {
   makeCompletionSSE,
@@ -10,7 +12,9 @@ import { decodeResponseBody, RawResponseBodyHandler, RetryableError } from ".";
 import { SSEStreamAdapter } from "./streaming/sse-stream-adapter";
 import { SSEMessageTransformer } from "./streaming/sse-message-transformer";
 import { EventAggregator } from "./streaming/event-aggregator";
-import { keyPool } from "../../../shared/key-management";
+import { APIFormat, keyPool } from "../../../shared/key-management";
+import { AWSEventStreamDecoder } from "./streaming/aws-eventstream-decoder";
+import pino from "pino";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -61,12 +65,17 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
 
   const prefersNativeEvents = req.inboundApi === req.outboundApi;
   const contentType = proxyRes.headers["content-type"];
+  const options = { contentType, api: req.outboundApi, logger: req.log };
 
-  // Adapter turns some arbitrary stream (binary, JSON, etc.) into SSE events.
-  const adapter = new SSEStreamAdapter({ contentType, api: req.outboundApi });
+  // Decoder turns the raw response stream into a stream of events in some
+  // format (text/event-stream, vnd.amazon.event-stream, streaming JSON, etc).
+  const decoder = selectDecoderStream(options);
+  // Adapter transforms the decoded events into server-sent events.
+  const adapter = new SSEStreamAdapter(options);
   // Aggregator compiles all events into a single response object.
   const aggregator = new EventAggregator({ format: req.outboundApi });
-  // Transformer converts events to the user's requested format.
+  // Transformer converts server-sent events from one vendor's API message
+  // format to another.
   const transformer = new SSEMessageTransformer({
     inputFormat: req.outboundApi,
     inputApiVersion: String(req.headers["anthropic-version"]),
@@ -83,7 +92,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     });
 
   try {
-    await pipelineAsync(proxyRes, adapter, transformer);
+    await pipelineAsync(proxyRes, decoder, adapter, transformer);
     req.log.debug({ key: hash }, `Finished proxying SSE stream.`);
     res.end();
     return aggregator.getFinalResponse();
@@ -98,7 +107,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
       await enqueue(req);
     } else {
       const { message, stack, lastEvent } = err;
-      const eventText = JSON.stringify(lastEvent, null, 2) ?? "undefined"
+      const eventText = JSON.stringify(lastEvent, null, 2) ?? "undefined";
       const errorEvent = makeCompletionSSE({
         format: req.inboundApi,
         title: "Proxy stream error",
@@ -114,3 +123,29 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     throw err;
   }
 };
+
+function selectDecoderStream(options: {
+  api: APIFormat;
+  contentType?: string;
+  logger: pino.Logger;
+}): NodeJS.ReadWriteStream {
+  const { api, contentType, logger } = options;
+  if (contentType?.includes("application/vnd.amazon.eventstream")) {
+    return new AWSEventStreamDecoder({ logger });
+  } else if (api === "google-ai") {
+    return StreamArray.withParser();
+  } else {
+    // Passthrough stream, but ensures split chunks across multi-byte characters
+    // are handled correctly.
+    const stringDecoder = new StringDecoder("utf8");
+    return new Transform({
+      readableObjectMode: true,
+      writableObjectMode: false,
+      transform(chunk, _encoding, callback) {
+        const text = stringDecoder.write(chunk);
+        if (text) this.push(text);
+        callback();
+      },
+    });
+  }
+}
