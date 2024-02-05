@@ -55,9 +55,11 @@ export class SSEStreamAdapter extends Transform {
       // noinspection FallThroughInSwitchStatementJS
       case "exception":
       case "error":
-        const type = exceptionType || errorCode || "UnknownError";
+        const type = String(
+          exceptionType || errorCode || "UnknownError"
+        ).toLowerCase();
         switch (type) {
-          case "ThrottlingException":
+          case "throttlingexception":
             this.log.warn(
               { message, type },
               "AWS request throttled after streaming has already started; retrying"
