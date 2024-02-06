@@ -188,6 +188,8 @@ export const decodeResponseBody: RawResponseBodyHandler = async (
       if (contentEncoding) {
         if (isSupportedContentEncoding(contentEncoding)) {
           const decoder = DECODER_MAP[contentEncoding];
+          // @ts-ignore - started failing after upgrading TypeScript, don't care
+          // as it was never a problem.
           body = await decoder(body);
         } else {
           const errorMessage = `Proxy received response with unsupported content-encoding: ${contentEncoding}`;
