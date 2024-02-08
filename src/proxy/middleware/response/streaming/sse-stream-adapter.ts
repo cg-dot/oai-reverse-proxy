@@ -136,9 +136,13 @@ export class SSEStreamAdapter extends Transform {
       }
       callback();
     } catch (error) {
-      error.lastEvent = data?.toString();
-      this.emit("error", error);
+      error.lastEvent = data?.toString() ?? "[SSEStreamAdapter] no data";
       callback(error);
     }
+  }
+
+  _flush(callback: (err?: Error | null) => void) {
+    this.log.debug("SSEStreamAdapter flushing");
+    callback();
   }
 }

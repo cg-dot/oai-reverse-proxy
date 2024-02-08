@@ -33,7 +33,7 @@ const RATE_LIMIT_LOCKOUT = 4000;
  * to be used again. This is to prevent the queue from flooding a key with too
  * many requests while we wait to learn whether previous ones succeeded.
  */
-const KEY_REUSE_DELAY = 250;
+const KEY_REUSE_DELAY = 500;
 
 export class AzureOpenAIKeyProvider implements KeyProvider<AzureOpenAIKey> {
   readonly service = "azure";
@@ -194,6 +194,7 @@ export class AzureOpenAIKeyProvider implements KeyProvider<AzureOpenAIKey> {
     this.keys.forEach(({ hash }) =>
       this.update(hash, { lastChecked: 0, isDisabled: false })
     );
+    this.checker?.scheduleNextCheck();
   }
 
   /**

@@ -12,14 +12,12 @@ import {
   StreamingCompletionTransformer,
 } from "./index";
 
-const genlog = logger.child({ module: "sse-transformer" });
-
 type SSEMessageTransformerOptions = TransformOptions & {
   requestedModel: string;
   requestId: string;
   inputFormat: APIFormat;
   inputApiVersion?: string;
-  logger?: typeof logger;
+  logger: typeof logger;
 };
 
 /**
@@ -37,7 +35,7 @@ export class SSEMessageTransformer extends Transform {
 
   constructor(options: SSEMessageTransformerOptions) {
     super({ ...options, readableObjectMode: true });
-    this.log = options.logger?.child({ module: "sse-transformer" }) ?? genlog;
+    this.log = options.logger?.child({ module: "sse-transformer" });
     this.lastPosition = 0;
     this.msgCount = 0;
     this.transformFn = getTransformer(

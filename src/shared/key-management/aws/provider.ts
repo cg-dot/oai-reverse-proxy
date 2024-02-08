@@ -192,6 +192,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     this.keys.forEach(({ hash }) =>
       this.update(hash, { lastChecked: 0, isDisabled: false })
     );
+    this.checker?.scheduleNextCheck();
   }
 
   /**

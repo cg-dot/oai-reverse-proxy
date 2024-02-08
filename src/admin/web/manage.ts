@@ -6,7 +6,7 @@ import { HttpError } from "../../shared/errors";
 import * as userStore from "../../shared/users/user-store";
 import { parseSort, sortBy, paginate } from "../../shared/utils";
 import { keyPool } from "../../shared/key-management";
-import { MODEL_FAMILIES } from "../../shared/models";
+import { LLMService, MODEL_FAMILIES } from "../../shared/models";
 import { getTokenCostUsd, prettyTokens } from "../../shared/stats";
 import {
   User,
@@ -196,13 +196,14 @@ router.post("/maintenance", (req, res) => {
   let flash = { type: "", message: "" };
   switch (action) {
     case "recheck": {
-      keyPool.recheck("openai");
-      keyPool.recheck("anthropic");
-      const size = keyPool
+      const checkable: LLMService[] = ["openai", "anthropic", "aws", "azure"];
+      checkable.forEach((s) => keyPool.recheck(s));
+      const keyCount = keyPool
         .list()
-        .filter((k) => k.service !== "google-ai").length;
+        .filter((k) => checkable.includes(k.service)).length;
+
       flash.type = "success";
-      flash.message = `Scheduled recheck of ${size} keys for OpenAI and Anthropic.`;
+      flash.message = `Scheduled recheck of ${keyCount} keys.`;
       break;
     }
     case "resetQuotas": {
