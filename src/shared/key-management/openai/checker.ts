@@ -1,4 +1,4 @@
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError, AxiosResponse } from "axios";
 import type { OpenAIModelFamily } from "../../models";
 import { KeyCheckerBase } from "../key-checker-base";
 import type { OpenAIKey, OpenAIKeyProvider } from "./provider";
@@ -73,7 +73,7 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
 
     const families = new Set<OpenAIModelFamily>();
     models.forEach(({ id }) => families.add(getOpenAIModelFamily(id, "turbo")));
-    
+
     // disable dall-e for trial keys due to very low per-day quota that tends to
     // render the key unusable.
     if (key.isTrial) {
@@ -110,25 +110,46 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
 
   private async maybeCreateOrganizationClones(key: OpenAIKey) {
     if (key.organizationId) return; // already cloned
-    const opts = { headers: { Authorization: `Bearer ${key.key}` } };
-    const { data } = await axios.get<GetOrganizationsResponse>(
-      GET_ORGANIZATIONS_URL,
-      opts
-    );
-    const organizations = data.data;
-    const defaultOrg = organizations.find(({ is_default }) => is_default);
-    this.updateKey(key.hash, { organizationId: defaultOrg?.id });
-    if (organizations.length <= 1) return undefined;
+    try {
+      const opts = { headers: { Authorization: `Bearer ${key.key}` } };
+      const { data } = await axios.get<GetOrganizationsResponse>(
+        GET_ORGANIZATIONS_URL,
+        opts
+      );
+      const organizations = data.data;
+      const defaultOrg = organizations.find(({ is_default }) => is_default);
+      this.updateKey(key.hash, { organizationId: defaultOrg?.id });
+      if (organizations.length <= 1) return;
 
-    this.log.info(
-      { parent: key.hash, organizations: organizations.map((org) => org.id) },
-      "Key is associated with multiple organizations; cloning key for each organization."
-    );
+      this.log.info(
+        { parent: key.hash, organizations: organizations.map((org) => org.id) },
+        "Key is associated with multiple organizations; cloning key for each organization."
+      );
 
-    const ids = organizations
-      .filter(({ is_default }) => !is_default)
-      .map(({ id }) => id);
-    this.cloneKey(key.hash, ids);
+      const ids = organizations
+        .filter(({ is_default }) => !is_default)
+        .map(({ id }) => id);
+      this.cloneKey(key.hash, ids);
+    } catch (error) {
+      // Some keys do not have permission to list organizations, which is the
+      // typical cause of this error.
+      let info: string | Record<string, any>;
+      const response = error.response;
+      const expectedErrorCodes = ["invalid_api_key", "no_organization"];
+      if (expectedErrorCodes.includes(response?.data?.error?.code)) {
+        return;
+      } else if (response) {
+        info = { status: response.status, data: response.data };
+      } else {
+        info = error.message;
+      }
+
+      this.log.warn(
+        { parent: key.hash, error: info },
+        "Failed to fetch organizations for key."
+      );
+      return;
+    }
 
     // It's possible that the keychecker may be stopped if all non-cloned keys
     // happened to be unusable, in which case this clnoe will never be checked
