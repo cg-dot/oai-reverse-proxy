@@ -1,19 +1,20 @@
-import { pipeline, Transform, Readable } from "stream";
+import { pipeline, Readable, Transform } from "stream";
 import StreamArray from "stream-json/streamers/StreamArray";
 import { StringDecoder } from "string_decoder";
 import { promisify } from "util";
 import { APIFormat, keyPool } from "../../../shared/key-management";
 import {
-  makeCompletionSSE,
   copySseResponseHeaders,
   initializeSseStream,
+  makeCompletionSSE,
 } from "../../../shared/streaming";
+import type { logger } from "../../../logger";
 import { enqueue } from "../../queue";
 import { decodeResponseBody, RawResponseBodyHandler, RetryableError } from ".";
+import { getAwsEventStreamDecoder } from "./streaming/aws-event-stream-decoder";
 import { EventAggregator } from "./streaming/event-aggregator";
 import { SSEMessageTransformer } from "./streaming/sse-message-transformer";
 import { SSEStreamAdapter } from "./streaming/sse-stream-adapter";
-import { viaEventStreamMarshaller } from "./streaming/via-event-stream-marshaller";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -63,12 +64,15 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
   }
 
   const prefersNativeEvents = req.inboundApi === req.outboundApi;
-  const contentType = proxyRes.headers["content-type"];
-  const streamOptions = { contentType, api: req.outboundApi, logger: req.log };
+  const streamOptions = {
+    contentType: proxyRes.headers["content-type"],
+    api: req.outboundApi,
+    logger: req.log,
+  };
 
   // Decoder turns the raw response stream into a stream of events in some
   // format (text/event-stream, vnd.amazon.event-stream, streaming JSON, etc).
-  const decoder = selectDecoderStream({ ...streamOptions, input: proxyRes });
+  const decoder = getDecoder({ ...streamOptions, input: proxyRes });
   // Adapter transforms the decoded events into server-sent events.
   const adapter = new SSEStreamAdapter(streamOptions);
   // Aggregator compiles all events into a single response object.
@@ -88,8 +92,6 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     .on("data", (msg) => {
       if (!prefersNativeEvents) res.write(`data: ${JSON.stringify(msg)}\n\n`);
       aggregator.addEvent(msg);
-    }).on("end", () => {
-      req.log.debug({ key: hash }, `Finished streaming response.`);
     });
 
   try {
@@ -125,14 +127,15 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
   }
 };
 
-function selectDecoderStream(options: {
+function getDecoder(options: {
   input: Readable;
   api: APIFormat;
+  logger: typeof logger;
   contentType?: string;
 }) {
-  const { api, contentType, input } = options;
+  const { api, contentType, input, logger } = options;
   if (contentType?.includes("application/vnd.amazon.eventstream")) {
-    return viaEventStreamMarshaller(input);
+    return getAwsEventStreamDecoder({ input, logger });
   } else if (api === "google-ai") {
     return StreamArray.withParser();
   } else {

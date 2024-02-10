@@ -51,7 +51,7 @@ export class SSEStreamAdapter extends Transform {
           const event = Buffer.from(bytes, "base64").toString("utf8");
           return ["event: completion", `data: ${event}`].join(`\n`);
         }
-      // Intentional fallthrough, non-JSON events will be something very weird
+      // Intentional fallthrough, as non-JSON events may as well be errors
       // noinspection FallThroughInSwitchStatementJS
       case "exception":
       case "error":
@@ -61,7 +61,6 @@ export class SSEStreamAdapter extends Transform {
         switch (type) {
           case "throttlingexception":
             this.log.warn(
-              { message, type },
               "AWS request throttled after streaming has already started; retrying"
             );
             throw new RetryableError("AWS request throttled mid-stream");
@@ -142,7 +141,6 @@ export class SSEStreamAdapter extends Transform {
   }
 
   _flush(callback: (err?: Error | null) => void) {
-    this.log.debug("SSEStreamAdapter flushing");
     callback();
   }
 }
