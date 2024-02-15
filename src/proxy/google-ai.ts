@@ -10,7 +10,6 @@ import {
   createOnProxyReqHandler,
   createPreprocessorMiddleware,
   finalizeSignedRequest,
-  forceModel,
 } from "./middleware/request";
 import {
   createOnProxyResHandler,
@@ -21,6 +20,9 @@ import { addGoogleAIKey } from "./middleware/request/preprocessors/add-google-ai
 let modelsCache: any = null;
 let modelsCacheTime = 0;
 
+// https://ai.google.dev/models/gemini
+// TODO: list models https://ai.google.dev/tutorials/rest_quickstart#list_models
+
 const getModelsResponse = () => {
   if (new Date().getTime() - modelsCacheTime < 1000 * 60) {
     return modelsCache;
@@ -28,7 +30,7 @@ const getModelsResponse = () => {
 
   if (!config.googleAIKey) return { object: "list", data: [] };
 
-  const googleAIVariants = ["gemini-pro"];
+  const googleAIVariants = ["gemini-pro", "gemini-1.0-pro", "gemini-1.5-pro"];
 
   const models = googleAIVariants.map((id) => ({
     id,
@@ -130,10 +132,11 @@ googleAIRouter.get("/v1/models", handleModelRequest);
 googleAIRouter.post(
   "/v1/chat/completions",
   ipLimiter,
-  createPreprocessorMiddleware(
-    { inApi: "openai", outApi: "google-ai", service: "google-ai" },
-    { afterTransform: [forceModel("gemini-pro")] }
-  ),
+  createPreprocessorMiddleware({
+    inApi: "openai",
+    outApi: "google-ai",
+    service: "google-ai",
+  }),
   googleAIProxy
 );
 
