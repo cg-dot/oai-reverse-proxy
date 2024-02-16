@@ -46,6 +46,10 @@ export interface AnthropicKey extends Key, AnthropicKeyUsage {
   /**
    * Whether this key has been detected as being affected by Anthropic's silent
    * 'please answer ethically' prompt poisoning.
+   *
+   * As of February 2024, they don't seem to use the 'ethically' prompt anymore
+   * but now sometimes inject a CYA prefill to discourage the model from
+   * outputting copyrighted material, which still interferes with outputs.
    */
   isPozzed: boolean;
 }
@@ -216,6 +220,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
       this.update(key.hash, {
         isPozzed: false,
         isDisabled: false,
+        isRevoked: false,
         lastChecked: 0,
       });
     });

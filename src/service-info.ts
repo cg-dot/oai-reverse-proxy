@@ -78,7 +78,7 @@ type OpenAIInfo = BaseFamilyInfo & {
   trialKeys?: number;
   overQuotaKeys?: number;
 };
-type AnthropicInfo = BaseFamilyInfo & { pozzedKeys?: number };
+type AnthropicInfo = BaseFamilyInfo & { prefilledKeys?: number };
 type AwsInfo = BaseFamilyInfo & { privacy?: string };
 
 // prettier-ignore
@@ -404,7 +404,7 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
         }
         break;
       case "anthropic":
-        info.pozzedKeys = modelStats.get(`${family}__pozzed`) || 0;
+        info.prefilledKeys = modelStats.get(`${family}__pozzed`) || 0;
         break;
       case "aws":
         const logged = modelStats.get(`${family}__awsLogged`) || 0;

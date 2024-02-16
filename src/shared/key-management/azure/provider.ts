@@ -192,7 +192,7 @@ export class AzureOpenAIKeyProvider implements KeyProvider<AzureOpenAIKey> {
 
   public recheck() {
     this.keys.forEach(({ hash }) =>
-      this.update(hash, { lastChecked: 0, isDisabled: false })
+      this.update(hash, { lastChecked: 0, isDisabled: false, isRevoked: false })
     );
     this.checker?.scheduleNextCheck();
   }
