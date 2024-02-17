@@ -1,4 +1,3 @@
-/** Calculates and returns stats about the service. */
 import { config, listConfig } from "./config";
 import {
   AnthropicKey,
@@ -78,7 +77,10 @@ type OpenAIInfo = BaseFamilyInfo & {
   trialKeys?: number;
   overQuotaKeys?: number;
 };
-type AnthropicInfo = BaseFamilyInfo & { prefilledKeys?: number };
+type AnthropicInfo = BaseFamilyInfo & {
+  prefilledKeys?: number;
+  overQuotaKeys?: number;
+};
 type AwsInfo = BaseFamilyInfo & { privacy?: string };
 
 // prettier-ignore
@@ -277,7 +279,11 @@ function addKeyToAggregates(k: KeyPoolKey) {
   increment(serviceStats, "openai__keys", k.service === "openai" ? 1 : 0);
   increment(serviceStats, "anthropic__keys", k.service === "anthropic" ? 1 : 0);
   increment(serviceStats, "google-ai__keys", k.service === "google-ai" ? 1 : 0);
-  increment(serviceStats, "mistral-ai__keys", k.service === "mistral-ai" ? 1 : 0);
+  increment(
+    serviceStats,
+    "mistral-ai__keys",
+    k.service === "mistral-ai" ? 1 : 0
+  );
   increment(serviceStats, "aws__keys", k.service === "aws" ? 1 : 0);
   increment(serviceStats, "azure__keys", k.service === "azure" ? 1 : 0);
 
@@ -321,6 +327,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
       sumTokens += k.claudeTokens;
       sumCost += getTokenCostUsd(family, k.claudeTokens);
       increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
+      increment(modelStats, `${family}__overQuota`, k.isOverQuota ? 1 : 0);
       increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
       increment(modelStats, `${family}__tokens`, k.claudeTokens);
       increment(modelStats, `${family}__pozzed`, k.isPozzed ? 1 : 0);
@@ -404,6 +411,7 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
         }
         break;
       case "anthropic":
+        info.overQuotaKeys = modelStats.get(`${family}__overQuota`) || 0;
         info.prefilledKeys = modelStats.get(`${family}__pozzed`) || 0;
         break;
       case "aws":

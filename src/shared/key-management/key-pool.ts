@@ -59,7 +59,7 @@ export class KeyPool {
     const service = this.getKeyProvider(key.service);
     service.disable(key);
     service.update(key.hash, { isRevoked: reason === "revoked" });
-    if (service instanceof OpenAIKeyProvider) {
+    if (service instanceof OpenAIKeyProvider || service instanceof AnthropicKeyProvider) {
       service.update(key.hash, { isOverQuota: reason === "quota" });
     }
   }

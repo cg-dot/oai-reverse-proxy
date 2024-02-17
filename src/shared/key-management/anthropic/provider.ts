@@ -52,6 +52,7 @@ export interface AnthropicKey extends Key, AnthropicKeyUsage {
    * outputting copyrighted material, which still interferes with outputs.
    */
   isPozzed: boolean;
+  isOverQuota: boolean;
 }
 
 /**
@@ -89,6 +90,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
         service: this.service,
         modelFamilies: ["claude"],
         isDisabled: false,
+        isOverQuota: false,
         isRevoked: false,
         isPozzed: false,
         promptCount: 0,
@@ -219,6 +221,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     this.keys.forEach((key) => {
       this.update(key.hash, {
         isPozzed: false,
+        isOverQuota: false,
         isDisabled: false,
         isRevoked: false,
         lastChecked: 0,

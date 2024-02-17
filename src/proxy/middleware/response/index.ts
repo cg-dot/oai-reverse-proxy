@@ -310,7 +310,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         break;
       case "anthropic":
       case "aws":
-        await maybeHandleMissingPreambleError(req, errorPayload);
+        await handleAnthropicBadRequestError(req, errorPayload);
         break;
       default:
         assertNever(service);
@@ -411,33 +411,17 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   throw new HttpError(statusCode, errorPayload.error?.message);
 };
 
-/**
- * This is a workaround for a very strange issue where certain API keys seem to
- * enforce more strict input validation than others -- specifically, they will
- * require a `\n\nHuman:` prefix on the prompt, perhaps to prevent the key from
- * being used as a generic text completion service and to enforce the use of
- * the chat RLHF.  This is not documented anywhere, and it's not clear why some
- * keys enforce this and others don't.
- * This middleware checks for that specific error and marks the key as being
- * one that requires the prefix, and then re-enqueues the request.
- * The exact error is:
- * ```
- * {
- *   "error": {
- *     "type": "invalid_request_error",
- *     "message": "prompt must start with \"\n\nHuman:\" turn"
- *   }
- * }
- * ```
- */
-async function maybeHandleMissingPreambleError(
+async function handleAnthropicBadRequestError(
   req: Request,
   errorPayload: ProxiedErrorPayload
 ) {
-  if (
-    errorPayload.error?.type === "invalid_request_error" &&
-    errorPayload.error?.message.startsWith('prompt must start with "\n\nHuman:" turn')
-  ) {
+  const { error } = errorPayload;
+  const isMissingPreamble = error?.message.startsWith(
+    `prompt must start with "\n\nHuman:" turn`
+  );
+
+  // Some keys mandate a \n\nHuman: preamble, which we can add and retry
+  if (isMissingPreamble) {
     req.log.warn(
       { key: req.key?.hash },
       "Request failed due to missing preamble. Key will be marked as such for subsequent requests."
@@ -445,9 +429,22 @@ async function maybeHandleMissingPreambleError(
     keyPool.update(req.key!, { requiresPreamble: true });
     await reenqueueRequest(req);
     throw new RetryableError("Claude request re-enqueued to add preamble.");
-  } else {
-    errorPayload.proxy_note = `Proxy received unrecognized error from Anthropic. Check the specific error for more information.`;
   }
+
+  // Only affects Anthropic keys
+  // {"type":"error","error":{"type":"invalid_request_error","message":"Usage blocked until 2024-03-01T00:00:00+00:00 due to user specified spend limits."}}
+  const isOverQuota = error?.message?.match(/usage blocked until/i);
+  if (isOverQuota) {
+    req.log.warn(
+      { key: req.key?.hash, message: error?.message },
+      "Anthropic key has hit spending limit and will be disabled."
+    );
+    keyPool.disable(req.key!, "quota");
+    errorPayload.proxy_note = `Assigned key has hit its spending limit. ${error?.message}`;
+    return;
+  }
+
+  errorPayload.proxy_note = `Unrecognized 400 Bad Request error from the API.`;
 }
 
 async function handleAnthropicRateLimitError(
@@ -459,7 +456,7 @@ async function handleAnthropicRateLimitError(
     await reenqueueRequest(req);
     throw new RetryableError("Claude rate-limited request re-enqueued.");
   } else {
-    errorPayload.proxy_note = `Unrecognized rate limit error from Anthropic. Key may be over quota.`;
+    errorPayload.proxy_note = `Unrecognized 429 Too Many Requests error from the API.`;
   }
 }
 
