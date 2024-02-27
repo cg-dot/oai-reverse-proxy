@@ -45,7 +45,7 @@ You can also request Claude Instant, but support for this isn't fully implemente
 ### Supported model IDs
 Users can send these model IDs to the proxy to invoke the corresponding models.
 - **Claude**
-  - `anthropic.claude-v1` (~18k context, claude 1.3)
+  - `anthropic.claude-v1` (~18k context, claude 1.3 -- EOL 2024-02-28)
   - `anthropic.claude-v2` (~100k context, claude 2.0)
   - `anthropic.claude-v2:1` (~200k context, claude 2.1)
 - **Claude Instant**

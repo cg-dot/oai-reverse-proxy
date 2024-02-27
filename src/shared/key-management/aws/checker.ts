@@ -47,8 +47,8 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     const modelChecks: Promise<unknown>[] = [];
     const isInitialCheck = !key.lastChecked;
     if (isInitialCheck) {
-      modelChecks.push(this.invokeModel("anthropic.claude-v1", key));
       modelChecks.push(this.invokeModel("anthropic.claude-v2", key));
+      modelChecks.push(this.invokeModel("anthropic.claude-v2:1", key));
     }
 
     await Promise.all(modelChecks);
