@@ -41,9 +41,9 @@ export class KeyPool {
     this.scheduleRecheck();
   }
 
-  public get(model: Model): Key {
-    const service = this.getServiceForModel(model);
-    return this.getKeyProvider(service).get(model);
+  public get(model: Model, service?: LLMService): Key {
+    const queryService = service || this.getServiceForModel(model);
+    return this.getKeyProvider(queryService).get(model);
   }
 
   public list(): Omit<Key, "key">[] {

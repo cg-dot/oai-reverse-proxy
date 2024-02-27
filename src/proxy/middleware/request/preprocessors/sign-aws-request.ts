@@ -14,7 +14,7 @@ const AMZ_HOST =
  * request object in place to fix the path.
  */
 export const signAwsRequest: RequestPreprocessor = async (req) => {
-  req.key = keyPool.get("anthropic.claude-v2");
+  req.key = keyPool.get("anthropic.claude-v2", "aws");
 
   const { model, stream } = req.body;
   req.isStreaming = stream === true || stream === "true";

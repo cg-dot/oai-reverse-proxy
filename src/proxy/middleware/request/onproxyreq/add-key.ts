@@ -23,16 +23,16 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
   }
 
   if (req.inboundApi === req.outboundApi) {
-    assignedKey = keyPool.get(req.body.model);
+    assignedKey = keyPool.get(req.body.model, req.service);
   } else {
     switch (req.outboundApi) {
       // If we are translating between API formats we may need to select a model
       // for the user, because the provided model is for the inbound API.
       case "anthropic":
-        assignedKey = keyPool.get("claude-v1");
+        assignedKey = keyPool.get("claude-v1", req.service);
         break;
       case "openai-text":
-        assignedKey = keyPool.get("gpt-3.5-turbo-instruct");
+        assignedKey = keyPool.get("gpt-3.5-turbo-instruct", req.service);
         break;
       case "openai":
         throw new Error(
@@ -43,7 +43,7 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
       case "mistral-ai":
         throw new Error("Mistral AI should never be translated");
       case "openai-image":
-        assignedKey = keyPool.get("dall-e-3");
+        assignedKey = keyPool.get("dall-e-3", req.service);
         break;
       default:
         assertNever(req.outboundApi);
@@ -106,7 +106,7 @@ export const addKeyForEmbeddingsRequest: HPMRequestCallback = (
 
   req.body = { input: req.body.input, model: "text-embedding-ada-002" };
 
-  const key = keyPool.get("text-embedding-ada-002") as OpenAIKey;
+  const key = keyPool.get("text-embedding-ada-002", "openai") as OpenAIKey;
 
   req.key = key;
   req.log.info(

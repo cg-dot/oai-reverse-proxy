@@ -16,7 +16,7 @@ export const addAzureKey: RequestPreprocessor = (req) => {
     ? req.body.model
     : `azure-${req.body.model}`;
 
-  req.key = keyPool.get(model);
+  req.key = keyPool.get(model, "azure");
   req.body.model = model;
   
   // Handles the sole Azure API deviation from the OpenAI spec (that I know of)

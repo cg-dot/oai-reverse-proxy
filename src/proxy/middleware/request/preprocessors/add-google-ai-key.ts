@@ -13,7 +13,7 @@ export const addGoogleAIKey: RequestPreprocessor = (req) => {
   }
 
   const model = req.body.model;
-  req.key = keyPool.get(model);
+  req.key = keyPool.get(model, "google-ai");
 
   req.log.info(
     { key: req.key.hash, model },
