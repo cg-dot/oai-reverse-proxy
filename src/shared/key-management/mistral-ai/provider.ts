@@ -5,21 +5,6 @@ import { logger } from "../../../logger";
 import { MistralAIModelFamily, getMistralAIModelFamily } from "../../models";
 import { MistralAIKeyChecker } from "./checker";
 
-export type MistralAIModel =
-  | "mistral-tiny"
-  | "mistral-small"
-  | "mistral-medium";
-
-export type MistralAIKeyUpdate = Omit<
-  Partial<MistralAIKey>,
-  | "key"
-  | "hash"
-  | "lastUsed"
-  | "promptCount"
-  | "rateLimitedAt"
-  | "rateLimitedUntil"
->;
-
 type MistralAIKeyUsage = {
   [K in MistralAIModelFamily as `${K}Tokens`]: number;
 };
@@ -66,7 +51,12 @@ export class MistralAIKeyProvider implements KeyProvider<MistralAIKey> {
       const newKey: MistralAIKey = {
         key,
         service: this.service,
-        modelFamilies: ["mistral-tiny", "mistral-small", "mistral-medium"],
+        modelFamilies: [
+          "mistral-tiny",
+          "mistral-small",
+          "mistral-medium",
+          "mistral-large",
+        ],
         isDisabled: false,
         isRevoked: false,
         promptCount: 0,
@@ -82,6 +72,7 @@ export class MistralAIKeyProvider implements KeyProvider<MistralAIKey> {
         "mistral-tinyTokens": 0,
         "mistral-smallTokens": 0,
         "mistral-mediumTokens": 0,
+        "mistral-largeTokens": 0,
       };
       this.keys.push(newKey);
     }

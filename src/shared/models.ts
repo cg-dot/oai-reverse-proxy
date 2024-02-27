@@ -27,7 +27,8 @@ export type GoogleAIModelFamily = "gemini-pro";
 export type MistralAIModelFamily =
   | "mistral-tiny"
   | "mistral-small"
-  | "mistral-medium";
+  | "mistral-medium"
+  | "mistral-large";
 export type AwsBedrockModelFamily = "aws-claude";
 export type AzureOpenAIModelFamily = `azure-${Exclude<
   OpenAIModelFamily,
@@ -54,6 +55,7 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "mistral-tiny",
   "mistral-small",
   "mistral-medium",
+  "mistral-large",
   "aws-claude",
   "azure-turbo",
   "azure-gpt4",
@@ -103,6 +105,7 @@ export const MODEL_FAMILY_SERVICE: {
   "mistral-tiny": "mistral-ai",
   "mistral-small": "mistral-ai",
   "mistral-medium": "mistral-ai",
+  "mistral-large": "mistral-ai",
 };
 
 pino({ level: "debug" }).child({ module: "startup" });
@@ -127,11 +130,13 @@ export function getGoogleAIModelFamily(_model: string): ModelFamily {
 }
 
 export function getMistralAIModelFamily(model: string): MistralAIModelFamily {
-  switch (model) {
+  const prunedModel = model.replace(/-latest$/, "");
+  switch (prunedModel) {
     case "mistral-tiny":
     case "mistral-small":
     case "mistral-medium":
-      return model;
+    case "mistral-large":
+      return model as MistralAIModelFamily;
     default:
       return "mistral-tiny";
   }

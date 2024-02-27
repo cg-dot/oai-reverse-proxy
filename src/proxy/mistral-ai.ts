@@ -27,6 +27,7 @@ export const KNOWN_MISTRAL_AI_MODELS = [
   "mistral-tiny",
   "mistral-small",
   "mistral-medium",
+  "mistral-large",
 ];
 
 let modelsCache: any = null;

@@ -1,8 +1,8 @@
 import axios, { AxiosError } from "axios";
-import type { MistralAIModelFamily, OpenAIModelFamily } from "../../models";
+import type { MistralAIModelFamily } from "../../models";
 import { KeyCheckerBase } from "../key-checker-base";
 import type { MistralAIKey, MistralAIKeyProvider } from "./provider";
-import { getMistralAIModelFamily, getOpenAIModelFamily } from "../../models";
+import { getMistralAIModelFamily } from "../../models";
 
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
 const KEY_CHECK_PERIOD = 60 * 60 * 1000; // 1 hour

@@ -38,6 +38,7 @@ const INITIAL_TOKENS: Required<UserTokenCounts> = {
   "mistral-tiny": 0,
   "mistral-small": 0,
   "mistral-medium": 0,
+  "mistral-large": 0,
   "aws-claude": 0,
   "azure-turbo": 0,
   "azure-gpt4": 0,
