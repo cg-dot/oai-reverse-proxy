@@ -47,7 +47,7 @@ export const handleInfoPage = (req: Request, res: Response) => {
       ? getExternalUrlForHuggingfaceSpaceId(process.env.SPACE_ID)
       : req.protocol + "://" + req.get("host");
 
-  const info = buildInfo(baseUrl + "/proxy");
+  const info = buildInfo(baseUrl + config.proxyEndpointRoute);
   infoPageHtml = renderPage(info);
   infoPageLastUpdated = Date.now();
 

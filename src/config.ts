@@ -249,6 +249,11 @@ type Config = {
    * risk.
    */
   allowOpenAIToolUsage?: boolean;
+  /**
+   * Allows overriding the default proxy endpoint route. Defaults to /proxy.
+   * A leading slash is required.
+   */
+  proxyEndpointRoute: string;
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -342,6 +347,7 @@ export const config: Config = {
   staticServiceInfo: getEnvWithDefault("STATIC_SERVICE_INFO", false),
   trustedProxies: getEnvWithDefault("TRUSTED_PROXIES", 1),
   allowOpenAIToolUsage: getEnvWithDefault("ALLOW_OPENAI_TOOL_USAGE", false),
+  proxyEndpointRoute: getEnvWithDefault("PROXY_ENDPOINT_ROUTE", "/proxy"),
 } as const;
 
 function generateCookieSecret() {
@@ -460,7 +466,8 @@ export const OMITTED_KEYS = [
   "staticServiceInfo",
   "checkKeys",
   "allowedModelFamilies",
-  "trustedProxies"
+  "trustedProxies",
+  "proxyEndpointRoute",
 ] satisfies (keyof Config)[];
 type OmitKeys = (typeof OMITTED_KEYS)[number];
 

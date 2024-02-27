@@ -14,7 +14,6 @@ import { adminRouter } from "./admin/routes";
 import { proxyRouter } from "./proxy/routes";
 import { infoPageRouter } from "./info-page";
 import { userRouter } from "./user/routes";
-import { buildInfo } from "./service-info";
 import { logQueue } from "./shared/prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
 import { init as initUserStore } from "./shared/users/user-store";
@@ -67,7 +66,7 @@ app.use(cors());
 app.use(checkOrigin);
 
 app.use("/admin", adminRouter);
-app.use("/proxy", proxyRouter);
+app.use(config.proxyEndpointRoute, proxyRouter);
 app.use("/user", userRouter);
 if (config.staticServiceInfo) {
   app.get("/", (_req, res) => res.sendStatus(200));
