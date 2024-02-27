@@ -24,10 +24,25 @@ import {
 
 // https://docs.mistral.ai/platform/endpoints
 export const KNOWN_MISTRAL_AI_MODELS = [
+  // Mistral 7b (open weight, legacy)
+  "open-mistral-7b",
+  "mistral-tiny-2312",
+  // Mixtral 8x7b (open weight, legacy)
+  "open-mixtral-8x7b",
+  "mistral-small-2312",
+  // Mixtral Small (newer 8x7b, closed weight)
+  "mistral-small-latest",
+  "mistral-small-2402",
+  // Mistral Medium
+  "mistral-medium-latest",
+  "mistral-medium-2312",
+  // Mistral Large
+  "mistral-large-latest",
+  "mistral-large-2402",
+  // Deprecated identifiers (2024-05-01)
   "mistral-tiny",
   "mistral-small",
   "mistral-medium",
-  "mistral-large",
 ];
 
 let modelsCache: any = null;

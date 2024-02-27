@@ -130,13 +130,17 @@ export function getGoogleAIModelFamily(_model: string): ModelFamily {
 }
 
 export function getMistralAIModelFamily(model: string): MistralAIModelFamily {
-  const prunedModel = model.replace(/-latest$/, "");
+  const prunedModel = model.replace(/-(latest|\d{4})$/, "");
   switch (prunedModel) {
     case "mistral-tiny":
     case "mistral-small":
     case "mistral-medium":
     case "mistral-large":
       return model as MistralAIModelFamily;
+    case "open-mistral-7b":
+      return "mistral-tiny";
+    case "open-mixtral-8x7b":
+      return "mistral-small";
     default:
       return "mistral-tiny";
   }
