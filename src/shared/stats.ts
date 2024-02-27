@@ -6,15 +6,19 @@ import { ModelFamily } from "./models";
 export function getTokenCostUsd(model: ModelFamily, tokens: number) {
   let cost = 0;
   switch (model) {
+    case "azure-gpt4-turbo":
     case "gpt4-turbo":
       cost = 0.00001;
       break;
+    case "azure-gpt4-32k":
     case "gpt4-32k":
       cost = 0.00006;
       break;
+    case "azure-gpt4":
     case "gpt4":
       cost = 0.00003;
       break;
+    case "azure-turbo":
     case "turbo":
       cost = 0.000001;
       break;
@@ -23,7 +27,7 @@ export function getTokenCostUsd(model: ModelFamily, tokens: number) {
       break;
     case "aws-claude":
     case "claude":
-      cost = 0.00001102;
+      cost = 0.000008;
       break;
     case "mistral-tiny":
       cost = 0.00000031;
