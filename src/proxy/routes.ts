@@ -45,6 +45,11 @@ proxyRouter.get("*", (req, res, next) => {
     next();
   }
 });
+// Handle 404s.
+proxyRouter.use((_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
 export { proxyRouter as proxyRouter };
 
 function addV1(req: Request, res: Response, next: NextFunction) {
