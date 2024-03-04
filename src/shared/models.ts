@@ -122,8 +122,7 @@ export function getOpenAIModelFamily(
   return defaultFamily;
 }
 
-export function getClaudeModelFamily(model: string): ModelFamily {
-  if (model.startsWith("anthropic.")) return getAwsBedrockModelFamily(model);
+export function getClaudeModelFamily(model: string): AnthropicModelFamily {
   if (model.includes("opus")) return "claude-opus";
   return "claude";
 }

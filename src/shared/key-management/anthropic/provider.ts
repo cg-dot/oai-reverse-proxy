@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
-import type { AnthropicModelFamily } from "../../models";
+import { AnthropicModelFamily, getClaudeModelFamily } from "../../models";
 import { AnthropicKeyChecker } from "./checker";
 
 // https://docs.anthropic.com/claude/reference/selecting-a-model
@@ -14,7 +14,7 @@ export type AnthropicModel =
   | "claude-2"
   | "claude-2.1"
   | "claude-3-opus-20240229" // new expensive model
-  | "claude-3-sonnet-20240229" // new cheap claude2 sidegrade
+  | "claude-3-sonnet-20240229"; // new cheap claude2 sidegrade
 
 export type AnthropicKeyUpdate = Omit<
   Partial<AnthropicKey>,
@@ -181,11 +181,11 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     return this.keys.filter((k) => !k.isDisabled).length;
   }
 
-  public incrementUsage(hash: string, _model: string, tokens: number) {
+  public incrementUsage(hash: string, model: string, tokens: number) {
     const key = this.keys.find((k) => k.hash === hash);
     if (!key) return;
     key.promptCount++;
-    key.claudeTokens += tokens;
+    key[`${getClaudeModelFamily(model)}Tokens`] += tokens;
   }
 
   public getLockoutPeriod() {

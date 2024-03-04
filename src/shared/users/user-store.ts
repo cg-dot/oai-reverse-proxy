@@ -12,6 +12,7 @@ import schedule from "node-schedule";
 import { v4 as uuid } from "uuid";
 import { config, getFirebaseApp } from "../../config";
 import {
+  getAwsBedrockModelFamily,
   getAzureOpenAIModelFamily,
   getClaudeModelFamily,
   getGoogleAIModelFamily,
@@ -393,8 +394,10 @@ function getModelFamilyForQuotaUsage(
   model: string,
   api: APIFormat
 ): ModelFamily {
-  // TODO: this seems incorrect
+  // "azure" here is added to model names by the Azure key provider to
+  // differentiate between Azure and OpenAI variants of the same model.
   if (model.includes("azure")) return getAzureOpenAIModelFamily(model);
+  if (model.includes("anthropic.")) return getAwsBedrockModelFamily(model);
 
   switch (api) {
     case "openai":
