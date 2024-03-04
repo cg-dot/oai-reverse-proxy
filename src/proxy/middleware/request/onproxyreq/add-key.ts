@@ -28,7 +28,8 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
     switch (req.outboundApi) {
       // If we are translating between API formats we may need to select a model
       // for the user, because the provided model is for the inbound API.
-      case "anthropic":
+      case "anthropic-chat":
+      case "anthropic-text":
         assignedKey = keyPool.get("claude-v1", req.service);
         break;
       case "openai-text":
@@ -71,6 +72,8 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
       if (key.organizationId) {
         proxyReq.setHeader("OpenAI-Organization", key.organizationId);
       }
+      proxyReq.setHeader("Authorization", `Bearer ${assignedKey.key}`);
+      break;
     case "mistral-ai":
       proxyReq.setHeader("Authorization", `Bearer ${assignedKey.key}`);
       break;

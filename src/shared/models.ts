@@ -192,7 +192,8 @@ export function getModelFamilyForRequest(req: Request): ModelFamily {
     modelFamily = getAzureOpenAIModelFamily(model);
   } else {
     switch (req.outboundApi) {
-      case "anthropic":
+      case "anthropic-chat":
+      case "anthropic-text":
         modelFamily = getClaudeModelFamily(model);
         break;
       case "openai":

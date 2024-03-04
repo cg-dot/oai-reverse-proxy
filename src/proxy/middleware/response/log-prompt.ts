@@ -10,9 +10,11 @@ import {
 import { ProxyResHandlerWithBody } from ".";
 import { assertNever } from "../../../shared/utils";
 import {
+  AnthropicChatMessage, flattenAnthropicMessages,
   MistralAIChatMessage,
   OpenAIChatMessage,
 } from "../../../shared/api-schemas";
+import { APIFormat } from "../../../shared/key-management";
 
 /** If prompt logging is enabled, enqueues the prompt for logging. */
 export const logPrompt: ProxyResHandlerWithBody = async (
@@ -33,7 +35,7 @@ export const logPrompt: ProxyResHandlerWithBody = async (
   if (!loggable) return;
 
   const promptPayload = getPromptForRequest(req, responseBody);
-  const promptFlattened = flattenMessages(promptPayload);
+  const promptFlattened = flattenMessages(promptPayload, req.outboundApi);
   const response = getCompletionFromBody(req, responseBody);
   const model = getModelFromBody(req, responseBody);
 
@@ -57,13 +59,19 @@ type OaiImageResult = {
 const getPromptForRequest = (
   req: Request,
   responseBody: Record<string, any>
-): string | OpenAIChatMessage[] | MistralAIChatMessage[] | OaiImageResult => {
+):
+  | string
+  | OpenAIChatMessage[]
+  | AnthropicChatMessage[]
+  | MistralAIChatMessage[]
+  | OaiImageResult => {
   // Since the prompt logger only runs after the request has been proxied, we
   // can assume the body has already been transformed to the target API's
   // format.
   switch (req.outboundApi) {
     case "openai":
     case "mistral-ai":
+    case "anthropic-chat":
       return req.body.messages;
     case "openai-text":
       return req.body.prompt;
@@ -75,7 +83,7 @@ const getPromptForRequest = (
         quality: req.body.quality,
         revisedPrompt: responseBody.data[0].revised_prompt,
       };
-    case "anthropic":
+    case "anthropic-text":
       return req.body.prompt;
     case "google-ai":
       return req.body.prompt.text;
@@ -85,10 +93,19 @@ const getPromptForRequest = (
 };
 
 const flattenMessages = (
-  val: string | OpenAIChatMessage[] | MistralAIChatMessage[] | OaiImageResult
+  val:
+    | string
+    | OpenAIChatMessage[]
+    | MistralAIChatMessage[]
+    | OaiImageResult
+    | AnthropicChatMessage[],
+  format: APIFormat,
 ): string => {
   if (typeof val === "string") {
     return val.trim();
+  }
+  if (format === "anthropic-chat") {
+    return flattenAnthropicMessages(val as AnthropicChatMessage[]);
   }
   if (Array.isArray(val)) {
     return val

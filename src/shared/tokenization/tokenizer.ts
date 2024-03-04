@@ -16,6 +16,7 @@ import {
 } from "./mistral";
 import { APIFormat } from "../key-management";
 import {
+  AnthropicChatMessage,
   GoogleAIChatMessage,
   MistralAIChatMessage,
   OpenAIChatMessage,
@@ -27,23 +28,60 @@ export async function init() {
   initMistralAI();
 }
 
-/** Tagged union via `service` field of the different types of requests that can
- * be made to the tokenization service, for both prompts and completions */
+type OpenAIChatTokenCountRequest = {
+  prompt: OpenAIChatMessage[];
+  completion?: never;
+  service: "openai";
+};
+
+type AnthropicChatTokenCountRequest = {
+  prompt: AnthropicChatMessage[];
+  completion?: never;
+  service: "anthropic-chat";
+};
+
+type GoogleAIChatTokenCountRequest = {
+  prompt: GoogleAIChatMessage[];
+  completion?: never;
+  service: "google-ai";
+};
+
+type MistralAIChatTokenCountRequest = {
+  prompt: MistralAIChatMessage[];
+  completion?: never;
+  service: "mistral-ai";
+};
+
+type FlatPromptTokenCountRequest = {
+  prompt: string;
+  completion?: never;
+  service: "openai-text" | "anthropic-text" | "google-ai";
+};
+
+type StringCompletionTokenCountRequest = {
+  prompt?: never;
+  completion: string;
+  service: APIFormat;
+};
+
+type OpenAIImageCompletionTokenCountRequest = {
+  prompt?: never;
+  completion?: never;
+  service: "openai-image";
+};
+
+/**
+ * Tagged union via `service` field of the different types of requests that can
+ * be made to the tokenization service, for both prompts and completions
+ */
 type TokenCountRequest = { req: Request } & (
-  | { prompt: OpenAIChatMessage[]; completion?: never; service: "openai" }
-  | {
-      prompt: string;
-      completion?: never;
-      service: "openai-text" | "anthropic" | "google-ai";
-    }
-  | { prompt?: GoogleAIChatMessage[]; completion?: never; service: "google-ai" }
-  | {
-      prompt: MistralAIChatMessage[];
-      completion?: never;
-      service: "mistral-ai";
-    }
-  | { prompt?: never; completion: string; service: APIFormat }
-  | { prompt?: never; completion?: never; service: "openai-image" }
+  | OpenAIChatTokenCountRequest
+  | AnthropicChatTokenCountRequest
+  | GoogleAIChatTokenCountRequest
+  | MistralAIChatTokenCountRequest
+  | FlatPromptTokenCountRequest
+  | StringCompletionTokenCountRequest
+  | OpenAIImageCompletionTokenCountRequest
 );
 
 type TokenCountResult = {
@@ -60,9 +98,14 @@ export async function countTokens({
 }: TokenCountRequest): Promise<TokenCountResult> {
   const time = process.hrtime();
   switch (service) {
-    case "anthropic":
+    case "anthropic-chat":
       return {
-        ...getClaudeTokenCount(prompt ?? completion, req.body.model),
+        ...getClaudeTokenCount(prompt ?? completion),
+        tokenization_duration_ms: getElapsedMs(time),
+      };
+    case "anthropic-text":
+      return {
+        ...getClaudeTokenCount(prompt ?? completion),
         tokenization_duration_ms: getElapsedMs(time),
       };
     case "openai":

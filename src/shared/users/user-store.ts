@@ -400,7 +400,8 @@ function getModelFamilyForQuotaUsage(
     case "openai-text":
     case "openai-image":
       return getOpenAIModelFamily(model);
-    case "anthropic":
+    case "anthropic-chat":
+    case "anthropic-text":
       return getClaudeModelFamily(model);
     case "google-ai":
       return getGoogleAIModelFamily(model);

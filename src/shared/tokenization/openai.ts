@@ -60,16 +60,8 @@ export async function getTokenCount(
           textContent = value;
         }
 
-        // Break if we get a huge message or exceed the token limit to prevent
-        // DoS.
-        // 200k tokens allows for future 200k GPT-4 models and 500k characters
-        // is just a sanity check
-        if (textContent.length > 500000 || numTokens > 200000) {
-          numTokens = 200000;
-          return {
-            tokenizer: "tiktoken (prompt length limit exceeded)",
-            token_count: numTokens,
-          };
+        if (textContent.length > 800000 || numTokens > 200000) {
+          throw new Error("Content is too large to tokenize.");
         }
 
         numTokens += encoder.encode(textContent).length;

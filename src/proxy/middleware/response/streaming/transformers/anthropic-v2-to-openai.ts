@@ -1,4 +1,7 @@
-import { StreamingCompletionTransformer } from "../index";
+import {
+  AnthropicV2StreamEvent,
+  StreamingCompletionTransformer,
+} from "../index";
 import { parseEvent, ServerSentEvent } from "../parse-sse";
 import { logger } from "../../../../../logger";
 
@@ -6,13 +9,6 @@ const log = logger.child({
   module: "sse-transformer",
   transformer: "anthropic-v2-to-openai",
 });
-
-type AnthropicV2StreamEvent = {
-  log_id?: string;
-  model?: string;
-  completion: string;
-  stop_reason: string;
-};
 
 /**
  * Transforms an incoming Anthropic SSE (2023-06-01 API) to an equivalent

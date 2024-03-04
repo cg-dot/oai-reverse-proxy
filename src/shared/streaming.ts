@@ -84,7 +84,7 @@ export function makeCompletionSSE({
         model,
       };
       break;
-    case "anthropic":
+    case "anthropic-text":
       event = {
         completion: content,
         stop_reason: title,
@@ -106,13 +106,14 @@ export function makeCompletionSSE({
           },
         ],
       });
+    case "anthropic-chat":
     case "openai-image":
       throw new Error(`SSE not supported for ${format} requests`);
     default:
       assertNever(format);
   }
 
-  if (format === "anthropic") {
+  if (format === "anthropic-text") {
     return (
       ["event: completion", `data: ${JSON.stringify(event)}`].join("\n") +
       "\n\n"

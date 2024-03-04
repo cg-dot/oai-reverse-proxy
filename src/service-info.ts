@@ -91,6 +91,7 @@ export type ServiceInfo = {
     openai2?: string;
     "openai-image"?: string;
     anthropic?: string;
+    "anthropic-claude-3"?: string;
     "google-ai"?: string;
     "mistral-ai"?: string;
     aws?: string;
@@ -132,6 +133,7 @@ const SERVICE_ENDPOINTS: { [s in LLMService]: Record<string, string> } = {
   },
   anthropic: {
     anthropic: `%BASE%/anthropic`,
+    "anthropic-claude-3 (temporary compatibility endpoint)": `%BASE%/anthropic/claude-3`,
   },
   "google-ai": {
     "google-ai": `%BASE%/google-ai`,

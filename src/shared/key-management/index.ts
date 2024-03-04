@@ -9,11 +9,12 @@ import { KeyPool } from "./key-pool";
 /** The request and response format used by a model's API. */
 export type APIFormat =
   | "openai"
-  | "anthropic"
-  | "google-ai"
-  | "mistral-ai"
   | "openai-text"
-  | "openai-image";
+  | "openai-image"
+  | "anthropic-chat" // Anthropic's newer messages array format
+  | "anthropic-text" // Legacy flat string prompt format
+  | "google-ai"
+  | "mistral-ai";
 export type Model =
   | OpenAIModel
   | AnthropicModel

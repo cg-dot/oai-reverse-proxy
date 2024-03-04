@@ -1,4 +1,7 @@
-import { openAIToAnthropic } from "../../../../shared/api-schemas/anthropic";
+import {
+  anthropicTextToAnthropicChat,
+  openAIToAnthropicText,
+} from "../../../../shared/api-schemas/anthropic";
 import { openAIToOpenAIText } from "../../../../shared/api-schemas/openai-text";
 import { openAIToOpenAIImage } from "../../../../shared/api-schemas/openai-image";
 import { openAIToGoogleAI } from "../../../../shared/api-schemas/google-ai";
@@ -41,8 +44,16 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
     return;
   }
 
-  if (req.inboundApi === "openai" && req.outboundApi === "anthropic") {
-    req.body = openAIToAnthropic(req);
+  if (
+    req.inboundApi === "anthropic-text" &&
+    req.outboundApi === "anthropic-chat"
+  ) {
+    req.body = anthropicTextToAnthropicChat(req);
+    return;
+  }
+
+  if (req.inboundApi === "openai" && req.outboundApi === "anthropic-text") {
+    req.body = openAIToAnthropicText(req);
     return;
   }
 

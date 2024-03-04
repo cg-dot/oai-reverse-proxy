@@ -29,7 +29,8 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     case "openai-text":
       proxyMax = OPENAI_MAX_CONTEXT;
       break;
-    case "anthropic":
+    case "anthropic-chat":
+    case "anthropic-text":
       proxyMax = CLAUDE_MAX_CONTEXT;
       break;
     case "google-ai":

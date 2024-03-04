@@ -1,6 +1,6 @@
 import { OpenAIChatCompletionStreamEvent } from "../index";
 
-export type AnthropicCompletionResponse = {
+export type AnthropicTextCompletionResponse = {
   completion: string;
   stop_reason: string;
   truncated: boolean;
@@ -15,10 +15,10 @@ export type AnthropicCompletionResponse = {
  * finalized Anthropic completion response so that non-streaming middleware
  * can operate on it as if it were a blocking response.
  */
-export function mergeEventsForAnthropic(
+export function mergeEventsForAnthropicText(
   events: OpenAIChatCompletionStreamEvent[]
-): AnthropicCompletionResponse {
-  let merged: AnthropicCompletionResponse = {
+): AnthropicTextCompletionResponse {
+  let merged: AnthropicTextCompletionResponse = {
     log_id: "",
     exception: null,
     model: "",

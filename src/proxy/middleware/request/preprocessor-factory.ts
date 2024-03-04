@@ -114,7 +114,7 @@ const handleTestMessage: RequestHandler = (req, res) => {
   if (method !== "POST") {
     return;
   }
-  
+
   if (isTestMessage(body)) {
     req.log.info({ body }, "Received test message. Skipping API call.");
     res.json({
@@ -145,6 +145,9 @@ function isTestMessage(body: any) {
       messages[0].content === "Hi"
     );
   } else {
-    return prompt?.trim() === "Human: Hi\n\nAssistant:";
+    return (
+      prompt?.trim() === "Human: Hi\n\nAssistant:" ||
+      prompt?.startsWith("Hi\n\n")
+    );
   }
 }

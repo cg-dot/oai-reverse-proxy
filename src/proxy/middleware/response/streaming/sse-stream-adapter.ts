@@ -67,7 +67,7 @@ export class SSEStreamAdapter extends Transform {
           default:
             this.log.error({ message, type }, "Received bad AWS stream event");
             return makeCompletionSSE({
-              format: "anthropic",
+              format: "anthropic-text",
               title: "Proxy stream error",
               message:
                 "The proxy received an unrecognized error from AWS while streaming.",

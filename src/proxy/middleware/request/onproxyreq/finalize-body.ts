@@ -8,6 +8,10 @@ export const finalizeBody: HPMRequestCallback = (proxyReq, req) => {
     if (req.outboundApi === "openai-image") {
       delete req.body.stream;
     }
+    // For anthropic text to chat requests, remove undefined prompt.
+    if (req.outboundApi === "anthropic-chat") {
+      delete req.body.prompt;
+    }
 
     const updatedBody = JSON.stringify(req.body);
     proxyReq.setHeader("Content-Length", Buffer.byteLength(updatedBody));

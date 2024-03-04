@@ -11,6 +11,8 @@ const OPENAI_TEXT_COMPLETION_ENDPOINT = "/v1/completions";
 const OPENAI_EMBEDDINGS_ENDPOINT = "/v1/embeddings";
 const OPENAI_IMAGE_COMPLETION_ENDPOINT = "/v1/images/generations";
 const ANTHROPIC_COMPLETION_ENDPOINT = "/v1/complete";
+const ANTHROPIC_MESSAGES_ENDPOINT = "/v1/messages";
+const ANTHROPIC_CLAUDE3_COMPAT_ENDPOINT = "/v1/claude-3/complete";
 
 export function isTextGenerationRequest(req: Request) {
   return (
@@ -19,6 +21,8 @@ export function isTextGenerationRequest(req: Request) {
       OPENAI_CHAT_COMPLETION_ENDPOINT,
       OPENAI_TEXT_COMPLETION_ENDPOINT,
       ANTHROPIC_COMPLETION_ENDPOINT,
+      ANTHROPIC_MESSAGES_ENDPOINT,
+      ANTHROPIC_CLAUDE3_COMPAT_ENDPOINT,
     ].some((endpoint) => req.path.startsWith(endpoint))
   );
 }
@@ -91,6 +95,7 @@ export const classifyErrorAndSend = (
     });
   } catch (error) {
     req.log.error(error, `Error writing error response headers, giving up.`);
+    res.end();
   }
 };
 
@@ -199,11 +204,24 @@ export function getCompletionFromBody(req: Request, body: Record<string, any>) {
       return body.choices[0].message.content || "";
     case "openai-text":
       return body.choices[0].text;
-    case "anthropic":
+    case "anthropic-chat":
+      if (!body.content) {
+        req.log.error(
+          { body: JSON.stringify(body) },
+          "Received empty Anthropic chat completion"
+        );
+        return "";
+      }
+      return body.content
+        .map(({ text, type }: { type: string; text: string }) =>
+          type === "text" ? text : `[Unsupported content type: ${type}]`
+        )
+        .join("\n");
+    case "anthropic-text":
       if (!body.completion) {
         req.log.error(
           { body: JSON.stringify(body) },
-          "Received empty Anthropic completion"
+          "Received empty Anthropic text completion"
         );
         return "";
       }
@@ -229,7 +247,8 @@ export function getModelFromBody(req: Request, body: Record<string, any>) {
       return body.model;
     case "openai-image":
       return req.body.model;
-    case "anthropic":
+    case "anthropic-chat":
+    case "anthropic-text":
       // Anthropic confirms the model in the response, but AWS Claude doesn't.
       return body.model || req.body.model;
     case "google-ai":

@@ -2,7 +2,10 @@ import express from "express";
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
 import { HttpRequest } from "@smithy/protocol-http";
-import { AnthropicV1CompleteSchema } from "../../../../shared/api-schemas/anthropic";
+import {
+  AnthropicV1TextSchema,
+  AnthropicV1MessagesSchema,
+} from "../../../../shared/api-schemas/anthropic";
 import { keyPool } from "../../../../shared/key-management";
 import { RequestPreprocessor } from "../index";
 
@@ -22,19 +25,37 @@ export const signAwsRequest: RequestPreprocessor = async (req) => {
   let preamble = req.body.prompt.startsWith("\n\nHuman:") ? "" : "\n\nHuman:";
   req.body.prompt = preamble + req.body.prompt;
 
-  // AWS supports only a subset of Anthropic's parameters and is more strict
-  // about unknown parameters.
+  // AWS uses mostly the same parameters as Anthropic, with a few removed params
+  // and much stricter validation on unused parameters. Rather than treating it
+  // as a separate schema we will use the anthropic ones and strip the unused
+  // parameters.
   // TODO: This should happen in transform-outbound-payload.ts
-  const strippedParams = AnthropicV1CompleteSchema.pick({
-    prompt: true,
-    max_tokens_to_sample: true,
-    stop_sequences: true,
-    temperature: true,
-    top_k: true,
-    top_p: true,
-  })
-    .strip()
-    .parse(req.body);
+  let strippedParams: Record<string, unknown>;
+  if (req.inboundApi === "anthropic-chat") {
+    strippedParams = AnthropicV1MessagesSchema
+      .pick({
+        messages: true,
+        max_tokens: true,
+        stop_sequences: true,
+        temperature: true,
+        top_k: true,
+        top_p: true,
+      })
+      .strip()
+      .parse(req.body);
+  } else {
+    strippedParams = AnthropicV1TextSchema
+      .pick({
+        prompt: true,
+        max_tokens_to_sample: true,
+        stop_sequences: true,
+        temperature: true,
+        top_k: true,
+        top_p: true,
+      })
+      .strip()
+      .parse(req.body);
+  }
 
   const credential = getCredentialParts(req);
   const host = AMZ_HOST.replace("%REGION%", credential.region);

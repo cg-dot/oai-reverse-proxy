@@ -32,6 +32,7 @@ const getModelsResponse = () => {
   const variants = [
     "anthropic.claude-v2",
     "anthropic.claude-v2:1",
+    "anthropic.claude-3-sonnet-20240229-v1:0"
   ];
 
   const models = variants.map((id) => ({
@@ -145,7 +146,7 @@ awsRouter.post(
   "/v1/complete",
   ipLimiter,
   createPreprocessorMiddleware(
-    { inApi: "anthropic", outApi: "anthropic", service: "aws" },
+    { inApi: "anthropic-text", outApi: "anthropic-text", service: "aws" },
     { afterTransform: [maybeReassignModel] }
   ),
   awsProxy
@@ -155,7 +156,7 @@ awsRouter.post(
   "/v1/chat/completions",
   ipLimiter,
   createPreprocessorMiddleware(
-    { inApi: "openai", outApi: "anthropic", service: "aws" },
+    { inApi: "openai", outApi: "anthropic-text", service: "aws" },
     { afterTransform: [maybeReassignModel] }
   ),
   awsProxy

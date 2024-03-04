@@ -6,6 +6,7 @@ import { UserInputError } from "../../../../shared/errors";
 import {
   MistralAIChatMessage,
   OpenAIChatMessage,
+  flattenAnthropicMessages,
 } from "../../../../shared/api-schemas";
 
 const rejectedClients = new Map<string, number>();
@@ -53,7 +54,9 @@ function getPromptFromRequest(req: Request) {
   const service = req.outboundApi;
   const body = req.body;
   switch (service) {
-    case "anthropic":
+    case "anthropic-chat":
+      return flattenAnthropicMessages(body.messages);
+    case "anthropic-text":
       return body.prompt;
     case "openai":
     case "mistral-ai":
