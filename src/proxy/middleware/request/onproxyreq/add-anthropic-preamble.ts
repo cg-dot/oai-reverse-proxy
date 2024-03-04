@@ -18,7 +18,7 @@ export const addAnthropicPreamble: HPMRequestCallback = (
   let preamble = "";
   let prompt = req.body.prompt;
   assertAnthropicKey(req.key);
-  if (req.key.requiresPreamble) {
+  if (req.key.requiresPreamble && prompt) {
     preamble = prompt.startsWith("\n\nHuman:") ? "" : "\n\nHuman:";
     req.log.debug({ key: req.key.hash, preamble }, "Adding preamble to prompt");
   }
