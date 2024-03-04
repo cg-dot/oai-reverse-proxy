@@ -7,11 +7,12 @@ import { HPMRequestCallback } from "../index";
  * know this without trying to send the request and seeing if it fails. If a
  * key is marked as requiring a preamble, it will be added here.
  */
-export const addAnthropicPreamble: HPMRequestCallback = (
-  _proxyReq,
-  req
-) => {
-  if (!isTextGenerationRequest(req) || req.key?.service !== "anthropic") {
+export const addAnthropicPreamble: HPMRequestCallback = (_proxyReq, req) => {
+  if (
+    !isTextGenerationRequest(req) ||
+    req.key?.service !== "anthropic" ||
+    req.outboundApi !== "anthropic-text"
+  ) {
     return;
   }
 

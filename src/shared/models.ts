@@ -22,7 +22,7 @@ export type OpenAIModelFamily =
   | "gpt4-32k"
   | "gpt4-turbo"
   | "dall-e";
-export type AnthropicModelFamily = "claude";
+export type AnthropicModelFamily = "claude" | "claude-opus";
 export type GoogleAIModelFamily = "gemini-pro";
 export type MistralAIModelFamily =
   | "mistral-tiny"
@@ -51,6 +51,7 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "gpt4-turbo",
   "dall-e",
   "claude",
+  "claude-opus",
   "gemini-pro",
   "mistral-tiny",
   "mistral-small",
@@ -96,6 +97,7 @@ export const MODEL_FAMILY_SERVICE: {
   "gpt4-32k": "openai",
   "dall-e": "openai",
   claude: "anthropic",
+  "claude-opus": "anthropic",
   "aws-claude": "aws",
   "azure-turbo": "azure",
   "azure-gpt4": "azure",
@@ -122,6 +124,7 @@ export function getOpenAIModelFamily(
 
 export function getClaudeModelFamily(model: string): ModelFamily {
   if (model.startsWith("anthropic.")) return getAwsBedrockModelFamily(model);
+  if (model.includes("opus")) return "claude-opus";
   return "claude";
 }
 
@@ -146,7 +149,8 @@ export function getMistralAIModelFamily(model: string): MistralAIModelFamily {
   }
 }
 
-export function getAwsBedrockModelFamily(_model: string): ModelFamily {
+export function getAwsBedrockModelFamily(model: string): ModelFamily {
+  if (model.includes("opus")) return "claude-opus";
   return "aws-claude";
 }
 

@@ -13,8 +13,8 @@ export type AnthropicModel =
   | "claude-v1-100k"
   | "claude-2"
   | "claude-2.1"
-  | "claude-3-opus-20240229"
-  | "claude-3-sonnet-20240229";
+  | "claude-3-opus-20240229" // new expensive model
+  | "claude-3-sonnet-20240229" // new cheap claude2 sidegrade
 
 export type AnthropicKeyUpdate = Omit<
   Partial<AnthropicKey>,
@@ -90,7 +90,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
       const newKey: AnthropicKey = {
         key,
         service: this.service,
-        modelFamilies: ["claude"],
+        modelFamilies: ["claude", "claude-opus"],
         isDisabled: false,
         isOverQuota: false,
         isRevoked: false,
@@ -107,6 +107,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
           .slice(0, 8)}`,
         lastChecked: 0,
         claudeTokens: 0,
+        "claude-opusTokens": 0,
       };
       this.keys.push(newKey);
     }

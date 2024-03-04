@@ -34,6 +34,7 @@ const INITIAL_TOKENS: Required<UserTokenCounts> = {
   "gpt4-turbo": 0,
   "dall-e": 0,
   claude: 0,
+  "claude-opus": 0,
   "gemini-pro": 0,
   "mistral-tiny": 0,
   "mistral-small": 0,
