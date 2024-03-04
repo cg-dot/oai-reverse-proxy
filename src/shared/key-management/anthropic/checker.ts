@@ -12,6 +12,8 @@ const POZZED_RESPONSES = [
   /respond as helpfully/i,
   /be very careful to ensure/i,
   /song lyrics, sections of books, or long excerpts/i,
+  /previous text not shown/i,
+  /reproducing copyrighted material/i,
 ];
 
 type CompleteResponse = {

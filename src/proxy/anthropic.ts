@@ -17,6 +17,9 @@ import {
   createOnProxyResHandler,
 } from "./middleware/response";
 
+const CLAUDE_3_COMPAT_MODEL =
+  process.env.CLAUDE_3_COMPAT_MODEL || "claude-3-sonnet-20240229";
+
 let modelsCache: any = null;
 let modelsCacheTime = 0;
 
@@ -249,11 +252,7 @@ anthropicRouter.post(
   createPreprocessorMiddleware(
     { inApi: "anthropic-text", outApi: "anthropic-chat", service: "anthropic" },
     {
-      beforeTransform: [
-        (req) => {
-          req.body.model = "claude-3-sonnet-20240229";
-        },
-      ],
+      beforeTransform: [(req) => void (req.body.model = CLAUDE_3_COMPAT_MODEL)],
     }
   ),
   anthropicProxy
