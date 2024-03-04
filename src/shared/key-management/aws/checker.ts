@@ -15,7 +15,10 @@ const GET_INVOCATION_LOGGING_CONFIG_URL = (region: string) =>
   `https://bedrock.${region}.amazonaws.com/logging/modelinvocations`;
 const POST_INVOKE_MODEL_URL = (region: string, model: string) =>
   `https://${AMZ_HOST.replace("%REGION%", region)}/model/${model}/invoke`;
-const TEST_PROMPT = "\n\nHuman:\n\nAssistant:";
+const TEST_MESSAGES = [
+  { role: "user", content: "Hi!" },
+  { role: "assistant", content: "Hello!" },
+];
 
 type AwsError = { error: {} };
 
@@ -47,8 +50,10 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     const modelChecks: Promise<unknown>[] = [];
     const isInitialCheck = !key.lastChecked;
     if (isInitialCheck) {
-      modelChecks.push(this.invokeModel("anthropic.claude-v2", key));
       modelChecks.push(this.invokeModel("anthropic.claude-v2:1", key));
+      modelChecks.push(
+        this.invokeModel("anthropic.claude-3-sonnet-20240229-v1:0", key)
+      );
     }
 
     await Promise.all(modelChecks);
@@ -128,12 +133,18 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     const creds = AwsKeyChecker.getCredentialsFromKey(key);
     // This is not a valid invocation payload, but a 400 response indicates that
     // the principal at least has permission to invoke the model.
-    const payload = { max_tokens_to_sample: -1, prompt: TEST_PROMPT };
+    // A 403 response indicates that the model is not accessible -- if none of
+    // the models are accessible, the key is effectively disabled.
+    const payload = {
+      max_tokens: -1,
+      messages: TEST_MESSAGES,
+      anthropic_version: "bedrock-2023-05-31",
+    };
     const config: AxiosRequestConfig = {
       method: "POST",
       url: POST_INVOKE_MODEL_URL(creds.region, model),
       data: payload,
-      validateStatus: (status) => status === 400,
+      validateStatus: (status) => status === 400 || status === 403,
     };
     config.headers = new AxiosHeaders({
       "content-type": "application/json",
@@ -145,10 +156,20 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     const errorType = (headers["x-amzn-errortype"] as string).split(":")[0];
     const errorMessage = data?.message;
 
+    // We only allow one type of 403 error, and we only allow it for one model.
+    if (status === 403 && errorMessage?.match(/access to the model with the specified model ID/)) {
+      this.log.warn(
+        { key: key.hash, errorType, data, status, model },
+        "Key does not have access to Claude 3 Sonnet."
+      );
+      this.updateKey(key.hash, { sonnetEnabled: false });
+      return;
+    }
+
     // We're looking for a specific error type and message here
     // "ValidationException"
     const correctErrorType = errorType === "ValidationException";
-    const correctErrorMessage = errorMessage?.match(/max_tokens_to_sample/);
+    const correctErrorMessage = errorMessage?.match(/max_tokens/);
     if (!correctErrorType || !correctErrorMessage) {
       throw new AxiosError(
         `Unexpected error when invoking model ${model}: ${errorMessage}`,

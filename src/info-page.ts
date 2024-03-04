@@ -24,7 +24,7 @@ const MODEL_FAMILY_FRIENDLY_NAME: { [f in ModelFamily]: string } = {
   "mistral-small": "Mixtral Small", // Originally 8x7B, but that now refers to the older open-weight version. Mixtral Small is a newer closed-weight update to the 8x7B model.
   "mistral-medium": "Mistral Medium",
   "mistral-large": "Mistral Large",
-  "aws-claude": "AWS Claude",
+  "aws-claude": "AWS Claude (Sonnet)",
   "azure-turbo": "Azure GPT-3.5 Turbo",
   "azure-gpt4": "Azure GPT-4",
   "azure-gpt4-32k": "Azure GPT-4 32k",

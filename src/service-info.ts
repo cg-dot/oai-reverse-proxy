@@ -51,6 +51,7 @@ type ModelAggregates = {
   overQuota?: number;
   pozzed?: number;
   awsLogged?: number;
+  awsSonnet?: number;
   queued: number;
   queueTime: string;
   tokens: number;
@@ -81,7 +82,7 @@ type AnthropicInfo = BaseFamilyInfo & {
   prefilledKeys?: number;
   overQuotaKeys?: number;
 };
-type AwsInfo = BaseFamilyInfo & { privacy?: string };
+type AwsInfo = BaseFamilyInfo & { privacy?: string; sonnetKeys?: number };
 
 // prettier-ignore
 export type ServiceInfo = {
@@ -133,7 +134,7 @@ const SERVICE_ENDPOINTS: { [s in LLMService]: Record<string, string> } = {
   },
   anthropic: {
     anthropic: `%BASE%/anthropic`,
-    "anthropic-claude-3 (temporary compatibility endpoint)": `%BASE%/anthropic/claude-3`,
+    "anthropic-claude-3 (⚠️temporary compatibility endpoint)": `%BASE%/anthropic/claude-3`,
   },
   "google-ai": {
     "google-ai": `%BASE%/google-ai`,
@@ -143,6 +144,7 @@ const SERVICE_ENDPOINTS: { [s in LLMService]: Record<string, string> } = {
   },
   aws: {
     aws: `%BASE%/aws/claude`,
+    "aws-claude-3 (⚠️temporary compatibility endpoint)": `%BASE%/aws/claude/claude-3`,
   },
   azure: {
     azure: `%BASE%/azure/openai`,
@@ -372,6 +374,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
       increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
       increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
       increment(modelStats, `${family}__tokens`, k["aws-claudeTokens"]);
+      increment(modelStats, `${family}__awsSonnet`, k.sonnetEnabled ? 1 : 0);
 
       // Ignore revoked keys for aws logging stats, but include keys where the
       // logging status is unknown.
@@ -419,6 +422,7 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
         info.prefilledKeys = modelStats.get(`${family}__pozzed`) || 0;
         break;
       case "aws":
+        info.sonnetKeys = modelStats.get(`${family}__awsSonnet`) || 0;
         const logged = modelStats.get(`${family}__awsLogged`) || 0;
         if (logged > 0) {
           info.privacy = config.allowAwsLogging

@@ -105,7 +105,7 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
   res.status(200).json(body);
 };
 
-function transformAnthropicChatResponseToAnthropicText(
+export function transformAnthropicChatResponseToAnthropicText(
   anthropicBody: Record<string, any>,
   req: Request
 ): Record<string, any> {

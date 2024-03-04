@@ -29,6 +29,7 @@ export interface AwsBedrockKey extends Key, AwsBedrockKeyUsage {
    * set.
    */
   awsLoggingStatus: "unknown" | "disabled" | "enabled";
+  sonnetEnabled: boolean;
 }
 
 /**
@@ -78,6 +79,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
           .digest("hex")
           .slice(0, 8)}`,
         lastChecked: 0,
+        sonnetEnabled: true,
         ["aws-claudeTokens"]: 0,
       };
       this.keys.push(newKey);
@@ -96,13 +98,20 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(_model: AwsBedrockModel) {
+  public get(model: AwsBedrockModel) {
     const availableKeys = this.keys.filter((k) => {
       const isNotLogged = k.awsLoggingStatus === "disabled";
-      return !k.isDisabled && (isNotLogged || config.allowAwsLogging);
+      const needsSonnet = model.includes("sonnet");
+      return (
+        !k.isDisabled &&
+        (isNotLogged || config.allowAwsLogging) &&
+        (k.sonnetEnabled || !needsSonnet)
+      );
     });
     if (availableKeys.length === 0) {
-      throw new Error("No AWS Bedrock keys available");
+      throw new Error(
+        "No keys available for this model. If you are requesting Sonnet, use Claude-2 instead."
+      );
     }
 
     // (largely copied from the OpenAI provider, without trial key support)

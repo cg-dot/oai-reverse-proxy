@@ -49,7 +49,16 @@ export class SSEStreamAdapter extends Transform {
         if (contentType === "application/json" && eventType === "chunk") {
           const { bytes } = JSON.parse(bodyStr);
           const event = Buffer.from(bytes, "base64").toString("utf8");
-          return ["event: completion", `data: ${event}`].join(`\n`);
+          const eventObj = JSON.parse(event);
+
+          if ('completion' in eventObj) {
+            return ["event: completion", `data: ${event}`].join(`\n`);
+          } else {
+            return [
+              `event: ${eventObj.type}`,
+              `data: ${event}`,
+            ].join(`\n`);
+          }
         }
       // Intentional fallthrough, as non-JSON events may as well be errors
       // noinspection FallThroughInSwitchStatementJS
