@@ -11,7 +11,7 @@ const POZZED_RESPONSES = [
   /please answer ethically/i,
   /respond as helpfully/i,
   /be very careful to ensure/i,
-  /song lyrics, sections of books, or long excerpts/i
+  /song lyrics, sections of books, or long excerpts/i,
 ];
 
 type CompleteResponse = {
@@ -44,23 +44,28 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
     const [{ pozzed }] = await Promise.all([this.testLiveness(key)]);
     const updates = { isPozzed: pozzed };
     this.updateKey(key.hash, updates);
-    this.log.info(
-      { key: key.hash, models: key.modelFamilies },
-      "Checked key."
-    );
+    this.log.info({ key: key.hash, models: key.modelFamilies }, "Checked key.");
   }
 
   protected handleAxiosError(key: AnthropicKey, error: AxiosError) {
     if (error.response && AnthropicKeyChecker.errorIsAnthropicAPIError(error)) {
       const { status, data } = error.response;
-      if (status === 401 || status === 403) {
+      const isOverQuota =
+        data.error?.message?.match(/usage blocked until/i) ||
+        data.error?.message?.match(/credit balance is too low/i);
+      if (status === 400 && isOverQuota) {
+        this.log.warn(
+          { key: key.hash, error: data },
+          "Key is over quota. Disabling key."
+        );
+        this.updateKey(key.hash, { isDisabled: true, isOverQuota: true });
+      } else if (status === 401 || status === 403) {
         this.log.warn(
           { key: key.hash, error: data },
           "Key is invalid or revoked. Disabling key."
         );
         this.updateKey(key.hash, { isDisabled: true, isRevoked: true });
-      }
-      else if (status === 429) {
+      } else if (status === 429) {
         switch (data.error.type) {
           case "rate_limit_error":
             this.log.warn(
@@ -111,7 +116,7 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
       { headers: AnthropicKeyChecker.getHeaders(key) }
     );
     this.log.debug({ data }, "Response from Anthropic");
-    if (POZZED_RESPONSES.some(re => re.test(data.completion))) {
+    if (POZZED_RESPONSES.some((re) => re.test(data.completion))) {
       this.log.debug(
         { key: key.hash, response: data.completion },
         "Key is pozzed."

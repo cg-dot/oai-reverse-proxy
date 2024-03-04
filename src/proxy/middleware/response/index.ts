@@ -431,9 +431,11 @@ async function handleAnthropicBadRequestError(
     throw new RetryableError("Claude request re-enqueued to add preamble.");
   }
 
-  // Only affects Anthropic keys
   // {"type":"error","error":{"type":"invalid_request_error","message":"Usage blocked until 2024-03-01T00:00:00+00:00 due to user specified spend limits."}}
-  const isOverQuota = error?.message?.match(/usage blocked until/i);
+  // {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Claude API. Please go to Plans & Billing to upgrade or purchase credits."}}
+  const isOverQuota =
+    error?.message?.match(/usage blocked until/i) ||
+    error?.message?.match(/credit balance is too low/i);
   if (isOverQuota) {
     req.log.warn(
       { key: req.key?.hash, message: error?.message },
