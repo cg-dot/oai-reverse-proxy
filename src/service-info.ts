@@ -325,14 +325,16 @@ function addKeyToAggregates(k: KeyPoolKey) {
       break;
     case "anthropic": {
       if (!keyIsAnthropicKey(k)) throw new Error("Invalid key type");
-      const family = "claude";
-      sumTokens += k.claudeTokens;
-      sumCost += getTokenCostUsd(family, k.claudeTokens);
-      increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
-      increment(modelStats, `${family}__overQuota`, k.isOverQuota ? 1 : 0);
-      increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
-      increment(modelStats, `${family}__tokens`, k.claudeTokens);
-      increment(modelStats, `${family}__pozzed`, k.isPozzed ? 1 : 0);
+      k.modelFamilies.forEach((f) => {
+        const tokens = k[`${f}Tokens`];
+        sumTokens += tokens;
+        sumCost += getTokenCostUsd(f, tokens);
+        increment(modelStats, `${f}__tokens`, tokens);
+        increment(modelStats, `${f}__revoked`, k.isRevoked ? 1 : 0);
+        increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
+        increment(modelStats, `${f}__overQuota`, k.isOverQuota ? 1 : 0);
+        increment(modelStats, `${f}__pozzed`, k.isPozzed ? 1 : 0);
+      });
       increment(
         serviceStats,
         "anthropic__uncheckedKeys",
