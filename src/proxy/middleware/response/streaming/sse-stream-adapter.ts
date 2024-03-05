@@ -2,8 +2,8 @@ import pino from "pino";
 import { Transform, TransformOptions } from "stream";
 import { Message } from "@smithy/eventstream-codec";
 import { APIFormat } from "../../../../shared/key-management";
-import { makeCompletionSSE } from "../../../../shared/streaming";
 import { RetryableError } from "../index";
+import { buildSpoofedSSE } from "../error-generator";
 
 type SSEStreamAdapterOptions = TransformOptions & {
   contentType?: string;
@@ -75,7 +75,7 @@ export class SSEStreamAdapter extends Transform {
             throw new RetryableError("AWS request throttled mid-stream");
           default:
             this.log.error({ message, type }, "Received bad AWS stream event");
-            return makeCompletionSSE({
+            return buildSpoofedSSE({
               format: "anthropic-text",
               title: "Proxy stream error",
               message:
@@ -103,7 +103,7 @@ export class SSEStreamAdapter extends Transform {
         return `data: ${JSON.stringify(data)}`;
       } else {
         this.log.error({ event: data }, "Received bad Google AI event");
-        return `data: ${makeCompletionSSE({
+        return `data: ${buildSpoofedSSE({
           format: "google-ai",
           title: "Proxy stream error",
           message:

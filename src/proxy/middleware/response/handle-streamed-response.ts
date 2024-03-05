@@ -6,7 +6,7 @@ import { APIFormat, keyPool } from "../../../shared/key-management";
 import {
   copySseResponseHeaders,
   initializeSseStream,
-  makeCompletionSSE,
+
 } from "../../../shared/streaming";
 import type { logger } from "../../../logger";
 import { enqueue } from "../../queue";
@@ -15,6 +15,7 @@ import { getAwsEventStreamDecoder } from "./streaming/aws-event-stream-decoder";
 import { EventAggregator } from "./streaming/event-aggregator";
 import { SSEMessageTransformer } from "./streaming/sse-message-transformer";
 import { SSEStreamAdapter } from "./streaming/sse-stream-adapter";
+import { buildSpoofedSSE } from "./error-generator";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -111,7 +112,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
     } else {
       const { message, stack, lastEvent } = err;
       const eventText = JSON.stringify(lastEvent, null, 2) ?? "undefined";
-      const errorEvent = makeCompletionSSE({
+      const errorEvent = buildSpoofedSSE({
         format: req.inboundApi,
         title: "Proxy stream error",
         message: "An unexpected error occurred while streaming the response.",

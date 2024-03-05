@@ -19,6 +19,7 @@ import { start as startRequestQueue } from "./proxy/queue";
 import { init as initUserStore } from "./shared/users/user-store";
 import { init as initTokenizers } from "./shared/tokenization";
 import { checkOrigin } from "./proxy/check-origin";
+import { sendErrorToClient } from "./proxy/middleware/response/error-generator";
 
 const PORT = config.port;
 const BIND_ADDRESS = config.bindAddress;
@@ -74,21 +75,27 @@ if (config.staticServiceInfo) {
   app.use("/", infoPageRouter);
 }
 
-app.use((err: any, _req: unknown, res: express.Response, _next: unknown) => {
-  if (err.status) {
-    res.status(err.status).json({ error: err.message });
-  } else {
-    logger.error(err);
-    res.status(500).json({
-      error: {
-        type: "proxy_error",
-        message: err.message,
-        stack: err.stack,
-        proxy_note: `Reverse proxy encountered an internal server error.`,
+app.use(
+  (err: any, req: express.Request, res: express.Response, _next: unknown) => {
+    if (!err.status) {
+      logger.error(err, "Unhandled error in request");
+    }
+
+    sendErrorToClient({
+      req,
+      res,
+      options: {
+        title: `Proxy error (HTTP ${err.status})`,
+        message:
+          "Reverse proxy encountered an unexpected error while processing your request.",
+        reqId: req.id,
+        statusCode: err.status,
+        obj: { error: err.message, stack: err.stack },
+        format: "unknown",
       },
     });
   }
-});
+);
 app.use((_req: unknown, res: express.Response) => {
   res.status(404).json({ error: "Not found" });
 });

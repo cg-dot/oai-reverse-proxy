@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { UserPartialSchema } from "../../shared/users/schema";
 import * as userStore from "../../shared/users/user-store";
-import { ForbiddenError, UserInputError } from "../../shared/errors";
+import { ForbiddenError, BadRequestError } from "../../shared/errors";
 import { sanitizeAndTrim } from "../../shared/utils";
 import { config } from "../../config";
 
@@ -62,7 +62,7 @@ router.post("/edit-nickname", (req, res) => {
 
   const result = schema.safeParse(req.body);
   if (!result.success) {
-    throw new UserInputError(result.error.message);
+    throw new BadRequestError(result.error.message);
   }
 
   const newNickname = result.data.nickname || null;

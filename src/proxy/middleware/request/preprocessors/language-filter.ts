@@ -2,7 +2,7 @@ import { Request } from "express";
 import { config } from "../../../../config";
 import { assertNever } from "../../../../shared/utils";
 import { RequestPreprocessor } from "../index";
-import { UserInputError } from "../../../../shared/errors";
+import { BadRequestError } from "../../../../shared/errors";
 import {
   MistralAIChatMessage,
   OpenAIChatMessage,
@@ -46,7 +46,7 @@ export const languageFilter: RequestPreprocessor = async (req) => {
       req.res!.once("close", resolve);
       setTimeout(resolve, delay);
     });
-    throw new UserInputError(config.rejectMessage);
+    throw new BadRequestError(config.rejectMessage);
   }
 };
 

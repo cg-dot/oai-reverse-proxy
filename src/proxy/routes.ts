@@ -8,6 +8,7 @@ import { googleAI } from "./google-ai";
 import { mistralAI } from "./mistral-ai";
 import { aws } from "./aws";
 import { azure } from "./azure";
+import { sendErrorToClient } from "./middleware/response/error-generator";
 
 const proxyRouter = express.Router();
 proxyRouter.use((req, _res, next) => {
@@ -46,8 +47,22 @@ proxyRouter.get("*", (req, res, next) => {
   }
 });
 // Handle 404s.
-proxyRouter.use((_req, res) => {
-  res.status(404).json({ error: "Not found" });
+proxyRouter.use((req, res) => {
+  sendErrorToClient({
+    req,
+    res,
+    options: {
+      title: "Proxy error (HTTP 404 Not Found)",
+      message: "The requested proxy endpoint does not exist.",
+      model: req.body?.model,
+      reqId: req.id,
+      format: "unknown",
+      obj: {
+        proxy_note: "Your chat client is using the wrong endpoint. Please check your configuration.",
+        requested_url: req.url,
+      },
+    },
+  });
 });
 
 export { proxyRouter as proxyRouter };

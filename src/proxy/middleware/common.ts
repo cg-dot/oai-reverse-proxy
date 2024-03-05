@@ -2,9 +2,9 @@ import { Request, Response } from "express";
 import httpProxy from "http-proxy";
 import { ZodError } from "zod";
 import { generateErrorMessage } from "zod-error";
-import { makeCompletionSSE } from "../../shared/streaming";
 import { assertNever } from "../../shared/utils";
 import { QuotaExceededError } from "./request/preprocessors/apply-quota-limits";
+import { buildSpoofedSSE, sendErrorToClient } from "./response/error-generator";
 
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";
 const OPENAI_TEXT_COMPLETION_ENDPOINT = "/v1/completions";
@@ -40,7 +40,7 @@ export function isEmbeddingsRequest(req: Request) {
   );
 }
 
-export function writeErrorResponse(
+export function sendProxyError(
   req: Request,
   res: Response,
   statusCode: number,
@@ -52,29 +52,22 @@ export function writeErrorResponse(
       ? `The proxy encountered an error while trying to process your prompt.`
       : `The proxy encountered an error while trying to send your prompt to the upstream service.`;
 
-  // If we're mid-SSE stream, send a data event with the error payload and end
-  // the stream. Otherwise just send a normal error response.
-  if (
-    res.headersSent ||
-    String(res.getHeader("content-type")).startsWith("text/event-stream")
-  ) {
-    const event = makeCompletionSSE({
+  if (req.tokenizerInfo && typeof errorPayload.error === "object") {
+    errorPayload.error.proxy_tokenizer = req.tokenizerInfo;
+  }
+
+  sendErrorToClient({
+    options: {
       format: req.inboundApi,
       title: `Proxy error (HTTP ${statusCode} ${statusMessage})`,
       message: `${msg} Further technical details are provided below.`,
       obj: errorPayload,
       reqId: req.id,
       model: req.body?.model,
-    });
-    res.write(event);
-    res.write(`data: [DONE]\n\n`);
-    res.end();
-  } else {
-    if (req.tokenizerInfo && typeof errorPayload.error === "object") {
-      errorPayload.error.proxy_tokenizer = req.tokenizerInfo;
-    }
-    res.status(statusCode).json(errorPayload);
-  }
+    },
+    req,
+    res,
+  });
 }
 
 export const handleProxyError: httpProxy.ErrorCallback = (err, req, res) => {
@@ -90,7 +83,7 @@ export const classifyErrorAndSend = (
   try {
     const { statusCode, statusMessage, userMessage, ...errorDetails } =
       classifyError(err);
-    writeErrorResponse(req, res, statusCode, statusMessage, {
+    sendProxyError(req, res, statusCode, statusMessage, {
       error: { message: userMessage, ...errorDetails },
     });
   } catch (error) {

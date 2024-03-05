@@ -1,4 +1,4 @@
-import { Request, RequestHandler, Router } from "express";
+import { Request, Response, RequestHandler, Router } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
 import { logger } from "../logger";
@@ -17,6 +17,7 @@ import {
   createOnProxyResHandler,
 } from "./middleware/response";
 import { HttpError } from "../shared/errors";
+import { sendErrorToClient } from "./middleware/response/error-generator";
 
 const CLAUDE_3_COMPAT_MODEL =
   process.env.CLAUDE_3_COMPAT_MODEL || "claude-3-sonnet-20240229";
@@ -251,16 +252,19 @@ anthropicRouter.post(
   "/v1/claude-3/complete",
   ipLimiter,
   handleCompatibilityRequest,
-  createPreprocessorMiddleware(
-    { inApi: "anthropic-text", outApi: "anthropic-chat", service: "anthropic" },
-    {
-      beforeTransform: [(req) => void (req.body.model = CLAUDE_3_COMPAT_MODEL)],
-    }
-  ),
+  createPreprocessorMiddleware({
+    inApi: "anthropic-text",
+    outApi: "anthropic-chat",
+    service: "anthropic",
+  }),
   anthropicProxy
 );
 
-export function handleCompatibilityRequest(req: Request, res: any, next: any) {
+export function handleCompatibilityRequest(
+  req: Request,
+  res: Response,
+  next: any
+) {
   const alreadyInChatFormat = Boolean(req.body.messages);
   const alreadyUsingClaude3 = req.body.model?.includes("claude-3");
   if (!alreadyInChatFormat && !alreadyUsingClaude3) {
@@ -268,18 +272,24 @@ export function handleCompatibilityRequest(req: Request, res: any, next: any) {
   }
 
   if (alreadyInChatFormat) {
-    throw new HttpError(
-      400,
-      "Your request is already using the new API format and does not need the compatibility endpoint. Use the /proxy/anthropic endpoint instead."
-    );
+    sendErrorToClient({
+      req,
+      res,
+      options: {
+        title: "Proxy error (incompatible request for endpoint)",
+        message:
+          "Your request is already using the new API format and does not need to use the compatibility endpoint.\n\nUse the /proxy/anthropic endpoint instead.",
+        format: "unknown",
+        statusCode: 400,
+        reqId: req.id,
+      },
+    });
   }
 
-  if (alreadyUsingClaude3) {
-    throw new HttpError(
-      400,
-      "Your request already includes the new model identifier and does not need the compatibility endpoint. Use the /proxy/anthropic endpoint instead."
-    );
+  if (!alreadyUsingClaude3) {
+    req.body.model = CLAUDE_3_COMPAT_MODEL;
   }
+  next();
 }
 
 function maybeReassignModel(req: Request) {
