@@ -16,7 +16,10 @@ import {
   ProxyResHandlerWithBody,
   createOnProxyResHandler,
 } from "./middleware/response";
-import { handleCompatibilityRequest, transformAnthropicChatResponseToAnthropicText } from "./anthropic";
+import {
+  handleCompatibilityRequest,
+  transformAnthropicChatResponseToAnthropicText,
+} from "./anthropic";
 
 const LATEST_AWS_V2_MINOR_VERSION = "1";
 const CLAUDE_3_COMPAT_MODEL = "anthropic.claude-3-sonnet-20240229-v1:0";
@@ -79,8 +82,11 @@ const awsResponseHandler: ProxyResHandlerWithBody = async (
     body = transformAwsTextResponseToOpenAI(body, req);
   }
 
-  if (req.inboundApi === "anthropic-text") {
-    req.log.info("Transforming Text AWS Claude response to Chat format");
+  if (
+    req.inboundApi === "anthropic-text" &&
+    req.outboundApi === "anthropic-chat"
+  ) {
+    req.log.info("Transforming AWS Claude chat response to Text format");
     body = transformAnthropicChatResponseToAnthropicText(body, req);
   }
 
