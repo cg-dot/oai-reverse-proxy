@@ -283,11 +283,14 @@ export function handleCompatibilityRequest(
 ) {
   const alreadyInChatFormat = Boolean(req.body.messages);
   const alreadyUsingClaude3 = req.body.model?.includes("claude-3");
-  if (!alreadyInChatFormat && !alreadyUsingClaude3) {
-    return next();
+
+  if (!alreadyUsingClaude3) {
+    req.body.model = CLAUDE_3_COMPAT_MODEL;
   }
 
-  if (alreadyInChatFormat) {
+  if (!alreadyInChatFormat) {
+    return next();
+  } else {
     sendErrorToClient({
       req,
       res,
@@ -299,11 +302,7 @@ export function handleCompatibilityRequest(
         statusCode: 400,
         reqId: req.id,
       },
-    });
-  }
-
-  if (!alreadyUsingClaude3) {
-    req.body.model = CLAUDE_3_COMPAT_MODEL;
+    })
   }
   next();
 }
