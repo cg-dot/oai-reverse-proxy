@@ -4,6 +4,7 @@ import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { MistralAIModelFamily, getMistralAIModelFamily } from "../../models";
 import { MistralAIKeyChecker } from "./checker";
+import { HttpError } from "../../errors";
 
 type MistralAIKeyUsage = {
   [K in MistralAIModelFamily as `${K}Tokens`]: number;
@@ -94,7 +95,7 @@ export class MistralAIKeyProvider implements KeyProvider<MistralAIKey> {
   public get(_model: Model) {
     const availableKeys = this.keys.filter((k) => !k.isDisabled);
     if (availableKeys.length === 0) {
-      throw new Error("No Mistral AI keys available");
+      throw new HttpError(402, "No Mistral AI keys available");
     }
 
     // (largely copied from the OpenAI provider, without trial key support)

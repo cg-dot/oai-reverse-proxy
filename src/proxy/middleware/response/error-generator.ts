@@ -40,10 +40,8 @@ function getMessageContent({
   }
   ```
    */
-
-  const friendlyMessage = obj?.proxy_note
-    ? `${message}\n\n***\n\n*${obj.proxy_note}*`
-    : message;
+  const note = obj?.proxy_note || obj?.error?.message || "";
+  const friendlyMessage = note ? `${message}\n\n***\n\n*${note}*` : message;
   const details = JSON.parse(JSON.stringify(obj ?? {}));
   let stack = "";
   if (details.stack) {

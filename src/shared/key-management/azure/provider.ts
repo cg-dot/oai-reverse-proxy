@@ -6,6 +6,7 @@ import type { AzureOpenAIModelFamily } from "../../models";
 import { getAzureOpenAIModelFamily } from "../../models";
 import { OpenAIModel } from "../openai/provider";
 import { AzureOpenAIKeyChecker } from "./checker";
+import { HttpError } from "../../errors";
 
 export type AzureOpenAIModel = Exclude<OpenAIModel, "dall-e">;
 
@@ -100,7 +101,10 @@ export class AzureOpenAIKeyProvider implements KeyProvider<AzureOpenAIKey> {
       (k) => !k.isDisabled && k.modelFamilies.includes(neededFamily)
     );
     if (availableKeys.length === 0) {
-      throw new Error(`No keys available for model family '${neededFamily}'.`);
+      throw new HttpError(
+        402,
+        `No keys available for model family '${neededFamily}'.`
+      );
     }
 
     // (largely copied from the OpenAI provider, without trial key support)

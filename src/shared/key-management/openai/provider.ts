@@ -8,6 +8,7 @@ import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { OpenAIKeyChecker } from "./checker";
 import { getOpenAIModelFamily, OpenAIModelFamily } from "../../models";
+import { HttpError } from "../../errors";
 
 export type OpenAIModel =
   | "gpt-3.5-turbo"
@@ -17,7 +18,7 @@ export type OpenAIModel =
   | "gpt-4-1106"
   | "text-embedding-ada-002"
   | "dall-e-2"
-  | "dall-e-3"
+  | "dall-e-3";
 
 // Flattening model families instead of using a nested object for easier
 // cloning.
@@ -167,7 +168,10 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     );
 
     if (availableKeys.length === 0) {
-      throw new Error(`No keys available for model family '${neededFamily}'.`);
+      throw new HttpError(
+        402,
+        `No keys available for model family '${neededFamily}'.`
+      );
     }
 
     // Select a key, from highest priority to lowest priority:

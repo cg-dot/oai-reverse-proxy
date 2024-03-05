@@ -330,9 +330,8 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         errorPayload.proxy_note = `API key is invalid or revoked. ${tryAgainMessage}`;
         break;
       case "AccessDeniedException":
-        const isModelAccessError = errorPayload.error?.message?.includes(
-          `access to the model with the specified model ID`
-        );
+        const isModelAccessError =
+          errorPayload.error?.message?.includes(`specified model ID`);
         if (!isModelAccessError) {
           req.log.error(
             { key: req.key?.hash, model: req.body?.model },
@@ -451,7 +450,7 @@ async function handleAnthropicBadRequestError(
     return;
   }
 
-  errorPayload.proxy_note = `Unrecognized 400 Bad Request error from the API.`;
+  errorPayload.proxy_note = `Unrecognized error from the API. (${error?.message})`;
 }
 
 async function handleAnthropicRateLimitError(

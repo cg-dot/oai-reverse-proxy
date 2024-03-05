@@ -211,7 +211,7 @@ awsRouter.post("/v1/claude-3/messages", (req, res) => {
     options: {
       title: "Proxy error (wrong endpoint)",
       message:
-        "Your client is attempting to use the /anthropic/v1/claude-3 compatibility endpoint, but supports the new API format and should use the normal /anthropic/v1 endpoint instead.",
+        "Your client is attempting to use the /aws/claude/claude-3 compatibility endpoint, but supports the new API format and should use the normal /aws/claude endpoint instead.",
       format: "unknown",
       statusCode: 404,
       reqId: req.id,

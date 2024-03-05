@@ -5,6 +5,7 @@ import { generateErrorMessage } from "zod-error";
 import { assertNever } from "../../shared/utils";
 import { QuotaExceededError } from "./request/preprocessors/apply-quota-limits";
 import { buildSpoofedSSE, sendErrorToClient } from "./response/error-generator";
+import { HttpError } from "../../shared/errors";
 
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";
 const OPENAI_TEXT_COMPLETION_ENDPOINT = "/v1/completions";
@@ -111,6 +112,15 @@ function classifyError(err: Error): {
   };
 
   switch (err.constructor.name) {
+    case "HttpError":
+      if ((err as HttpError).status === 402) {
+        return {
+          statusCode: 402,
+          statusMessage: "No Keys Available",
+          userMessage: err.message,
+          type: "proxy_no_keys_available",
+        };
+      } else return defaultError;
     case "ZodError":
       const userMessage = generateErrorMessage((err as ZodError).issues, {
         prefix: "Request validation failed. ",

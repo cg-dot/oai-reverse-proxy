@@ -3,6 +3,7 @@ import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
 import type { GoogleAIModelFamily } from "../../models";
+import { HttpError } from "../../errors";
 
 // Note that Google AI is not the same as Vertex AI, both are provided by Google
 // but Vertex is the GCP product for enterprise. while Google AI is the
@@ -95,7 +96,7 @@ export class GoogleAIKeyProvider implements KeyProvider<GoogleAIKey> {
   public get(_model: GoogleAIModel) {
     const availableKeys = this.keys.filter((k) => !k.isDisabled);
     if (availableKeys.length === 0) {
-      throw new Error("No Google AI keys available");
+      throw new HttpError(402, "No Google AI keys available");
     }
 
     // (largely copied from the OpenAI provider, without trial key support)

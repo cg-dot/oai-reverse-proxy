@@ -21,6 +21,7 @@ type SSEStreamAdapterOptions = TransformOptions & {
 export class SSEStreamAdapter extends Transform {
   private readonly isAwsStream;
   private readonly isGoogleStream;
+  private api: APIFormat;
   private partialMessage = "";
   private textDecoder = new TextDecoder("utf8");
   private log: pino.Logger;
@@ -30,6 +31,7 @@ export class SSEStreamAdapter extends Transform {
     this.isAwsStream =
       options?.contentType === "application/vnd.amazon.eventstream";
     this.isGoogleStream = options?.api === "google-ai";
+    this.api = options.api;
     this.log = options.logger.child({ module: "sse-stream-adapter" });
   }
 
@@ -51,13 +53,10 @@ export class SSEStreamAdapter extends Transform {
           const event = Buffer.from(bytes, "base64").toString("utf8");
           const eventObj = JSON.parse(event);
 
-          if ('completion' in eventObj) {
+          if ("completion" in eventObj) {
             return ["event: completion", `data: ${event}`].join(`\n`);
           } else {
-            return [
-              `event: ${eventObj.type}`,
-              `data: ${event}`,
-            ].join(`\n`);
+            return [`event: ${eventObj.type}`, `data: ${event}`].join(`\n`);
           }
         }
       // Intentional fallthrough, as non-JSON events may as well be errors
@@ -75,15 +74,10 @@ export class SSEStreamAdapter extends Transform {
             throw new RetryableError("AWS request throttled mid-stream");
           default:
             this.log.error({ message, type }, "Received bad AWS stream event");
-            return buildSpoofedSSE({
-              format: "anthropic-text",
-              title: "Proxy stream error",
-              message:
-                "The proxy received an unrecognized error from AWS while streaming.",
-              obj: message,
-              reqId: "proxy-sse-adapter-message",
-              model: "",
-            });
+            const error: any = new Error(`Got mysterious error chunk: ${type}`);
+            error.lastEvent = message;
+            this.emit("error", error);
+            return null;
         }
       default:
         // Amazon says this can't ever happen...

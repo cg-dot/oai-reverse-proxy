@@ -4,6 +4,7 @@ import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { AnthropicModelFamily, getClaudeModelFamily } from "../../models";
 import { AnthropicKeyChecker } from "./checker";
+import { HttpError } from "../../errors";
 
 // https://docs.anthropic.com/claude/reference/selecting-a-model
 export type AnthropicModel =
@@ -130,7 +131,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     // certainly change when they move out of beta later this year.
     const availableKeys = this.keys.filter((k) => !k.isDisabled);
     if (availableKeys.length === 0) {
-      throw new Error("No Anthropic keys available.");
+      throw new HttpError(402, "No Anthropic keys available.");
     }
 
     // (largely copied from the OpenAI provider, without trial key support)

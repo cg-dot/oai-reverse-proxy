@@ -4,6 +4,7 @@ import { config } from "../../../config";
 import { logger } from "../../../logger";
 import type { AwsBedrockModelFamily } from "../../models";
 import { AwsKeyChecker } from "./checker";
+import { HttpError } from "../../errors";
 
 // https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html
 export type AwsBedrockModel =
@@ -109,7 +110,8 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
       );
     });
     if (availableKeys.length === 0) {
-      throw new Error(
+      throw new HttpError(
+        402,
         "No keys available for this model. If you are requesting Sonnet, use Claude-2 instead."
       );
     }
