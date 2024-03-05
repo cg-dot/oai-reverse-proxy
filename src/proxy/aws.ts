@@ -20,6 +20,7 @@ import {
   handleCompatibilityRequest,
   transformAnthropicChatResponseToAnthropicText,
 } from "./anthropic";
+import { sendErrorToClient } from "./middleware/response/error-generator";
 
 const LATEST_AWS_V2_MINOR_VERSION = "1";
 const CLAUDE_3_COMPAT_MODEL = "anthropic.claude-3-sonnet-20240229-v1:0";
@@ -202,6 +203,22 @@ awsRouter.post(
   ),
   awsProxy
 );
+// This is not a valid route but clients may attempt to use it.
+awsRouter.post("/v1/claude-3/messages", (req, res) => {
+  sendErrorToClient({
+    req,
+    res,
+    options: {
+      title: "Proxy error (wrong endpoint)",
+      message:
+        "Your client is attempting to use the /anthropic/v1/claude-3 compatibility endpoint, but supports the new API format and should use the normal /anthropic/v1 endpoint instead.",
+      format: "unknown",
+      statusCode: 404,
+      reqId: req.id,
+      obj: { original_url: req.originalUrl, router_url: req.url },
+    },
+  });
+});
 // OpenAI-to-AWS Anthropic compatibility endpoint.
 awsRouter.post(
   "/v1/chat/completions",

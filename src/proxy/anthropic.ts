@@ -259,6 +259,22 @@ anthropicRouter.post(
   }),
   anthropicProxy
 );
+// This is not a valid route but clients may attempt to use it.
+anthropicRouter.post("/v1/claude-3/messages", (req, res) => {
+  sendErrorToClient({
+    req,
+    res,
+    options: {
+      title: "Proxy error (wrong endpoint)",
+      message:
+        "Your client is attempting to use the /anthropic/claude-3 compatibility endpoint, but it supports the new API format.\n\nUse the normal /anthropic endpoint instead.",
+      format: "unknown",
+      statusCode: 404,
+      reqId: req.id,
+      obj: { original_url: req.originalUrl, router_url: req.url },
+    },
+  });
+});
 
 export function handleCompatibilityRequest(
   req: Request,
@@ -268,7 +284,7 @@ export function handleCompatibilityRequest(
   const alreadyInChatFormat = Boolean(req.body.messages);
   const alreadyUsingClaude3 = req.body.model?.includes("claude-3");
   if (!alreadyInChatFormat && !alreadyUsingClaude3) {
-    next();
+    return next();
   }
 
   if (alreadyInChatFormat) {
