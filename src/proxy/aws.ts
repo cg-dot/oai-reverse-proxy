@@ -16,7 +16,7 @@ import {
   ProxyResHandlerWithBody,
   createOnProxyResHandler,
 } from "./middleware/response";
-import { transformAnthropicChatResponseToAnthropicText } from "./anthropic";
+import { handleCompatibilityRequest, transformAnthropicChatResponseToAnthropicText } from "./anthropic";
 
 const LATEST_AWS_V2_MINOR_VERSION = "1";
 const CLAUDE_3_COMPAT_MODEL = "anthropic.claude-3-sonnet-20240229-v1:0";
@@ -187,6 +187,7 @@ awsRouter.post(
 awsRouter.post(
   "/v1/claude-3/complete",
   ipLimiter,
+  handleCompatibilityRequest,
   createPreprocessorMiddleware(
     { inApi: "anthropic-text", outApi: "anthropic-chat", service: "aws" },
     {

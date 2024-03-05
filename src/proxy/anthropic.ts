@@ -16,6 +16,7 @@ import {
   ProxyResHandlerWithBody,
   createOnProxyResHandler,
 } from "./middleware/response";
+import { HttpError } from "../shared/errors";
 
 const CLAUDE_3_COMPAT_MODEL =
   process.env.CLAUDE_3_COMPAT_MODEL || "claude-3-sonnet-20240229";
@@ -249,6 +250,7 @@ anthropicRouter.post(
 anthropicRouter.post(
   "/v1/claude-3/complete",
   ipLimiter,
+  handleCompatibilityRequest,
   createPreprocessorMiddleware(
     { inApi: "anthropic-text", outApi: "anthropic-chat", service: "anthropic" },
     {
@@ -257,6 +259,28 @@ anthropicRouter.post(
   ),
   anthropicProxy
 );
+
+export function handleCompatibilityRequest(req: Request, res: any, next: any) {
+  const alreadyInChatFormat = Boolean(req.body.messages);
+  const alreadyUsingClaude3 = req.body.model?.includes("claude-3");
+  if (!alreadyInChatFormat && !alreadyUsingClaude3) {
+    next();
+  }
+
+  if (alreadyInChatFormat) {
+    throw new HttpError(
+      400,
+      "Your request is already using the new API format and does not need the compatibility endpoint. Use the /proxy/anthropic endpoint instead."
+    );
+  }
+
+  if (alreadyUsingClaude3) {
+    throw new HttpError(
+      400,
+      "Your request already includes the new model identifier and does not need the compatibility endpoint. Use the /proxy/anthropic endpoint instead."
+    );
+  }
+}
 
 function maybeReassignModel(req: Request) {
   const model = req.body.model;
