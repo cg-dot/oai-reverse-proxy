@@ -1,4 +1,4 @@
-import { Request, RequestHandler, Router } from "express";
+import { Request, RequestHandler, Response, Router } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { v4 } from "uuid";
 import { config } from "../config";
@@ -16,14 +16,10 @@ import {
   ProxyResHandlerWithBody,
   createOnProxyResHandler,
 } from "./middleware/response";
-import {
-  handleCompatibilityRequest,
-  transformAnthropicChatResponseToAnthropicText,
-} from "./anthropic";
+import { transformAnthropicChatResponseToAnthropicText } from "./anthropic";
 import { sendErrorToClient } from "./middleware/response/error-generator";
 
 const LATEST_AWS_V2_MINOR_VERSION = "1";
-const CLAUDE_3_COMPAT_MODEL = "anthropic.claude-3-sonnet-20240229-v1:0";
 
 let modelsCache: any = null;
 let modelsCacheTime = 0;
@@ -88,7 +84,7 @@ const awsResponseHandler: ProxyResHandlerWithBody = async (
     req.outboundApi === "anthropic-chat"
   ) {
     req.log.info("Transforming AWS Claude chat response to Text format");
-    body = transformAnthropicChatResponseToAnthropicText(body, req);
+    body = transformAnthropicChatResponseToAnthropicText(body);
   }
 
   if (req.tokenizerInfo) {
@@ -192,33 +188,17 @@ awsRouter.post(
 );
 // Temporary force-Claude3 endpoint
 awsRouter.post(
-  "/v1/claude-3/complete",
+  "/v1/sonnet/:action(complete|messages)",
   ipLimiter,
   handleCompatibilityRequest,
-  createPreprocessorMiddleware(
-    { inApi: "anthropic-text", outApi: "anthropic-chat", service: "aws" },
-    {
-      beforeTransform: [(req) => void (req.body.model = CLAUDE_3_COMPAT_MODEL)],
-    }
-  ),
+  createPreprocessorMiddleware({
+    inApi: "anthropic-text",
+    outApi: "anthropic-chat",
+    service: "aws",
+  }),
   awsProxy
 );
-// This is not a valid route but clients may attempt to use it.
-awsRouter.post("/v1/claude-3/messages", (req, res) => {
-  sendErrorToClient({
-    req,
-    res,
-    options: {
-      title: "Proxy error (wrong endpoint)",
-      message:
-        "Your client is attempting to use the /aws/claude/claude-3 compatibility endpoint, but supports the new API format and should use the normal /aws/claude endpoint instead.",
-      format: "unknown",
-      statusCode: 404,
-      reqId: req.id,
-      obj: { original_url: req.originalUrl, router_url: req.url },
-    },
-  });
-});
+
 // OpenAI-to-AWS Anthropic compatibility endpoint.
 awsRouter.post(
   "/v1/chat/completions",
@@ -292,6 +272,41 @@ function maybeReassignModel(req: Request) {
   // Fallback to latest v2 model
   req.body.model = `anthropic.claude-v2:${LATEST_AWS_V2_MINOR_VERSION}`;
   return;
+}
+
+export function handleCompatibilityRequest(
+  req: Request,
+  res: Response,
+  next: any
+) {
+  const action = req.params.action;
+  const alreadyInChatFormat = Boolean(req.body.messages);
+  const compatModel = "anthropic.claude-3-sonnet-20240229-v1:0";
+  req.log.info(
+    { inputModel: req.body.model, compatModel, alreadyInChatFormat },
+    "Handling AWS compatibility request"
+  );
+
+  if (action === "messages" || alreadyInChatFormat) {
+    return sendErrorToClient({
+      req,
+      res,
+      options: {
+        title: "Unnecessary usage of compatibility endpoint",
+        message: `Your client seems to already support the new Claude API format. This endpoint is intended for clients that do not yet support the new format.\nUse the normal \`/aws/claude\` proxy endpoint instead.`,
+        format: "unknown",
+        statusCode: 400,
+        reqId: req.id,
+        obj: {
+          requested_endpoint: "/aws/claude/sonnet",
+          correct_endpoint: "/aws/claude",
+        },
+      },
+    });
+  }
+
+  req.body.model = compatModel;
+  next();
 }
 
 export const aws = awsRouter;

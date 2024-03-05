@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { generateErrorMessage } from "zod-error";
 import { assertNever } from "../../shared/utils";
 import { QuotaExceededError } from "./request/preprocessors/apply-quota-limits";
-import { buildSpoofedSSE, sendErrorToClient } from "./response/error-generator";
+import { sendErrorToClient } from "./response/error-generator";
 import { HttpError } from "../../shared/errors";
 
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";
@@ -13,7 +13,8 @@ const OPENAI_EMBEDDINGS_ENDPOINT = "/v1/embeddings";
 const OPENAI_IMAGE_COMPLETION_ENDPOINT = "/v1/images/generations";
 const ANTHROPIC_COMPLETION_ENDPOINT = "/v1/complete";
 const ANTHROPIC_MESSAGES_ENDPOINT = "/v1/messages";
-const ANTHROPIC_CLAUDE3_COMPAT_ENDPOINT = "/v1/claude-3/complete";
+const ANTHROPIC_SONNET_COMPAT_ENDPOINT = "/v1/sonnet";
+const ANTHROPIC_OPUS_COMPAT_ENDPOINT = "/v1/opus";
 
 export function isTextGenerationRequest(req: Request) {
   return (
@@ -23,7 +24,8 @@ export function isTextGenerationRequest(req: Request) {
       OPENAI_TEXT_COMPLETION_ENDPOINT,
       ANTHROPIC_COMPLETION_ENDPOINT,
       ANTHROPIC_MESSAGES_ENDPOINT,
-      ANTHROPIC_CLAUDE3_COMPAT_ENDPOINT,
+      ANTHROPIC_SONNET_COMPAT_ENDPOINT,
+      ANTHROPIC_OPUS_COMPAT_ENDPOINT,
     ].some((endpoint) => req.path.startsWith(endpoint))
   );
 }

@@ -59,9 +59,8 @@ proxyRouter.use((req, res) => {
       format: "unknown",
       obj: {
         proxy_note:
-          "Your chat client is using the wrong endpoint. Please check your configuration.",
-        original_url: req.originalUrl,
-        router_url: req.url,
+          "Your chat client is using the wrong endpoint. Check the Service Info page for the list of available endpoints.",
+        requested_url: req.originalUrl,
       },
     },
   });

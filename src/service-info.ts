@@ -134,7 +134,8 @@ const SERVICE_ENDPOINTS: { [s in LLMService]: Record<string, string> } = {
   },
   anthropic: {
     anthropic: `%BASE%/anthropic`,
-    "anthropic-claude-3 (⚠️temporary compatibility endpoint)": `%BASE%/anthropic/claude-3`,
+    "anthropic-sonnet (⚠️Temporary: for Claude 3 Sonnet)": `%BASE%/anthropic/sonnet`,
+    "anthropic-opus (⚠️Temporary: for Claude 3 Opus)": `%BASE%/anthropic/opus`,
   },
   "google-ai": {
     "google-ai": `%BASE%/google-ai`,
@@ -144,7 +145,7 @@ const SERVICE_ENDPOINTS: { [s in LLMService]: Record<string, string> } = {
   },
   aws: {
     aws: `%BASE%/aws/claude`,
-    "aws-claude-3 (⚠️temporary compatibility endpoint)": `%BASE%/aws/claude/claude-3`,
+    "aws-sonnet (⚠️Temporary: for AWS Claude 3 Sonnet)": `%BASE%/aws/claude/sonnet`,
   },
   azure: {
     azure: `%BASE%/azure/openai`,

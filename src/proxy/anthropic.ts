@@ -16,11 +16,7 @@ import {
   ProxyResHandlerWithBody,
   createOnProxyResHandler,
 } from "./middleware/response";
-import { HttpError } from "../shared/errors";
 import { sendErrorToClient } from "./middleware/response/error-generator";
-
-const CLAUDE_3_COMPAT_MODEL =
-  process.env.CLAUDE_3_COMPAT_MODEL || "claude-3-sonnet-20240229";
 
 let modelsCache: any = null;
 let modelsCacheTime = 0;
@@ -97,7 +93,7 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
     req.outboundApi === "anthropic-chat"
   ) {
     req.log.info("Transforming Anthropic text to Anthropic chat format");
-    body = transformAnthropicChatResponseToAnthropicText(body, req);
+    body = transformAnthropicChatResponseToAnthropicText(body);
   }
 
   if (req.tokenizerInfo) {
@@ -108,8 +104,7 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
 };
 
 export function transformAnthropicChatResponseToAnthropicText(
-  anthropicBody: Record<string, any>,
-  req: Request
+  anthropicBody: Record<string, any>
 ): Record<string, any> {
   return {
     type: "completion",
@@ -183,7 +178,7 @@ const anthropicProxy = createQueueMiddleware({
       if (isText && pathname === "/v1/chat/completions") {
         req.url = "/v1/complete";
       }
-      if (isChat && pathname === "/v1/claude-3/complete") {
+      if (isChat && ["sonnet", "opus"].includes(req.params.type)) {
         req.url = "/v1/messages";
       }
       return true;
@@ -249,7 +244,7 @@ anthropicRouter.post(
 // yet support the new model. Forces claude-3. Will be removed once common
 // frontends have been updated.
 anthropicRouter.post(
-  "/v1/claude-3/complete",
+  "/v1/:type(sonnet|opus)/:action(complete|messages)",
   ipLimiter,
   handleCompatibilityRequest,
   createPreprocessorMiddleware({
@@ -259,51 +254,36 @@ anthropicRouter.post(
   }),
   anthropicProxy
 );
-// This is not a valid route but clients may attempt to use it.
-anthropicRouter.post("/v1/claude-3/messages", (req, res) => {
-  sendErrorToClient({
-    req,
-    res,
-    options: {
-      title: "Proxy error (wrong endpoint)",
-      message:
-        "Your client is attempting to use the /anthropic/claude-3 compatibility endpoint, but it supports the new API format.\n\nUse the normal /anthropic endpoint instead.",
-      format: "unknown",
-      statusCode: 404,
-      reqId: req.id,
-      obj: { original_url: req.originalUrl, router_url: req.url },
-    },
-  });
-});
 
-export function handleCompatibilityRequest(
-  req: Request,
-  res: Response,
-  next: any
-) {
+function handleCompatibilityRequest(req: Request, res: Response, next: any) {
+  const type = req.params.type;
+  const action = req.params.action;
   const alreadyInChatFormat = Boolean(req.body.messages);
-  const alreadyUsingClaude3 = req.body.model?.includes("claude-3");
+  const compatModel = `claude-3-${type}-20240229`;
+  req.log.info(
+    { type, inputModel: req.body.model, compatModel, alreadyInChatFormat },
+    "Handling Anthropic compatibility request"
+  );
 
-  if (!alreadyUsingClaude3) {
-    req.body.model = CLAUDE_3_COMPAT_MODEL;
-  }
-
-  if (!alreadyInChatFormat) {
-    return next();
-  } else {
-    sendErrorToClient({
+  if (action === "messages" || alreadyInChatFormat) {
+    return sendErrorToClient({
       req,
       res,
       options: {
-        title: "Proxy error (incompatible request for endpoint)",
-        message:
-          "Your request is already using the new API format and does not need to use the compatibility endpoint.\n\nUse the /proxy/anthropic endpoint instead.",
+        title: "Unnecessary usage of compatibility endpoint",
+        message: `Your client seems to already support the new Claude API format. This endpoint is intended for clients that do not yet support the new format.\nUse the normal \`/anthropic\` proxy endpoint instead.`,
         format: "unknown",
         statusCode: 400,
         reqId: req.id,
+        obj: {
+          requested_endpoint: "/anthropic/" + type,
+          correct_endpoint: "/anthropic",
+        },
       },
-    })
+    });
   }
+
+  req.body.model = compatModel;
   next();
 }
 

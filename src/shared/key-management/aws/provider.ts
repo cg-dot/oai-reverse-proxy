@@ -112,7 +112,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     if (availableKeys.length === 0) {
       throw new HttpError(
         402,
-        "No keys available for this model. If you are requesting Sonnet, use Claude-2 instead."
+        "No keys available for this model. This proxy might not have Claude 3 Sonnet keys available."
       );
     }
 
