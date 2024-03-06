@@ -6,7 +6,6 @@ import {
   OpenAIChatMessage,
   OpenAIV1ChatCompletionSchema,
 } from "./openai";
-import { logger } from "../../logger";
 
 const CLAUDE_OUTPUT_MAX = config.maxOutputTokensAnthropic;
 
@@ -33,23 +32,32 @@ export const AnthropicV1TextSchema = AnthropicV1BaseSchema.merge(
   })
 );
 
+const AnthropicV1MessageMultimodalContentSchema = z.array(
+  z.union([
+    z.object({ type: z.literal("text"), text: z.string() }),
+    z.object({
+      type: z.literal("image"),
+      source: z.object({
+        type: z.literal("base64"),
+        media_type: z.string().max(100),
+        data: z.string(),
+      }),
+    }),
+  ])
+);
+
 // https://docs.anthropic.com/claude/reference/messages_post
 export const AnthropicV1MessagesSchema = AnthropicV1BaseSchema.merge(
   z.object({
-    messages: z
-      .array(
-        z.object({
-          role: z.enum(["user", "assistant"]),
-          content: z.union([
-            z.string(),
-            z.array(z.object({ type: z.string().max(100), text: z.string() })),
-          ]),
-        })
-      )
-      .min(1)
-      .refine((v) => v[0].role === "user", {
-        message: `First message must be have 'user' role. Use 'system' parameter to start with a system message.`,
-      }),
+    messages: z.array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.union([
+          z.string(),
+          AnthropicV1MessageMultimodalContentSchema,
+        ]),
+      })
+    ),
     max_tokens: z
       .number()
       .int()
@@ -219,8 +227,10 @@ export function flattenAnthropicMessages(
         ? msg.content
         : [{ type: "text", text: msg.content }];
       return `${name}: ${parts
-        .map(({ text, type }) =>
-          type === "text" ? text : `[Unsupported content type: ${type}]`
+        .map((part) =>
+          part.type === "text"
+            ? part.text
+            : `[Omitted multimodal content of type ${part.type}]`
         )
         .join("\n")}`;
     })

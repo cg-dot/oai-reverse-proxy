@@ -99,13 +99,9 @@ export async function countTokens({
   const time = process.hrtime();
   switch (service) {
     case "anthropic-chat":
-      return {
-        ...getClaudeTokenCount(prompt ?? completion),
-        tokenization_duration_ms: getElapsedMs(time),
-      };
     case "anthropic-text":
       return {
-        ...getClaudeTokenCount(prompt ?? completion),
+        ...(await getClaudeTokenCount(prompt ?? completion)),
         tokenization_duration_ms: getElapsedMs(time),
       };
     case "openai":

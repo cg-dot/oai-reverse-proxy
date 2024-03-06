@@ -10,7 +10,8 @@ import {
 import { ProxyResHandlerWithBody } from ".";
 import { assertNever } from "../../../shared/utils";
 import {
-  AnthropicChatMessage, flattenAnthropicMessages,
+  AnthropicChatMessage,
+  flattenAnthropicMessages,
   MistralAIChatMessage,
   OpenAIChatMessage,
 } from "../../../shared/api-schemas";
@@ -95,11 +96,11 @@ const getPromptForRequest = (
 const flattenMessages = (
   val:
     | string
-    | OpenAIChatMessage[]
-    | MistralAIChatMessage[]
     | OaiImageResult
-    | AnthropicChatMessage[],
-  format: APIFormat,
+    | OpenAIChatMessage[]
+    | AnthropicChatMessage[]
+    | MistralAIChatMessage[],
+  format: APIFormat
 ): string => {
   if (typeof val === "string") {
     return val.trim();
@@ -115,6 +116,8 @@ const flattenMessages = (
               .map((c) => {
                 if ("text" in c) return c.text;
                 if ("image_url" in c) return "(( Attached Image ))";
+                if ("source" in c) return "(( Attached Image ))";
+                return "(( Unsupported Content ))";
               })
               .join("\n")
           : content;
