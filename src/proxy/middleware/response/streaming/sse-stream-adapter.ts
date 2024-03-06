@@ -74,8 +74,15 @@ export class SSEStreamAdapter extends Transform {
             throw new RetryableError("AWS request throttled mid-stream");
           default:
             this.log.error({ message, type }, "Received bad AWS stream event");
+            let text;
+            try {
+              const { bytes } = JSON.parse(bodyStr);
+              text = Buffer.from(bytes, "base64").toString("utf8");
+            } catch (error) {
+              text = bodyStr;
+            }
             const error: any = new Error(`Got mysterious error chunk: ${type}`);
-            error.lastEvent = message;
+            error.lastEvent = text;
             this.emit("error", error);
             return null;
         }
