@@ -61,15 +61,26 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
   protected handleAxiosError(key: AnthropicKey, error: AxiosError) {
     if (error.response && AnthropicKeyChecker.errorIsAnthropicAPIError(error)) {
       const { status, data } = error.response;
+      // They send billing/revocation errors as 400s for some reason.
+      // The type is always invalid_request_error, so we have to check the text.
       const isOverQuota =
         data.error?.message?.match(/usage blocked until/i) ||
         data.error?.message?.match(/credit balance is too low/i);
+      const isDisabled = data.error?.message?.match(
+        /organization has been disabled/i
+      );
       if (status === 400 && isOverQuota) {
         this.log.warn(
           { key: key.hash, error: data },
           "Key is over quota. Disabling key."
         );
         this.updateKey(key.hash, { isDisabled: true, isOverQuota: true });
+      } else if (status === 400 && isDisabled) {
+        this.log.warn(
+          { key: key.hash, error: data },
+          "Key's organization is disabled. Disabling key."
+        );
+        this.updateKey(key.hash, { isDisabled: true, isRevoked: true });
       } else if (status === 401 || status === 403) {
         this.log.warn(
           { key: key.hash, error: data },

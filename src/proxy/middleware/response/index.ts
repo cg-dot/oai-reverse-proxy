@@ -450,6 +450,17 @@ async function handleAnthropicBadRequestError(
     return;
   }
 
+  const isDisabled = error?.message?.match(/organization has been disabled/i);
+  if (isDisabled) {
+    req.log.warn(
+      { key: req.key?.hash, message: error?.message },
+      "Anthropic key has been disabled."
+    );
+    keyPool.disable(req.key!, "revoked");
+    errorPayload.proxy_note = `Assigned key has been disabled. ${error?.message}`;
+    return;
+  }
+
   errorPayload.proxy_note = `Unrecognized error from the API. (${error?.message})`;
 }
 
