@@ -209,9 +209,7 @@ export function buildSpoofedCompletion({
         ],
       };
     case "openai-image":
-      throw new Error(
-        `Spoofed completions not supported for ${format} requests`
-      );
+      return obj;
     default:
       assertNever(format);
   }
@@ -287,7 +285,7 @@ export function buildSpoofedSSE({
         ],
       });
     case "openai-image":
-      throw new Error(`SSE not supported for ${format} requests`);
+      return JSON.stringify(obj);
     default:
       assertNever(format);
   }

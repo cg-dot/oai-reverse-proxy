@@ -146,7 +146,7 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
     } else if (COPYRIGHT_PROMPT.some((re) => re.test(completion))) {
       this.log.info(
         { key: key.hash, response: completion },
-        "Key is has copyright CYA prompt."
+        "Key has copyright CYA prompt."
       );
       return { pozzed: true };
     } else {
