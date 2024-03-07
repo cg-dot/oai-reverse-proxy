@@ -4,6 +4,7 @@ import { Message } from "@smithy/eventstream-codec";
 import { APIFormat } from "../../../../shared/key-management";
 import { RetryableError } from "../index";
 import { buildSpoofedSSE } from "../error-generator";
+import { BadRequestError } from "../../../../shared/errors";
 
 type SSEStreamAdapterOptions = TransformOptions & {
   contentType?: string;
@@ -59,8 +60,7 @@ export class SSEStreamAdapter extends Transform {
             return [`event: ${eventObj.type}`, `data: ${event}`].join(`\n`);
           }
         }
-      // Intentional fallthrough, as non-JSON events may as well be errors
-      // noinspection FallThroughInSwitchStatementJS
+      // noinspection FallThroughInSwitchStatementJS -- non-JSON data is unexpected
       case "exception":
       case "error":
         const type = String(
@@ -72,16 +72,32 @@ export class SSEStreamAdapter extends Transform {
               "AWS request throttled after streaming has already started; retrying"
             );
             throw new RetryableError("AWS request throttled mid-stream");
+          case "validationexception":
+            try {
+              const { message } = JSON.parse(bodyStr);
+              this.log.error({ message }, "Received AWS validation error");
+              this.emit(
+                "error",
+                new BadRequestError(`AWS validation error: ${message}`)
+              );
+              return null;
+            } catch (error) {
+              this.log.error(
+                { body: bodyStr, error },
+                "Could not parse AWS validation error"
+              );
+            }
+          // noinspection FallThroughInSwitchStatementJS -- who knows what this is
           default:
-            this.log.error({ message, type }, "Received bad AWS stream event");
             let text;
             try {
-              const { bytes } = JSON.parse(bodyStr);
-              text = Buffer.from(bytes, "base64").toString("utf8");
+              text = JSON.parse(bodyStr).message;
             } catch (error) {
               text = bodyStr;
             }
-            const error: any = new Error(`Got mysterious error chunk: ${type}`);
+            const error: any = new Error(
+              `Got mysterious error chunk: [${type}] ${text}`
+            );
             error.lastEvent = text;
             this.emit("error", error);
             return null;

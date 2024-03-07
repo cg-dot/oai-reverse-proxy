@@ -6,7 +6,6 @@ import { APIFormat, keyPool } from "../../../shared/key-management";
 import {
   copySseResponseHeaders,
   initializeSseStream,
-
 } from "../../../shared/streaming";
 import type { logger } from "../../../logger";
 import { enqueue } from "../../queue";
@@ -15,7 +14,8 @@ import { getAwsEventStreamDecoder } from "./streaming/aws-event-stream-decoder";
 import { EventAggregator } from "./streaming/event-aggregator";
 import { SSEMessageTransformer } from "./streaming/sse-message-transformer";
 import { SSEStreamAdapter } from "./streaming/sse-stream-adapter";
-import { buildSpoofedSSE } from "./error-generator";
+import { buildSpoofedSSE, sendErrorToClient } from "./error-generator";
+import { BadRequestError } from "../../../shared/errors";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -109,6 +109,18 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
       );
       req.retryCount++;
       await enqueue(req);
+    } else if (err instanceof BadRequestError) {
+      sendErrorToClient({
+        req,
+        res,
+        options: {
+          format: req.inboundApi,
+          title: "Proxy streaming error (Bad Request)",
+          message: `The API returned an error while streaming your request. Your prompt might not be formatted correctly.\n\n*${err.message}*`,
+          reqId: req.id,
+          model: req.body?.model,
+        },
+      });
     } else {
       const { message, stack, lastEvent } = err;
       const eventText = JSON.stringify(lastEvent, null, 2) ?? "undefined";
