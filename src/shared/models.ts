@@ -138,7 +138,7 @@ export function getMistralAIModelFamily(model: string): MistralAIModelFamily {
     case "mistral-small":
     case "mistral-medium":
     case "mistral-large":
-      return model as MistralAIModelFamily;
+      return prunedModel as MistralAIModelFamily;
     case "open-mistral-7b":
       return "mistral-tiny";
     case "open-mixtral-8x7b":
