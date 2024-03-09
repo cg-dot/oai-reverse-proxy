@@ -3,7 +3,7 @@ import {
   flattenOpenAIChatMessages,
   OpenAIV1ChatCompletionSchema,
 } from "./openai";
-import { Request } from "express";
+import { APIFormatTransformer } from "./index";
 
 export const OpenAIV1TextCompletionSchema = z
   .object({
@@ -29,7 +29,9 @@ export const OpenAIV1TextCompletionSchema = z
   .strip()
   .merge(OpenAIV1ChatCompletionSchema.omit({ messages: true, logprobs: true }));
 
-export function openAIToOpenAIText(req: Request) {
+export const transformOpenAIToOpenAIText: APIFormatTransformer<
+  typeof OpenAIV1TextCompletionSchema
+> = async (req) => {
   const { body } = req;
   const result = OpenAIV1ChatCompletionSchema.safeParse(body);
   if (!result.success) {
@@ -53,4 +55,4 @@ export function openAIToOpenAIText(req: Request) {
 
   const transformed = { ...rest, prompt: prompt, stop: stops };
   return OpenAIV1TextCompletionSchema.parse(transformed);
-}
+};

@@ -83,17 +83,19 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
     body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
   }
 
-  if (req.inboundApi === "openai") {
-    req.log.info("Transforming Anthropic text to OpenAI format");
-    body = transformAnthropicTextResponseToOpenAI(body, req);
-  }
-
-  if (
-    req.inboundApi === "anthropic-text" &&
-    req.outboundApi === "anthropic-chat"
-  ) {
-    req.log.info("Transforming Anthropic text to Anthropic chat format");
-    body = transformAnthropicChatResponseToAnthropicText(body);
+  switch (`${req.inboundApi}<-${req.outboundApi}`) {
+    case "openai<-anthropic-text":
+      req.log.info("Transforming Anthropic Text back to OpenAI format");
+      body = transformAnthropicTextResponseToOpenAI(body, req);
+      break;
+    case "openai<-anthropic-chat":
+      req.log.info("Transforming Anthropic Chat back to OpenAI format");
+      body = transformAnthropicChatResponseToOpenAI(body);
+      break;
+    case "anthropic-text<-anthropic-chat":
+      req.log.info("Transforming Anthropic Chat back to Anthropic chat format");
+      body = transformAnthropicChatResponseToAnthropicText(body);
+      break;
   }
 
   if (req.tokenizerInfo) {
@@ -103,17 +105,23 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
   res.status(200).json(body);
 };
 
+function flattenChatResponse(
+  content: { type: string; text: string }[]
+): string {
+  return content
+    .map((part: { type: string; text: string }) =>
+      part.type === "text" ? part.text : ""
+    )
+    .join("\n");
+}
+
 export function transformAnthropicChatResponseToAnthropicText(
   anthropicBody: Record<string, any>
 ): Record<string, any> {
   return {
     type: "completion",
-    id: "trans-" + anthropicBody.id,
-    completion: anthropicBody.content
-      .map((part: { type: string; text: string }) =>
-        part.type === "text" ? part.text : ""
-      )
-      .join(""),
+    id: "ant-" + anthropicBody.id,
+    completion: flattenChatResponse(anthropicBody.content),
     stop_reason: anthropicBody.stop_reason,
     stop: anthropicBody.stop_sequence,
     model: anthropicBody.model,
@@ -155,6 +163,28 @@ function transformAnthropicTextResponseToOpenAI(
   };
 }
 
+function transformAnthropicChatResponseToOpenAI(
+  anthropicBody: Record<string, any>
+): Record<string, any> {
+  return {
+    id: "ant-" + anthropicBody.id,
+    object: "chat.completion",
+    created: Date.now(),
+    model: anthropicBody.model,
+    usage: anthropicBody.usage,
+    choices: [
+      {
+        message: {
+          role: "assistant",
+          content: flattenChatResponse(anthropicBody.content),
+        },
+        finish_reason: anthropicBody.stop_reason,
+        index: 0,
+      },
+    ],
+  };
+}
+
 const anthropicProxy = createQueueMiddleware({
   proxyMiddleware: createProxyMiddleware({
     target: "https://api.anthropic.com",
@@ -177,6 +207,9 @@ const anthropicProxy = createQueueMiddleware({
       }
       if (isText && pathname === "/v1/chat/completions") {
         req.url = "/v1/complete";
+      }
+      if (isChat && pathname === "/v1/chat/completions") {
+        req.url = "/v1/messages";
       }
       if (isChat && ["sonnet", "opus"].includes(req.params.type)) {
         req.url = "/v1/messages";
@@ -202,7 +235,7 @@ const textToChatPreprocessor = createPreprocessorMiddleware({
  * Routes text completion prompts to anthropic-chat if they need translation
  * (claude-3 based models do not support the old text completion endpoint).
  */
-const claudeTextCompletionRouter: RequestHandler = (req, res, next) => {
+const preprocessAnthropicTextRequest: RequestHandler = (req, res, next) => {
   if (req.body.model?.startsWith("claude-3")) {
     textToChatPreprocessor(req, res, next);
   } else {
@@ -210,15 +243,33 @@ const claudeTextCompletionRouter: RequestHandler = (req, res, next) => {
   }
 };
 
+const oaiToTextPreprocessor = createPreprocessorMiddleware({
+  inApi: "openai",
+  outApi: "anthropic-text",
+  service: "anthropic",
+});
+
+const oaiToChatPreprocessor = createPreprocessorMiddleware({
+  inApi: "openai",
+  outApi: "anthropic-chat",
+  service: "anthropic",
+});
+
+/**
+ * Routes an OpenAI prompt to either the legacy Claude text completion endpoint
+ * or the new Claude chat completion endpoint, based on the requested model.
+ */
+const preprocessOpenAICompatRequest: RequestHandler = (req, res, next) => {
+  maybeReassignModel(req);
+  if (req.body.model?.includes("claude-3")) {
+    oaiToChatPreprocessor(req, res, next);
+  } else {
+    oaiToTextPreprocessor(req, res, next);
+  }
+};
+
 const anthropicRouter = Router();
 anthropicRouter.get("/v1/models", handleModelRequest);
-// Anthropic text completion endpoint. Dynamic routing based on model.
-anthropicRouter.post(
-  "/v1/complete",
-  ipLimiter,
-  claudeTextCompletionRouter,
-  anthropicProxy
-);
 // Native Anthropic chat completion endpoint.
 anthropicRouter.post(
   "/v1/messages",
@@ -230,23 +281,30 @@ anthropicRouter.post(
   }),
   anthropicProxy
 );
-// OpenAI-to-Anthropic Text compatibility endpoint.
+// Anthropic text completion endpoint. Translates to Anthropic chat completion
+// if the requested model is a Claude 3 model.
+anthropicRouter.post(
+  "/v1/complete",
+  ipLimiter,
+  preprocessAnthropicTextRequest,
+  anthropicProxy
+);
+// OpenAI-to-Anthropic compatibility endpoint. Accepts an OpenAI chat completion
+// request and transforms/routes it to the appropriate Anthropic format and
+// endpoint based on the requested model.
 anthropicRouter.post(
   "/v1/chat/completions",
   ipLimiter,
-  createPreprocessorMiddleware(
-    { inApi: "openai", outApi: "anthropic-text", service: "anthropic" },
-    { afterTransform: [maybeReassignModel] }
-  ),
+  preprocessOpenAICompatRequest,
   anthropicProxy
 );
-// Temporary force Anthropic Text to Anthropic Chat for frontends which do not
+// Temporarily force Anthropic Text to Anthropic Chat for frontends which do not
 // yet support the new model. Forces claude-3. Will be removed once common
 // frontends have been updated.
 anthropicRouter.post(
   "/v1/:type(sonnet|opus)/:action(complete|messages)",
   ipLimiter,
-  handleCompatibilityRequest,
+  handleAnthropicTextCompatRequest,
   createPreprocessorMiddleware({
     inApi: "anthropic-text",
     outApi: "anthropic-chat",
@@ -255,7 +313,11 @@ anthropicRouter.post(
   anthropicProxy
 );
 
-function handleCompatibilityRequest(req: Request, res: Response, next: any) {
+function handleAnthropicTextCompatRequest(
+  req: Request,
+  res: Response,
+  next: any
+) {
   const type = req.params.type;
   const action = req.params.action;
   const alreadyInChatFormat = Boolean(req.body.messages);
@@ -287,10 +349,14 @@ function handleCompatibilityRequest(req: Request, res: Response, next: any) {
   next();
 }
 
+/**
+ * If a client using the OpenAI compatibility endpoint requests an actual OpenAI
+ * model, reassigns it to Claude 3 Sonnet.
+ */
 function maybeReassignModel(req: Request) {
   const model = req.body.model;
   if (!model.startsWith("gpt-")) return;
-  req.body.model = "claude-2.1";
+  req.body.model = "claude-3-sonnet-20240229";
 }
 
 export const anthropic = anthropicRouter;

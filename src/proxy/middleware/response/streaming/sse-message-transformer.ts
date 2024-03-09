@@ -3,6 +3,7 @@ import { logger } from "../../../../logger";
 import { APIFormat } from "../../../../shared/key-management";
 import { assertNever } from "../../../../shared/utils";
 import {
+  anthropicChatToOpenAI,
   anthropicChatToAnthropicV2,
   anthropicV1ToOpenAI,
   AnthropicV2StreamEvent,
@@ -117,7 +118,11 @@ function eventIsOpenAIEvent(
 
 function getTransformer(
   responseApi: APIFormat,
-  version?: string
+  version?: string,
+  // There's only one case where we're not transforming back to OpenAI, which is
+  // Anthropic Chat response -> Anthropic Text request. This parameter is only
+  // used for that case.
+  requestApi: APIFormat = "openai"
 ): StreamingCompletionTransformer<
   OpenAIChatCompletionStreamEvent | AnthropicV2StreamEvent
 > {
@@ -132,7 +137,9 @@ function getTransformer(
         ? anthropicV1ToOpenAI
         : anthropicV2ToOpenAI;
     case "anthropic-chat":
-      return anthropicChatToAnthropicV2;
+      return requestApi === "anthropic-text"
+        ? anthropicChatToAnthropicV2
+        : anthropicChatToOpenAI;
     case "google-ai":
       return googleAIToOpenAI;
     case "openai-image":

@@ -1,12 +1,9 @@
 import {
-  anthropicTextToAnthropicChat,
-  openAIToAnthropicText,
-} from "../../../../shared/api-schemas/anthropic";
-import { openAIToOpenAIText } from "../../../../shared/api-schemas/openai-text";
-import { openAIToOpenAIImage } from "../../../../shared/api-schemas/openai-image";
-import { openAIToGoogleAI } from "../../../../shared/api-schemas/google-ai";
+  API_REQUEST_VALIDATORS,
+  API_REQUEST_TRANSFORMERS,
+} from "../../../../shared/api-schemas";
+import { BadRequestError } from "../../../../shared/errors";
 import { fixMistralPrompt } from "../../../../shared/api-schemas/mistral-ai";
-import { API_SCHEMA_VALIDATORS } from "../../../../shared/api-schemas";
 import {
   isImageGenerationRequest,
   isTextGenerationRequest,
@@ -22,6 +19,7 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
 
   if (alreadyTransformed || notTransformable) return;
 
+  // TODO: this should be an APIFormatTransformer
   if (req.inboundApi === "mistral-ai") {
     const messages = req.body.messages;
     req.body.messages = fixMistralPrompt(messages);
@@ -32,9 +30,9 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
   }
 
   if (sameService) {
-    const result = API_SCHEMA_VALIDATORS[req.inboundApi].safeParse(req.body);
+    const result = API_REQUEST_VALIDATORS[req.inboundApi].safeParse(req.body);
     if (!result.success) {
-      req.log.error(
+      req.log.warn(
         { issues: result.error.issues, body: req.body },
         "Request validation failed"
       );
@@ -44,35 +42,16 @@ export const transformOutboundPayload: RequestPreprocessor = async (req) => {
     return;
   }
 
-  if (
-    req.inboundApi === "anthropic-text" &&
-    req.outboundApi === "anthropic-chat"
-  ) {
-    req.body = anthropicTextToAnthropicChat(req);
+  const transformation = `${req.inboundApi}->${req.outboundApi}` as const;
+  const transFn = API_REQUEST_TRANSFORMERS[transformation];
+
+  if (transFn) {
+    req.log.info({ transformation }, "Transforming request");
+    req.body = await transFn(req);
     return;
   }
 
-  if (req.inboundApi === "openai" && req.outboundApi === "anthropic-text") {
-    req.body = openAIToAnthropicText(req);
-    return;
-  }
-
-  if (req.inboundApi === "openai" && req.outboundApi === "google-ai") {
-    req.body = openAIToGoogleAI(req);
-    return;
-  }
-
-  if (req.inboundApi === "openai" && req.outboundApi === "openai-text") {
-    req.body = openAIToOpenAIText(req);
-    return;
-  }
-
-  if (req.inboundApi === "openai" && req.outboundApi === "openai-image") {
-    req.body = openAIToOpenAIImage(req);
-    return;
-  }
-
-  throw new Error(
-    `'${req.inboundApi}' -> '${req.outboundApi}' request proxying is not supported. Make sure your client is configured to use the correct API.`
+  throw new BadRequestError(
+    `${transformation} proxying is not supported. Make sure your client is configured to send requests in the correct format and to the correct endpoint.`
   );
 };

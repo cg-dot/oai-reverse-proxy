@@ -338,12 +338,13 @@ function refreshAllQuotas() {
 // store to sync it with Firebase when it changes. Will refactor to abstract
 // persistence layer later so we can support multiple stores.
 let firebaseTimeout: NodeJS.Timeout | undefined;
+const USERS_REF = process.env.FIREBASE_USERS_REF_NAME ?? "users";
 
 async function initFirebase() {
   log.info("Connecting to Firebase...");
   const app = getFirebaseApp();
   const db = admin.database(app);
-  const usersRef = db.ref("users");
+  const usersRef = db.ref(USERS_REF);
   const snapshot = await usersRef.once("value");
   const users: Record<string, User> | null = snapshot.val();
   firebaseTimeout = setInterval(flushUsers, 20 * 1000);
@@ -362,7 +363,7 @@ async function initFirebase() {
 async function flushUsers() {
   const app = getFirebaseApp();
   const db = admin.database(app);
-  const usersRef = db.ref("users");
+  const usersRef = db.ref(USERS_REF);
   const updates: Record<string, User> = {};
   const deletions = [];
 

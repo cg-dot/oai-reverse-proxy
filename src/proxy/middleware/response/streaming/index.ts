@@ -39,6 +39,7 @@ export { openAITextToOpenAIChat } from "./transformers/openai-text-to-openai";
 export { anthropicV1ToOpenAI } from "./transformers/anthropic-v1-to-openai";
 export { anthropicV2ToOpenAI } from "./transformers/anthropic-v2-to-openai";
 export { anthropicChatToAnthropicV2 } from "./transformers/anthropic-chat-to-anthropic-v2";
+export { anthropicChatToOpenAI } from "./transformers/anthropic-chat-to-openai";
 export { googleAIToOpenAI } from "./transformers/google-ai-to-openai";
 export { passthroughToOpenAI } from "./transformers/passthrough-to-openai";
 export { mergeEventsForOpenAIChat } from "./aggregators/openai-chat";

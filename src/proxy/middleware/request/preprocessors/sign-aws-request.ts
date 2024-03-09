@@ -5,7 +5,7 @@ import { HttpRequest } from "@smithy/protocol-http";
 import {
   AnthropicV1TextSchema,
   AnthropicV1MessagesSchema,
-} from "../../../../shared/api-schemas/anthropic";
+} from "../../../../shared/api-schemas";
 import { keyPool } from "../../../../shared/key-management";
 import { RequestPreprocessor } from "../index";
 

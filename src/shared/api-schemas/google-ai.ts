@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { Request } from "express";
 import {
   flattenOpenAIMessageContent,
   OpenAIV1ChatCompletionSchema,
 } from "./openai";
+import { APIFormatTransformer } from "./index";
 
 // https://developers.generativeai.google/api/rest/generativelanguage/models/generateContent
 export const GoogleAIV1GenerateContentSchema = z
@@ -14,7 +14,7 @@ export const GoogleAIV1GenerateContentSchema = z
       z.object({
         parts: z.array(z.object({ text: z.string() })),
         role: z.enum(["user", "model"]),
-      }),
+      })
     ),
     tools: z.array(z.object({})).max(0).optional(),
     safetySettings: z.array(z.object({})).max(0).optional(),
@@ -37,9 +37,9 @@ export type GoogleAIChatMessage = z.infer<
   typeof GoogleAIV1GenerateContentSchema
 >["contents"][0];
 
-export function openAIToGoogleAI(
-  req: Request,
-): z.infer<typeof GoogleAIV1GenerateContentSchema> {
+export const transformOpenAIToGoogleAI: APIFormatTransformer<
+  typeof GoogleAIV1GenerateContentSchema
+> = async (req) => {
   const { body } = req;
   const result = OpenAIV1ChatCompletionSchema.safeParse({
     ...body,
@@ -48,7 +48,7 @@ export function openAIToGoogleAI(
   if (!result.success) {
     req.log.warn(
       { issues: result.error.issues, body },
-      "Invalid OpenAI-to-Google AI request",
+      "Invalid OpenAI-to-Google AI request"
     );
     throw result.error;
   }
@@ -121,4 +121,4 @@ export function openAIToGoogleAI(
       { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
     ],
   };
-}
+};
