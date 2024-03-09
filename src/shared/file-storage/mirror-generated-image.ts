@@ -6,7 +6,6 @@ import { USER_ASSETS_DIR } from "../../config";
 import { addToImageHistory } from "./image-history";
 import { libSharp } from "./index";
 
-
 export type OpenAIImageGenerationResult = {
   created: number;
   data: {

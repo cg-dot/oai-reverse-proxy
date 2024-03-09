@@ -12,12 +12,12 @@ import { checkCsrfToken, injectCsrfToken } from "./shared/inject-csrf";
 
 const INFO_PAGE_TTL = 2000;
 const MODEL_FAMILY_FRIENDLY_NAME: { [f in ModelFamily]: string } = {
-  "turbo": "GPT-3.5 Turbo",
-  "gpt4": "GPT-4",
+  turbo: "GPT-3.5 Turbo",
+  gpt4: "GPT-4",
   "gpt4-32k": "GPT-4 32k",
   "gpt4-turbo": "GPT-4 Turbo",
   "dall-e": "DALL-E",
-  "claude": "Claude (Sonnet)",
+  claude: "Claude (Sonnet)",
   "claude-opus": "Claude (Opus)",
   "gemini-pro": "Gemini Pro",
   "mistral-tiny": "Mistral 7B",
@@ -29,6 +29,7 @@ const MODEL_FAMILY_FRIENDLY_NAME: { [f in ModelFamily]: string } = {
   "azure-gpt4": "Azure GPT-4",
   "azure-gpt4-32k": "Azure GPT-4 32k",
   "azure-gpt4-turbo": "Azure GPT-4 Turbo",
+  "azure-dall-e": "Azure DALL-E",
 };
 
 const converter = new showdown.Converter();
@@ -125,7 +126,9 @@ This proxy keeps full logs of all prompts and AI responses. Prompt logs are anon
 
     const wait = info[modelFamily]?.estimatedQueueTime;
     if (hasKeys && wait) {
-      waits.push(`**${MODEL_FAMILY_FRIENDLY_NAME[modelFamily] || modelFamily}**: ${wait}`);
+      waits.push(
+        `**${MODEL_FAMILY_FRIENDLY_NAME[modelFamily] || modelFamily}**: ${wait}`
+      );
     }
   }
 
@@ -163,9 +166,10 @@ function getServerTitle() {
 }
 
 function buildRecentImageSection() {
+  const dalleModels: ModelFamily[] = ["azure-dall-e", "dall-e"];
   if (
-    !config.allowedModelFamilies.includes("dall-e") ||
-    !config.showRecentImages
+    !config.showRecentImages ||
+    dalleModels.every((f) => !config.allowedModelFamilies.includes(f))
   ) {
     return "";
   }
@@ -208,7 +212,11 @@ function getExternalUrlForHuggingfaceSpaceId(spaceId: string) {
   }
 }
 
-function checkIfUnlocked(req: Request, res: Response, next: express.NextFunction) {
+function checkIfUnlocked(
+  req: Request,
+  res: Response,
+  next: express.NextFunction
+) {
   if (config.serviceInfoPassword?.length && !req.session?.unlocked) {
     return res.redirect("/unlock-info");
   }
@@ -223,16 +231,13 @@ if (config.serviceInfoPassword?.length) {
   );
   infoPageRouter.use(withSession);
   infoPageRouter.use(injectCsrfToken, checkCsrfToken);
-  infoPageRouter.post(
-    "/unlock-info",
-    (req, res) => {
-      if (req.body.password !== config.serviceInfoPassword) {
-        return res.status(403).send("Incorrect password");
-      }
-      req.session!.unlocked = true;
-      res.redirect("/");
-    },
-  );
+  infoPageRouter.post("/unlock-info", (req, res) => {
+    if (req.body.password !== config.serviceInfoPassword) {
+      return res.status(403).send("Incorrect password");
+    }
+    req.session!.unlocked = true;
+    res.redirect("/");
+  });
   infoPageRouter.get("/unlock-info", (_req, res) => {
     if (_req.session?.unlocked) return res.redirect("/");
 

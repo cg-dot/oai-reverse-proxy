@@ -28,25 +28,10 @@ import { assertNever } from "../utils";
 
 const log = logger.child({ module: "users" });
 
-const INITIAL_TOKENS: Required<UserTokenCounts> = {
-  turbo: 0,
-  gpt4: 0,
-  "gpt4-32k": 0,
-  "gpt4-turbo": 0,
-  "dall-e": 0,
-  claude: 0,
-  "claude-opus": 0,
-  "gemini-pro": 0,
-  "mistral-tiny": 0,
-  "mistral-small": 0,
-  "mistral-medium": 0,
-  "mistral-large": 0,
-  "aws-claude": 0,
-  "azure-turbo": 0,
-  "azure-gpt4": 0,
-  "azure-gpt4-turbo": 0,
-  "azure-gpt4-32k": 0,
-};
+const INITIAL_TOKENS: Required<UserTokenCounts> = MODEL_FAMILIES.reduce(
+  (acc, family) => ({ ...acc, [family]: 0 }),
+  {} as Record<ModelFamily, number>
+);
 
 const users: Map<string, User> = new Map();
 const usersToFlush = new Set<string>();

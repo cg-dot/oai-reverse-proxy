@@ -1,8 +1,15 @@
-import { AzureOpenAIKey, keyPool } from "../../../../shared/key-management";
+import {
+  APIFormat,
+  AzureOpenAIKey,
+  keyPool,
+} from "../../../../shared/key-management";
 import { RequestPreprocessor } from "../index";
 
 export const addAzureKey: RequestPreprocessor = (req) => {
-  const apisValid = req.inboundApi === "openai" && req.outboundApi === "openai";
+  const validAPIs: APIFormat[] = ["openai", "openai-image"];
+  const apisValid = [req.outboundApi, req.inboundApi].every((api) =>
+    validAPIs.includes(api)
+  );
   const serviceValid = req.service === "azure";
   if (!apisValid || !serviceValid) {
     throw new Error("addAzureKey called on invalid request");
@@ -18,7 +25,7 @@ export const addAzureKey: RequestPreprocessor = (req) => {
 
   req.key = keyPool.get(model, "azure");
   req.body.model = model;
-  
+
   // Handles the sole Azure API deviation from the OpenAI spec (that I know of)
   const notNullOrUndefined = (x: any) => x !== null && x !== undefined;
   if ([req.body.logprobs, req.body.top_logprobs].some(notNullOrUndefined)) {
@@ -28,7 +35,7 @@ export const addAzureKey: RequestPreprocessor = (req) => {
     //   req.body.logprobs = req.body.top_logprobs || undefined;
     //   delete req.body.top_logprobs
     // }
-    
+
     // Temporarily just disabling logprobs for Azure because their model support
     // is random: `This model does not support the 'logprobs' parameter.`
     delete req.body.logprobs;
@@ -43,11 +50,16 @@ export const addAzureKey: RequestPreprocessor = (req) => {
   const cred = req.key as AzureOpenAIKey;
   const { resourceName, deploymentId, apiKey } = getCredentialsFromKey(cred);
 
+  const operation =
+    req.outboundApi === "openai" ? "/chat/completions" : "/images/generations";
+  const apiVersion =
+    req.outboundApi === "openai" ? "2023-09-01-preview" : "2024-02-15-preview";
+
   req.signedRequest = {
     method: "POST",
     protocol: "https:",
     hostname: `${resourceName}.openai.azure.com`,
-    path: `/openai/deployments/${deploymentId}/chat/completions?api-version=2023-09-01-preview`,
+    path: `/openai/deployments/${deploymentId}${operation}?api-version=${apiVersion}`,
     headers: {
       ["host"]: `${resourceName}.openai.azure.com`,
       ["content-type"]: "application/json",

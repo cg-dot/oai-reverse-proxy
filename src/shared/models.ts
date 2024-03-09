@@ -30,10 +30,7 @@ export type MistralAIModelFamily =
   | "mistral-medium"
   | "mistral-large";
 export type AwsBedrockModelFamily = "aws-claude";
-export type AzureOpenAIModelFamily = `azure-${Exclude<
-  OpenAIModelFamily,
-  "dall-e"
->}`;
+export type AzureOpenAIModelFamily = `azure-${OpenAIModelFamily}`;
 export type ModelFamily =
   | OpenAIModelFamily
   | AnthropicModelFamily
@@ -62,6 +59,7 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "azure-gpt4",
   "azure-gpt4-32k",
   "azure-gpt4-turbo",
+  "azure-dall-e",
 ] as const);
 
 export const LLM_SERVICES = (<A extends readonly LLMService[]>(
@@ -103,12 +101,15 @@ export const MODEL_FAMILY_SERVICE: {
   "azure-gpt4": "azure",
   "azure-gpt4-32k": "azure",
   "azure-gpt4-turbo": "azure",
+  "azure-dall-e": "azure",
   "gemini-pro": "google-ai",
   "mistral-tiny": "mistral-ai",
   "mistral-small": "mistral-ai",
   "mistral-medium": "mistral-ai",
   "mistral-large": "mistral-ai",
 };
+
+export const IMAGE_GEN_MODELS: ModelFamily[] = ["dall-e", "azure-dall-e"];
 
 pino({ level: "debug" }).child({ module: "startup" });
 

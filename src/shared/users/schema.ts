@@ -1,17 +1,15 @@
 import { ZodType, z } from "zod";
-import type { ModelFamily } from "../models";
+import { MODEL_FAMILIES, ModelFamily } from "../models";
 import { makeOptionalPropsNullable } from "../utils";
 
-export const tokenCountsSchema: ZodType<UserTokenCounts> = z.object({
-  turbo: z.number().optional().default(0),
-  gpt4: z.number().optional().default(0),
-  "gpt4-32k": z.number().optional().default(0),
-  "gpt4-turbo": z.number().optional().default(0),
-  "dall-e": z.number().optional().default(0),
-  claude: z.number().optional().default(0),
-  "gemini-pro": z.number().optional().default(0),
-  "aws-claude": z.number().optional().default(0),
-});
+// This just dynamically creates a Zod object type with a key for each model
+// family and an optional number value.
+export const tokenCountsSchema: ZodType<UserTokenCounts> = z.object(
+  MODEL_FAMILIES.reduce(
+    (acc, family) => ({ ...acc, [family]: z.number().optional().default(0) }),
+    {} as Record<ModelFamily, ZodType<number>>
+  )
+);
 
 export const UserSchema = z
   .object({
@@ -66,7 +64,7 @@ export const UserPartialSchema = makeOptionalPropsNullable(UserSchema)
   .extend({ token: z.string() });
 
 export type UserTokenCounts = {
-  [K in ModelFamily]?: number;
+  [K in ModelFamily]: number | undefined;
 };
 export type User = z.infer<typeof UserSchema>;
 export type UserUpdate = z.infer<typeof UserPartialSchema>;

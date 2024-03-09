@@ -22,7 +22,7 @@ export function getTokenCostUsd(model: ModelFamily, tokens: number) {
     case "turbo":
       cost = 0.000001;
       break;
-    case "dall-e":
+    case "azure-dall-e":
       cost = 0.00001;
       break;
     case "aws-claude":

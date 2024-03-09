@@ -13,6 +13,7 @@ import { keyPool } from "./shared/key-management";
 import { adminRouter } from "./admin/routes";
 import { proxyRouter } from "./proxy/routes";
 import { infoPageRouter } from "./info-page";
+import { IMAGE_GEN_MODELS } from "./shared/models";
 import { userRouter } from "./user/routes";
 import { logQueue } from "./shared/prompt-logging";
 import { start as startRequestQueue } from "./proxy/queue";
@@ -111,7 +112,7 @@ async function start() {
 
   await initTokenizers();
 
-  if (config.allowedModelFamilies.includes("dall-e")) {
+  if (config.allowedModelFamilies.some((f) => IMAGE_GEN_MODELS.includes(f))) {
     await setupAssetsDir();
   }
 

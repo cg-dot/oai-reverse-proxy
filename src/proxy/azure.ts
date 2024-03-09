@@ -124,5 +124,15 @@ azureOpenAIRouter.post(
   }),
   azureOpenAIProxy
 );
+azureOpenAIRouter.post(
+  "/v1/images/generations",
+  ipLimiter,
+  createPreprocessorMiddleware({
+    inApi: "openai-image",
+    outApi: "openai-image",
+    service: "azure",
+  }),
+  azureOpenAIProxy
+);
 
 export const azure = azureOpenAIRouter;

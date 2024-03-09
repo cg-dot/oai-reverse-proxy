@@ -4,7 +4,7 @@ import type { AzureOpenAIKey, AzureOpenAIKeyProvider } from "./provider";
 import { getAzureOpenAIModelFamily } from "../../models";
 
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
-const KEY_CHECK_PERIOD = 3 * 60 * 1000; // 3 minutes
+const KEY_CHECK_PERIOD = 60 * 60 * 1000; // 1 hour
 const AZURE_HOST = process.env.AZURE_HOST || "%RESOURCE_NAME%.openai.azure.com";
 const POST_CHAT_COMPLETIONS = (resourceName: string, deploymentId: string) =>
   `https://${AZURE_HOST.replace(
@@ -29,7 +29,7 @@ export class AzureOpenAIKeyChecker extends KeyCheckerBase<AzureOpenAIKey> {
       service: "azure",
       keyCheckPeriod: KEY_CHECK_PERIOD,
       minCheckInterval: MIN_CHECK_INTERVAL,
-      recurringChecksEnabled: false,
+      recurringChecksEnabled: true,
       updateKey,
     });
   }
@@ -43,7 +43,6 @@ export class AzureOpenAIKeyChecker extends KeyCheckerBase<AzureOpenAIKey> {
   protected handleAxiosError(key: AzureOpenAIKey, error: AxiosError) {
     if (error.response && AzureOpenAIKeyChecker.errorIsAzureError(error)) {
       const data = error.response.data;
-      const status = data.error.status;
       const errorType = data.error.code || data.error.type;
       switch (errorType) {
         case "DeploymentNotFound":
@@ -65,8 +64,9 @@ export class AzureOpenAIKeyChecker extends KeyCheckerBase<AzureOpenAIKey> {
             isRevoked: true,
           });
         case "429":
+          const headers = error.response.headers;
           this.log.warn(
-            { key: key.hash, errorType, error: error.response.data },
+            { key: key.hash, errorType, error: error.response.data, headers },
             "Key is rate limited. Rechecking key in 1 minute."
           );
           this.updateKey(key.hash, { lastChecked: Date.now() });
@@ -79,8 +79,9 @@ export class AzureOpenAIKeyChecker extends KeyCheckerBase<AzureOpenAIKey> {
           }, 1000 * 60);
           return;
         default:
+          const { data: errorData, status: errorStatus } = error.response;
           this.log.error(
-            { key: key.hash, errorType, error: error.response.data, status },
+            { key: key.hash, errorType, errorData, errorStatus },
             "Unknown Azure API error while checking key. Please report this."
           );
           return this.updateKey(key.hash, { lastChecked: Date.now() });
@@ -98,7 +99,7 @@ export class AzureOpenAIKeyChecker extends KeyCheckerBase<AzureOpenAIKey> {
 
     const { headers, status, data } = response ?? {};
     this.log.error(
-      { key: key.hash, status, headers, data, error: error.message },
+      { key: key.hash, status, headers, data, error: error.stack },
       "Network error while checking key; trying this key again in a minute."
     );
     const oneMinute = 60 * 1000;
@@ -115,9 +116,25 @@ export class AzureOpenAIKeyChecker extends KeyCheckerBase<AzureOpenAIKey> {
       stream: false,
       messages: [{ role: "user", content: "" }],
     };
-    const { data } = await axios.post(url, testRequest, {
+    const response = await axios.post(url, testRequest, {
       headers: { "Content-Type": "application/json", "api-key": apiKey },
+      validateStatus: (status) => status === 200 || status === 400,
     });
+    const { data } = response;
+
+    // We allow one 400 condition, OperationNotSupported, which is returned when
+    // we try to invoke /chat/completions on dall-e-3. This is expected and
+    // indicates a DALL-E deployment.
+    if (response.status === 400) {
+      if (data.error.code === "OperationNotSupported") return "azure-dall-e";
+      throw new AxiosError(
+        `Unexpected error when testing deployment ${deploymentId}`,
+        "AZURE_TEST_ERROR",
+        response.config,
+        response.request,
+        response
+      );
+    }
 
     const family = getAzureOpenAIModelFamily(data.model);
 
