@@ -20,6 +20,7 @@ type SSEMessageTransformerOptions = TransformOptions & {
   requestId: string;
   inputFormat: APIFormat;
   inputApiVersion?: string;
+  outputFormat?: APIFormat;
   logger: typeof logger;
 };
 
@@ -47,7 +48,8 @@ export class SSEMessageTransformer extends Transform {
     this.msgCount = 0;
     this.transformFn = getTransformer(
       options.inputFormat,
-      options.inputApiVersion
+      options.inputApiVersion,
+      options.outputFormat
     );
     this.inputFormat = options.inputFormat;
     this.fallbackId = options.requestId;

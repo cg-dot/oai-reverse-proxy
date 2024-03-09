@@ -81,7 +81,8 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
   // Transformer converts server-sent events from one vendor's API message
   // format to another.
   const transformer = new SSEMessageTransformer({
-    inputFormat: req.outboundApi,
+    inputFormat: req.outboundApi, // The format of the upstream service's events
+    outputFormat: req.inboundApi, // The format the client requested
     inputApiVersion: String(req.headers["anthropic-version"]),
     logger: req.log,
     requestId: String(req.id),
