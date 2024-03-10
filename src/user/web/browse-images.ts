@@ -11,7 +11,7 @@ let metadataCacheValid = 0;
 
 const handleImageHistoryPage = (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
-  const allImages = getLastNImages().reverse();
+  const allImages = getLastNImages();
   const { items, pageCount } = paginate(allImages, page, IMAGES_PER_PAGE);
 
   res.render("image_history", {
