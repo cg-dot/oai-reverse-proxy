@@ -6,7 +6,7 @@ import { ipLimiter } from "../../proxy/rate-limit";
 const IMAGES_PER_PAGE = 24;
 
 const metadataCacheTTL = 1000 * 60 * 3;
-let metadataCache: unknown | null = null;
+let metadataCache: string | null = null;
 let metadataCacheValid = 0;
 
 const handleImageHistoryPage = (req: Request, res: Response) => {
@@ -31,7 +31,7 @@ const handleMetadataRequest = (_req: Request, res: Response) => {
     `attachment; filename="image-metadata-${new Date().toISOString()}.json"`
   );
   if (new Date().getTime() - metadataCacheValid < metadataCacheTTL) {
-    return res.status(200).json(metadataCache);
+    return res.status(200).send(metadataCache);
   }
 
   const images = getLastNImages().map(({ prompt, url }) => ({ url, prompt }));
@@ -40,9 +40,9 @@ const handleMetadataRequest = (_req: Request, res: Response) => {
     totalImages: images.length,
     images,
   };
-  metadataCache = metadata;
+  metadataCache = JSON.stringify(metadata, null, 2);
   metadataCacheValid = new Date().getTime();
-  res.status(200).json(metadata);
+  res.status(200).send(metadataCache);
 };
 
 export const browseImagesRouter = express.Router();

@@ -68,7 +68,7 @@ export async function mirrorGeneratedImage(
     }
     item.url = `${host}/user_content/${path.basename(mirror)}`;
     await createThumbnail(mirror);
-    addToImageHistory({ url: item.url, prompt, token: req.user?.token ?? "" });
+    addToImageHistory({ url: item.url, prompt, token: req.user?.token});
   }
   return result;
 }
