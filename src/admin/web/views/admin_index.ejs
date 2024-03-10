@@ -50,6 +50,13 @@
       </p>
     </fieldset>
     <% } %>
+    <% if (imageGenerationEnabled) { %>
+    <fieldset>
+      <legend>Image Generation</legend>
+      <button id="download-image-metadata" type="button" onclick="submitForm('downloadImageMetadata')">Download Image Metadata</button>
+      <label for="download-image-metadata">Downloads a metadata file containing URL, prompt, and truncated user token for all cached images.</label>
+    </fieldset>
+    <% } %>
   </div>
 </form>
 

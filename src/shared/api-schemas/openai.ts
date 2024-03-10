@@ -52,7 +52,7 @@ export const OpenAIV1ChatCompletionSchema = z
       .number()
       .int()
       .nullish()
-      .default(OPENAI_OUTPUT_MAX)
+      .default(Math.min(OPENAI_OUTPUT_MAX, 4096))
       .transform((v) => Math.min(v ?? OPENAI_OUTPUT_MAX, OPENAI_OUTPUT_MAX)),
     frequency_penalty: z.number().optional().default(0),
     presence_penalty: z.number().optional().default(0),

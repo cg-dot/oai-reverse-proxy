@@ -190,6 +190,7 @@ function buildRecentImageSection() {
 </div>`;
   }
   html += `</div>`;
+  html += `<p style="clear: both; text-align: center;"><a href="/user/image-history">View all recent images</a></p>`
 
   return html;
 }

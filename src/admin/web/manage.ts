@@ -14,6 +14,7 @@ import {
   UserSchema,
   UserTokenCounts,
 } from "../../shared/users/schema";
+import { getLastNImages } from "../../shared/file-storage/image-history";
 
 const router = Router();
 
@@ -220,6 +221,18 @@ router.post("/maintenance", (req, res) => {
       flash.type = "success";
       flash.message = `All users' token usage records reset.`;
       break;
+    }
+    case "downloadImageMetadata": {
+      const data = JSON.stringify({
+        exportedAt: new Date().toISOString(),
+        generations: getLastNImages()
+      }, null, 2);
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=image-metadata-${new Date().toISOString()}.json`
+      );
+      res.setHeader("Content-Type", "application/json");
+      return res.send(data);
     }
     default: {
       throw new HttpError(400, "Invalid action");

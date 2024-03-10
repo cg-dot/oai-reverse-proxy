@@ -13,6 +13,9 @@ export const injectLocals: RequestHandler = (req, res, next) => {
   res.locals.nextQuotaRefresh = userStore.getNextQuotaRefresh();
   res.locals.persistenceEnabled = config.gatekeeperStore !== "memory";
   res.locals.usersEnabled = config.gatekeeper === "user_token";
+  res.locals.imageGenerationEnabled = config.allowedModelFamilies.some(
+    (f) => ["dall-e", "azure-dall-e"].includes(f)
+  );
   res.locals.showTokenCosts = config.showTokenCosts;
   res.locals.maxIps = config.maxIpsPerUser;
 

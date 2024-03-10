@@ -1,0 +1,71 @@
+<%- include("partials/shared_header", { title: "Image History" }) %>
+<h1>Image History</h1>
+<% if (images && images.length > 0) { %>
+  <div class="image-history">
+    <% images.forEach(function(image) { %>
+      <div class="image-entry">
+        <% const thumbUrl = image.url.replace(/\.png$/, "_t.jpg"); %>
+        <a href="<%= image.url %>" target="_blank">
+          <img src="<%= thumbUrl %>" alt="<%= image.prompt %>" title="<%= image.prompt %>" />
+        </a>
+      </div>
+    <% }); %>
+  </div>
+  <div>
+    <p><a href="/user/image-history/metadata">Download JSON metadata for all images</a> (data may be delayed)</p>
+  </div>
+  <% if (pagination && pagination.totalPages > 1) { %>
+    <div class="pagination">
+      <% const pageWindow = 5; %>
+      <% const startPage = Math.max(1, pagination.currentPage - pageWindow); %>
+      <% const endPage = Math.min(pagination.totalPages, pagination.currentPage + pageWindow); %>
+      <% if (startPage > 1) { %>
+        <a href="?page=1">1</a>
+        <% if (startPage > 2) { %>...<% } %>
+      <% } %>
+      <% for (let i = startPage; i <= endPage; i++) { %>
+        <a href="?page=<%= i %>" class="<%= i === pagination.currentPage ? 'active' : '' %>"><%= i %></a>
+      <% } %>
+      <% if (endPage < pagination.totalPages) { %>
+        <% if (endPage < pagination.totalPages - 1) { %>...<% } %>
+        <a href="?page=<%= pagination.totalPages %>"><%= pagination.totalPages %></a>
+      <% } %>
+    </div>
+  <% } %>
+<% } else { %>
+  <p>No images found.</p>
+<% } %>
+<%- include("partials/user_footer") %>
+
+<style>
+  .image-history {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+  }
+  .image-entry {
+    margin: 10px;
+  }
+  .pagination {
+    text-align: center; margin-top: 20px;
+  }
+  a.active {
+    font-weight: bold;
+  }
+
+  @media screen and (max-width: 1200px) {
+    .image-history {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  @media screen and (max-width: 900px) {
+    .image-history {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media screen and (max-width: 600px) {
+    .image-history {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>

@@ -5,6 +5,12 @@
     <meta name="csrf-token" content="<%= csrfToken %>">
     <title><%= title %></title>
     <style>
+      body {
+        font-family: sans-serif;
+        background-color: #f0f0f0;
+        padding: 1em;
+      }
+
       a:hover {
         background-color: #e0e6f6;
       }
@@ -69,9 +75,32 @@
           width: 100%;
         }
       }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #222;
+          color: #eee;
+        }
+
+        a:link, a:visited {
+          color: #bbe;
+        }
+
+        a:link:hover, a:visited:hover {
+          background-color: #446;
+        }
+
+        table.striped tr:nth-child(even) {
+          background-color: #333;
+        }
+
+        th.active {
+          background-color: #446;
+        }
+      }
     </style>
   </head>
-  <body style="font-family: sans-serif; background-color: #f0f0f0; padding: 1em;">
+  <body>
     <%- include("partials/shared_flash", { flashData: flash }) %>
       
     

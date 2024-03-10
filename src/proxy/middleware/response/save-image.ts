@@ -19,10 +19,9 @@ export const saveImage: ProxyResHandlerWithBody = async (
   }
 
   if (body.data) {
-    const baseUrl = req.protocol + "://" + req.get("host");
     const prompt = body.data[0].revised_prompt ?? req.body.prompt;
     const res = await mirrorGeneratedImage(
-      baseUrl,
+      req,
       prompt,
       body as OpenAIImageGenerationResult
     );

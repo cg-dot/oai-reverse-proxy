@@ -1,15 +1,18 @@
-const IMAGE_HISTORY_SIZE = 30;
+const IMAGE_HISTORY_SIZE = 10000;
 const imageHistory = new Array<ImageHistory>(IMAGE_HISTORY_SIZE);
 let index = 0;
 
-type ImageHistory = { url: string; prompt: string };
+type ImageHistory = { url: string; prompt: string, token?: string };
 
 export function addToImageHistory(image: ImageHistory) {
+  if (image.token?.length) {
+    image.token = `...${image.token.slice(-5)}`;
+  }
   imageHistory[index] = image;
   index = (index + 1) % IMAGE_HISTORY_SIZE;
 }
 
-export function getLastNImages(n: number) {
+export function getLastNImages(n: number = IMAGE_HISTORY_SIZE): ImageHistory[] {
   const result: ImageHistory[] = [];
   let currentIndex = (index - 1 + IMAGE_HISTORY_SIZE) % IMAGE_HISTORY_SIZE;
 
