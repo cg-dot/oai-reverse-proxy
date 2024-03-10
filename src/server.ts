@@ -61,7 +61,7 @@ app.set("views", [
   path.join(__dirname, "shared/views"),
 ]);
 
-app.use("/user_content", express.static(USER_ASSETS_DIR));
+app.use("/user_content", express.static(USER_ASSETS_DIR, { maxAge: "2h" }));
 
 app.get("/health", (_req, res) => res.sendStatus(200));
 app.use(cors());
