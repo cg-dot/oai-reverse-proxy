@@ -59,7 +59,12 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
       this.updateKey(key.hash, {});
     }
     this.log.info(
-      { key: key.hash, models: key.modelFamilies, trial: key.isTrial },
+      {
+        key: key.hash,
+        models: key.modelFamilies,
+        trial: key.isTrial,
+        snapshots: key.modelSnapshots,
+      },
       "Checked key."
     );
   }
@@ -69,10 +74,11 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
   ): Promise<OpenAIModelFamily[]> {
     const opts = { headers: OpenAIKeyChecker.getHeaders(key) };
     const { data } = await axios.get<GetModelsResponse>(GET_MODELS_URL, opts);
-    const models = data.data;
-
     const families = new Set<OpenAIModelFamily>();
-    models.forEach(({ id }) => families.add(getOpenAIModelFamily(id, "turbo")));
+    const models = data.data.map(({ id }) => {
+      families.add(getOpenAIModelFamily(id, "turbo"));
+      return id;
+    });
 
     // disable dall-e for trial keys due to very low per-day quota that tends to
     // render the key unusable.
@@ -86,13 +92,16 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
     //   families.delete("dall-e");
     // }
 
-    // as of 2024-01-10, the models endpoint has a bug and sometimes returns the
-    // gpt-4-32k-0314 snapshot even though the key doesn't have access to
-    // base gpt-4-32k. we will ignore this model if the snapshot is returned
-    // without the base model.
-    const has32k = models.find(({ id }) => id === "gpt-4-32k");
-    if (families.has("gpt4-32k") && !has32k) {
-      families.delete("gpt4-32k");
+    // as of January 2024, 0314 model snapshots are only available on keys which
+    // have used them in the past. these keys also seem to have 32k-0314 even
+    // though they don't have the base gpt-4-32k model alias listed. if a key
+    // has access to both 0314 models we will flag it as such and force add
+    // gpt4-32k to its model families.
+    if (
+      ["gpt-4-0314", "gpt-4-32k-0314"].every((m) => models.find((n) => n === m))
+    ) {
+      this.log.info({ key: key.hash }, "Added gpt4-32k to -0314 key.");
+      families.add("gpt4-32k");
     }
 
     // We want to update the key's model families here, but we don't want to
@@ -102,6 +111,7 @@ export class OpenAIKeyChecker extends KeyCheckerBase<OpenAIKey> {
     const familiesArray = [...families];
     const keyFromPool = this.keys.find((k) => k.hash === key.hash)!;
     this.updateKey(key.hash, {
+      modelSnapshots: models.filter((m) => m.match(/-\d{4}(-preview)?$/)),
       modelFamilies: familiesArray,
       lastChecked: keyFromPool.lastChecked,
     });

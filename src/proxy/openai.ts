@@ -1,7 +1,7 @@
 import { RequestHandler, Router } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { config } from "../config";
-import { keyPool } from "../shared/key-management";
+import { keyPool, OpenAIKey } from "../shared/key-management";
 import {
   getOpenAIModelFamily,
   ModelFamily,
@@ -36,8 +36,8 @@ export const KNOWN_OPENAI_MODELS = [
   "gpt-4-0613",
   "gpt-4-0314", // EOL 2024-06-13
   "gpt-4-32k",
+  "gpt-4-32k-0314", // EOL 2024-06-13
   "gpt-4-32k-0613",
-  // "gpt-4-32k-0314", // EOL 2024-06-13
   "gpt-3.5-turbo",
   "gpt-3.5-turbo-0301", // EOL 2024-06-13
   "gpt-3.5-turbo-0613",
@@ -52,15 +52,21 @@ let modelsCache: any = null;
 let modelsCacheTime = 0;
 
 export function generateModelList(models = KNOWN_OPENAI_MODELS) {
-  let available = new Set<OpenAIModelFamily>();
+  // Get available families and snapshots
+  let availableFamilies = new Set<OpenAIModelFamily>();
+  const availableSnapshots = new Set<string>();
   for (const key of keyPool.list()) {
     if (key.isDisabled || key.service !== "openai") continue;
-    key.modelFamilies.forEach((family) =>
-      available.add(family as OpenAIModelFamily)
-    );
+    const asOpenAIKey = key as OpenAIKey;
+    asOpenAIKey.modelFamilies.forEach((f) => availableFamilies.add(f));
+    asOpenAIKey.modelSnapshots.forEach((s) => availableSnapshots.add(s));
   }
+
+  // Remove disabled families
   const allowed = new Set<ModelFamily>(config.allowedModelFamilies);
-  available = new Set([...available].filter((x) => allowed.has(x)));
+  availableFamilies = new Set(
+    [...availableFamilies].filter((x) => allowed.has(x))
+  );
 
   return models
     .map((id) => ({
@@ -81,7 +87,16 @@ export function generateModelList(models = KNOWN_OPENAI_MODELS) {
       root: id,
       parent: null,
     }))
-    .filter((model) => available.has(getOpenAIModelFamily(model.id)));
+    .filter((model) => {
+      // First check if the family is available
+      const hasFamily = availableFamilies.has(getOpenAIModelFamily(model.id));
+      if (!hasFamily) return false;
+
+      // Then for snapshots, ensure the specific snapshot is available
+      const isSnapshot = model.id.match(/-\d{4}(-preview)?$/);
+      if (!isSnapshot) return true;
+      return availableSnapshots.has(model.id);
+    });
 }
 
 const handleModelRequest: RequestHandler = (_req, res) => {
@@ -165,7 +180,7 @@ const openaiProxy = createQueueMiddleware({
     selfHandleResponse: true,
     logger,
     on: {
-      proxyReq: createOnProxyReqHandler({ pipeline: [addKey, finalizeBody], }),
+      proxyReq: createOnProxyReqHandler({ pipeline: [addKey, finalizeBody] }),
       proxyRes: createOnProxyResHandler([openaiResponseHandler]),
       error: handleProxyError,
     },
