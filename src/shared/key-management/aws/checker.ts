@@ -54,12 +54,15 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
         this.invokeModel("anthropic.claude-v2", key),
         this.invokeModel("anthropic.claude-3-sonnet-20240229-v1:0", key),
         this.invokeModel("anthropic.claude-3-haiku-20240307-v1:0", key),
-        this.checkLoggingConfiguration(key),
       ];
     }
+    checks.unshift(this.checkLoggingConfiguration(key));
 
-    const [_claudeV2, sonnet, haiku, _logging] = await Promise.all(checks);
-    this.updateKey(key.hash, { sonnetEnabled: sonnet, haikuEnabled: haiku });
+    const [_logging, _claudeV2, sonnet, haiku] = await Promise.all(checks);
+
+    if (isInitialCheck) {
+      this.updateKey(key.hash, { sonnetEnabled: sonnet, haikuEnabled: haiku });
+    }
 
     this.log.info(
       { key: key.hash, sonnet, haiku, logged: key.awsLoggingStatus },
