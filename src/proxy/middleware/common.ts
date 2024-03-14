@@ -56,10 +56,6 @@ export function sendProxyError(
       ? `The proxy encountered an error while trying to process your prompt.`
       : `The proxy encountered an error while trying to send your prompt to the upstream service.`;
 
-  if (req.tokenizerInfo && typeof errorPayload.error === "object") {
-    errorPayload.error.proxy_tokenizer = req.tokenizerInfo;
-  }
-
   sendErrorToClient({
     options: {
       format: req.inboundApi,

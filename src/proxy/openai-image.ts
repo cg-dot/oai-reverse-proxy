@@ -16,9 +16,7 @@ import {
   ProxyResHandlerWithBody,
 } from "./middleware/response";
 import { generateModelList } from "./openai";
-import {
-  OpenAIImageGenerationResult,
-} from "../shared/file-storage/mirror-generated-image";
+import { OpenAIImageGenerationResult } from "../shared/file-storage/mirror-generated-image";
 
 const KNOWN_MODELS = ["dall-e-2", "dall-e-3"];
 
@@ -44,21 +42,16 @@ const openaiImagesResponseHandler: ProxyResHandlerWithBody = async (
     throw new Error("Expected body to be an object");
   }
 
-  if (config.promptLogging) {
-    const host = req.get("host");
-    body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
-  }
-
+  let newBody = body;
   if (req.inboundApi === "openai") {
     req.log.info("Transforming OpenAI image response to OpenAI chat format");
-    body = transformResponseForChat(body as OpenAIImageGenerationResult, req);
+    newBody = transformResponseForChat(
+      body as OpenAIImageGenerationResult,
+      req
+    );
   }
 
-  if (req.tokenizerInfo) {
-    body.proxy_tokenizer = req.tokenizerInfo;
-  }
-
-  res.status(200).json(body);
+  res.status(200).json({ ...newBody, proxy: body.proxy });
 };
 
 /**

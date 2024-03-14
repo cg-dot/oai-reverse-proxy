@@ -89,16 +89,7 @@ const mistralAIResponseHandler: ProxyResHandlerWithBody = async (
     throw new Error("Expected body to be an object");
   }
 
-  if (config.promptLogging) {
-    const host = req.get("host");
-    body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
-  }
-
-  if (req.tokenizerInfo) {
-    body.proxy_tokenizer = req.tokenizerInfo;
-  }
-
-  res.status(200).json(body);
+  res.status(200).json({ ...body, proxy: body.proxy });
 };
 
 const mistralAIProxy = createQueueMiddleware({

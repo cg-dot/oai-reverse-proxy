@@ -26,15 +26,6 @@ function getMessageContent({
    "error": {
      "type": "not_found_error",
      "message": "model: some-invalid-model-id",
-     "proxy_tokenizer": {
-       "tokenizer": "@anthropic-ai/tokenizer",
-       "token_count": 6104,
-       "tokenization_duration_ms": 4.0765,
-       "prompt_tokens": 6104,
-       "completion_tokens": 30,
-       "max_model_tokens": 200000,
-       "max_proxy_tokens": 9007199254740991
-      }
     },
    "proxy_note": "The requested Claude model might not exist, or the key might not be provisioned for it."
   }

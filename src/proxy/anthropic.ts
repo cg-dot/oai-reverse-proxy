@@ -79,31 +79,23 @@ const anthropicResponseHandler: ProxyResHandlerWithBody = async (
     throw new Error("Expected body to be an object");
   }
 
-  if (config.promptLogging) {
-    const host = req.get("host");
-    body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
-  }
-
+  let newBody = body;
   switch (`${req.inboundApi}<-${req.outboundApi}`) {
     case "openai<-anthropic-text":
       req.log.info("Transforming Anthropic Text back to OpenAI format");
-      body = transformAnthropicTextResponseToOpenAI(body, req);
+      newBody = transformAnthropicTextResponseToOpenAI(body, req);
       break;
     case "openai<-anthropic-chat":
       req.log.info("Transforming Anthropic Chat back to OpenAI format");
-      body = transformAnthropicChatResponseToOpenAI(body);
+      newBody = transformAnthropicChatResponseToOpenAI(body);
       break;
     case "anthropic-text<-anthropic-chat":
       req.log.info("Transforming Anthropic Chat back to Anthropic chat format");
-      body = transformAnthropicChatResponseToAnthropicText(body);
+      newBody = transformAnthropicChatResponseToAnthropicText(body);
       break;
   }
 
-  if (req.tokenizerInfo) {
-    body.proxy_tokenizer = req.tokenizerInfo;
-  }
-
-  res.status(200).json(body);
+  res.status(200).json({ ...newBody, proxy: body.proxy });
 };
 
 function flattenChatResponse(

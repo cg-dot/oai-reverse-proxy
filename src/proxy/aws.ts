@@ -70,32 +70,26 @@ const awsResponseHandler: ProxyResHandlerWithBody = async (
     throw new Error("Expected body to be an object");
   }
 
-  if (config.promptLogging) {
-    const host = req.get("host");
-    body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
+  let newBody = body;
+  switch (`${req.inboundApi}<-${req.outboundApi}`) {
+    case "openai<-anthropic-text":
+      req.log.info("Transforming Anthropic Text back to OpenAI format");
+      newBody = transformAwsTextResponseToOpenAI(body, req);
+      break;
+    // case "openai<-anthropic-chat":
+    // todo: implement this
+    case "anthropic-text<-anthropic-chat":
+      req.log.info("Transforming AWS Anthropic Chat back to Text format");
+      newBody = transformAnthropicChatResponseToAnthropicText(body);
+      break;
   }
 
-  if (req.inboundApi === "openai") {
-    req.log.info("Transforming AWS Claude response to OpenAI format");
-    body = transformAwsTextResponseToOpenAI(body, req);
+  // AWS does not always confirm the model in the response, so we have to add it
+  if (!newBody.model && req.body.model) {
+    newBody.model = req.body.model;
   }
 
-  if (
-    req.inboundApi === "anthropic-text" &&
-    req.outboundApi === "anthropic-chat"
-  ) {
-    req.log.info("Transforming AWS Claude chat response to Text format");
-    body = transformAnthropicChatResponseToAnthropicText(body);
-  }
-
-  if (req.tokenizerInfo) {
-    body.proxy_tokenizer = req.tokenizerInfo;
-  }
-
-  // AWS does not confirm the model in the response, so we have to add it
-  body.model = req.body.model;
-
-  res.status(200).json(body);
+  res.status(200).json({ ...newBody, proxy: body.proxy });
 };
 
 /**

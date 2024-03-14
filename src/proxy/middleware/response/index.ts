@@ -23,6 +23,7 @@ import {
 import { handleStreamedResponse } from "./handle-streamed-response";
 import { logPrompt } from "./log-prompt";
 import { saveImage } from "./save-image";
+import { config } from "../../../config";
 
 const DECODER_MAP = {
   gzip: util.promisify(zlib.gunzip),
@@ -105,6 +106,7 @@ export const createOnProxyResHandler = (apiMiddleware: ProxyResMiddleware) => {
       } else {
         middlewareStack.push(
           trackRateLimit,
+          addProxyInfo,
           handleUpstreamErrors,
           countResponseTokens,
           incrementUsage,
@@ -704,6 +706,38 @@ const copyHttpHeaders: ProxyResHandlerWithBody = async (
     }
     res.setHeader(key, proxyRes.headers[key] as string);
   });
+};
+
+/**
+ * Injects metadata into the response, such as the tokenizer used, logging
+ * status, upstream API endpoint used, and whether the input prompt was modified
+ * or transformed.
+ * Only used for non-streaming requests.
+ */
+const addProxyInfo: ProxyResHandlerWithBody = async (
+  _proxyRes,
+  req,
+  res,
+  body
+) => {
+  const { service, inboundApi, outboundApi, tokenizerInfo } = req;
+  const native = inboundApi === outboundApi;
+  const info: any = {
+    logged: config.promptLogging,
+    tokens: tokenizerInfo,
+    service,
+    in_api: inboundApi,
+    out_api: outboundApi,
+    prompt_transformed: !native,
+  };
+
+  if (req.query?.debug?.length) {
+    info.final_request_body = req.signedRequest?.body || req.body;
+  }
+
+  if (typeof body === "object") {
+    body.proxy = info;
+  }
 };
 
 function getAwsErrorType(header: string | string[] | undefined) {

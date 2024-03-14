@@ -138,21 +138,13 @@ const openaiResponseHandler: ProxyResHandlerWithBody = async (
     throw new Error("Expected body to be an object");
   }
 
-  if (config.promptLogging) {
-    const host = req.get("host");
-    body.proxy_note = `Prompts are logged on this proxy instance. See ${host} for more information.`;
-  }
-
+  let newBody = body;
   if (req.outboundApi === "openai-text" && req.inboundApi === "openai") {
     req.log.info("Transforming Turbo-Instruct response to Chat format");
-    body = transformTurboInstructResponse(body);
+    newBody = transformTurboInstructResponse(body);
   }
 
-  if (req.tokenizerInfo) {
-    body.proxy_tokenizer = req.tokenizerInfo;
-  }
-
-  res.status(200).json(body);
+  res.status(200).json({ ...newBody, proxy: body.proxy });
 };
 
 /** Only used for non-streaming responses. */
