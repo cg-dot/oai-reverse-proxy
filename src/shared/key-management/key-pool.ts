@@ -5,7 +5,7 @@ import schedule from "node-schedule";
 import { config } from "../../config";
 import { logger } from "../../logger";
 import { LLMService, MODEL_FAMILY_SERVICE, ModelFamily } from "../models";
-import { Key, Model, KeyProvider } from "./index";
+import { Key, KeyProvider } from "./index";
 import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
 import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
 import { GoogleAIKeyProvider } from "./google-ai/provider";
@@ -41,7 +41,7 @@ export class KeyPool {
     this.scheduleRecheck();
   }
 
-  public get(model: Model, service?: LLMService): Key {
+  public get(model: string, service?: LLMService): Key {
     const queryService = service || this.getServiceForModel(model);
     return this.getKeyProvider(queryService).get(model);
   }
@@ -59,7 +59,10 @@ export class KeyPool {
     const service = this.getKeyProvider(key.service);
     service.disable(key);
     service.update(key.hash, { isRevoked: reason === "revoked" });
-    if (service instanceof OpenAIKeyProvider || service instanceof AnthropicKeyProvider) {
+    if (
+      service instanceof OpenAIKeyProvider ||
+      service instanceof AnthropicKeyProvider
+    ) {
       service.update(key.hash, { isOverQuota: reason === "quota" });
     }
   }
@@ -69,7 +72,7 @@ export class KeyPool {
     service.update(key.hash, props);
   }
 
-  public available(model: Model | "all" = "all"): number {
+  public available(model: string | "all" = "all"): number {
     return this.keyProviders.reduce((sum, provider) => {
       const includeProvider =
         model === "all" || this.getServiceForModel(model) === provider.service;
@@ -109,7 +112,7 @@ export class KeyPool {
     provider.recheck();
   }
 
-  private getServiceForModel(model: Model): LLMService {
+  private getServiceForModel(model: string): LLMService {
     if (
       model.startsWith("gpt") ||
       model.startsWith("text-embedding-ada") ||

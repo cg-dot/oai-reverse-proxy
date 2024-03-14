@@ -52,6 +52,7 @@ type ModelAggregates = {
   pozzed?: number;
   awsLogged?: number;
   awsSonnet?: number;
+  awsHaiku?: number;
   queued: number;
   queueTime: string;
   tokens: number;
@@ -82,7 +83,11 @@ type AnthropicInfo = BaseFamilyInfo & {
   prefilledKeys?: number;
   overQuotaKeys?: number;
 };
-type AwsInfo = BaseFamilyInfo & { privacy?: string; sonnetKeys?: number };
+type AwsInfo = BaseFamilyInfo & {
+  privacy?: string;
+  sonnetKeys?: number;
+  haikuKeys?: number;
+};
 
 // prettier-ignore
 export type ServiceInfo = {
@@ -387,6 +392,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
       increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
       increment(modelStats, `${family}__tokens`, k["aws-claudeTokens"]);
       increment(modelStats, `${family}__awsSonnet`, k.sonnetEnabled ? 1 : 0);
+      increment(modelStats, `${family}__awsHaiku`, k.haikuEnabled ? 1 : 0);
 
       // Ignore revoked keys for aws logging stats, but include keys where the
       // logging status is unknown.
@@ -435,6 +441,7 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
         break;
       case "aws":
         info.sonnetKeys = modelStats.get(`${family}__awsSonnet`) || 0;
+        info.haikuKeys = modelStats.get(`${family}__awsHaiku`) || 0;
         const logged = modelStats.get(`${family}__awsLogged`) || 0;
         if (logged > 0) {
           info.privacy = config.allowAwsLogging

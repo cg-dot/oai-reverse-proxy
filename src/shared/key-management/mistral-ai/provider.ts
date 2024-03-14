@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { Key, KeyProvider, Model } from "..";
+import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { MistralAIModelFamily, getMistralAIModelFamily } from "../../models";
@@ -92,7 +92,7 @@ export class MistralAIKeyProvider implements KeyProvider<MistralAIKey> {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(_model: Model) {
+  public get(_model: string) {
     const availableKeys = this.keys.filter((k) => !k.isDisabled);
     if (availableKeys.length === 0) {
       throw new HttpError(402, "No Mistral AI keys available");

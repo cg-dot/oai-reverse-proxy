@@ -1,14 +1,11 @@
 import crypto from "crypto";
 import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
-import { HttpError } from "../../errors";
+import { PaymentRequiredError } from "../../errors";
 import { logger } from "../../../logger";
 import type { AzureOpenAIModelFamily } from "../../models";
 import { getAzureOpenAIModelFamily } from "../../models";
-import { OpenAIModel } from "../openai/provider";
 import { AzureOpenAIKeyChecker } from "./checker";
-
-export type AzureOpenAIModel = OpenAIModel;
 
 type AzureOpenAIKeyUsage = {
   [K in AzureOpenAIModelFamily as `${K}Tokens`]: number;
@@ -96,14 +93,13 @@ export class AzureOpenAIKeyProvider implements KeyProvider<AzureOpenAIKey> {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(model: AzureOpenAIModel) {
+  public get(model: string) {
     const neededFamily = getAzureOpenAIModelFamily(model);
     const availableKeys = this.keys.filter(
       (k) => !k.isDisabled && k.modelFamilies.includes(neededFamily)
     );
     if (availableKeys.length === 0) {
-      throw new HttpError(
-        402,
+      throw new PaymentRequiredError(
         `No keys available for model family '${neededFamily}'.`
       );
     }

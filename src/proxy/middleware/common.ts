@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import http from "http";
 import httpProxy from "http-proxy";
 import { ZodError } from "zod";
 import { generateErrorMessage } from "zod-error";
@@ -115,14 +116,34 @@ function classifyError(err: Error): {
 
   switch (err.constructor.name) {
     case "HttpError":
-      if ((err as HttpError).status === 402) {
-        return {
-          statusCode: 402,
-          statusMessage: "No Keys Available",
-          userMessage: err.message,
-          type: "proxy_no_keys_available",
-        };
-      } else return defaultError;
+      const statusCode = (err as HttpError).status;
+      return {
+        statusCode,
+        statusMessage: `HTTP ${statusCode} ${http.STATUS_CODES[statusCode]}`,
+        userMessage: `Reverse proxy error: ${err.message}`,
+        type: "proxy_http_error",
+      };
+    case "BadRequestError":
+      return {
+        statusCode: 400,
+        statusMessage: "Bad Request",
+        userMessage: `Request is not valid. (${err.message})`,
+        type: "proxy_bad_request",
+      };
+    case "NotFoundError":
+      return {
+        statusCode: 404,
+        statusMessage: "Not Found",
+        userMessage: `Requested resource not found. (${err.message})`,
+        type: "proxy_not_found",
+      };
+    case "PaymentRequiredError":
+      return {
+        statusCode: 402,
+        statusMessage: "No Keys Available",
+        userMessage: err.message,
+        type: "proxy_no_keys_available",
+      };
     case "ZodError":
       const userMessage = generateErrorMessage((err as ZodError).issues, {
         prefix: "Request validation failed. ",

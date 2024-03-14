@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosResponse } from "axios";
+import axios, { AxiosError } from "axios";
 import type { OpenAIModelFamily } from "../../models";
 import { KeyCheckerBase } from "../key-checker-base";
 import type { OpenAIKey, OpenAIKeyProvider } from "./provider";

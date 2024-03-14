@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { config } from "../../config";
+import { BadRequestError } from "../errors";
 import {
   flattenOpenAIMessageContent,
   OpenAIChatMessage,
@@ -240,7 +241,7 @@ export const transformAnthropicTextToAnthropicChat: APIFormatTransformer<
 
 function validateAnthropicTextPrompt(prompt: string) {
   if (!prompt.includes("\n\nHuman:") || !prompt.includes("\n\nAssistant:")) {
-    throw new Error(
+    throw new BadRequestError(
       "Prompt must contain at least one human and one assistant message."
     );
   }
@@ -248,7 +249,7 @@ function validateAnthropicTextPrompt(prompt: string) {
   const firstHuman = prompt.indexOf("\n\nHuman:");
   const firstAssistant = prompt.indexOf("\n\nAssistant:");
   if (firstAssistant < firstHuman) {
-    throw new Error(
+    throw new BadRequestError(
       "First Assistant message must come after the first Human message."
     );
   }

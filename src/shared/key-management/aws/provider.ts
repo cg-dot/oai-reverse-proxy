@@ -4,13 +4,7 @@ import { config } from "../../../config";
 import { logger } from "../../../logger";
 import type { AwsBedrockModelFamily } from "../../models";
 import { AwsKeyChecker } from "./checker";
-import { HttpError } from "../../errors";
-
-// https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html
-export type AwsBedrockModel =
-  | "anthropic.claude-v1"
-  | "anthropic.claude-v2"
-  | "anthropic.claude-instant-v1";
+import { PaymentRequiredError } from "../../errors";
 
 type AwsBedrockKeyUsage = {
   [K in AwsBedrockModelFamily as `${K}Tokens`]: number;
@@ -31,6 +25,7 @@ export interface AwsBedrockKey extends Key, AwsBedrockKeyUsage {
    */
   awsLoggingStatus: "unknown" | "disabled" | "enabled";
   sonnetEnabled: boolean;
+  haikuEnabled: boolean;
 }
 
 /**
@@ -81,6 +76,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
           .slice(0, 8)}`,
         lastChecked: 0,
         sonnetEnabled: true,
+        haikuEnabled: false,
         ["aws-claudeTokens"]: 0,
       };
       this.keys.push(newKey);
@@ -99,20 +95,21 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(model: AwsBedrockModel) {
+  public get(model: string) {
     const availableKeys = this.keys.filter((k) => {
       const isNotLogged = k.awsLoggingStatus === "disabled";
       const needsSonnet = model.includes("sonnet");
+      const needsHaiku = model.includes("haiku");
       return (
         !k.isDisabled &&
         (isNotLogged || config.allowAwsLogging) &&
-        (k.sonnetEnabled || !needsSonnet)
+        (k.sonnetEnabled || !needsSonnet) &&
+        (k.haikuEnabled || !needsHaiku)
       );
     });
     if (availableKeys.length === 0) {
-      throw new HttpError(
-        402,
-        "No keys available for this model. This proxy might not have Claude 3 Sonnet keys available."
+      throw new PaymentRequiredError(
+        `No AWS Bedrock keys available for model ${model}`
       );
     }
 

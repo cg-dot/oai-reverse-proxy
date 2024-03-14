@@ -47,24 +47,22 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
   protected async testKeyOrFail(key: AwsBedrockKey) {
     // Only check models on startup.  For now all models must be available to
     // the proxy because we don't route requests to different keys.
-    const modelChecks: Promise<unknown>[] = [];
+    let checks: Promise<boolean>[] = [];
     const isInitialCheck = !key.lastChecked;
     if (isInitialCheck) {
-      modelChecks.push(this.invokeModel("anthropic.claude-v2:1", key));
-      modelChecks.push(
-        this.invokeModel("anthropic.claude-3-sonnet-20240229-v1:0", key)
-      );
+      checks = [
+        this.invokeModel("anthropic.claude-v2", key),
+        this.invokeModel("anthropic.claude-3-sonnet-20240229-v1:0", key),
+        this.invokeModel("anthropic.claude-3-haiku-20240307-v1:0", key),
+        this.checkLoggingConfiguration(key),
+      ];
     }
 
-    await Promise.all(modelChecks);
-    await this.checkLoggingConfiguration(key);
+    const [_claudeV2, sonnet, haiku, _logging] = await Promise.all(checks);
+    this.updateKey(key.hash, { sonnetEnabled: sonnet, haikuEnabled: haiku });
 
     this.log.info(
-      {
-        key: key.hash,
-        models: key.modelFamilies,
-        logged: key.awsLoggingStatus,
-      },
+      { key: key.hash, sonnet, haiku, logged: key.awsLoggingStatus },
       "Checked key."
     );
   }
@@ -129,6 +127,11 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     this.updateKey(key.hash, { lastChecked: next });
   }
 
+  /**
+   * Attempt to invoke the given model with the given key.  Returns true if the
+   * key has access to the model, false if it does not. Throws an error if the
+   * key is disabled.
+   */
   private async invokeModel(model: string, key: AwsBedrockKey) {
     const creds = AwsKeyChecker.getCredentialsFromKey(key);
     // This is not a valid invocation payload, but a 400 response indicates that
@@ -157,13 +160,11 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     const errorMessage = data?.message;
 
     // We only allow one type of 403 error, and we only allow it for one model.
-    if (status === 403 && errorMessage?.match(/access to the model with the specified model ID/)) {
-      this.log.warn(
-        { key: key.hash, errorType, data, status, model },
-        "Key does not have access to Claude 3 Sonnet."
-      );
-      this.updateKey(key.hash, { sonnetEnabled: false });
-      return;
+    if (
+      status === 403 &&
+      errorMessage?.match(/access to the model with the specified model ID/)
+    ) {
+      return false;
     }
 
     // We're looking for a specific error type and message here
@@ -181,9 +182,10 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     }
 
     this.log.debug(
-      { key: key.hash, errorType, data, status, model },
-      "Liveness test complete."
+      { key: key.hash, model, errorType, data, status },
+      "AWS InvokeModel test successful."
     );
+    return true;
   }
 
   private async checkLoggingConfiguration(key: AwsBedrockKey) {
@@ -217,6 +219,7 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     }
 
     this.updateKey(key.hash, { awsLoggingStatus: result });
+    return !!result;
   }
 
   static errorIsAwsError(error: AxiosError): error is AxiosError<AwsError> {

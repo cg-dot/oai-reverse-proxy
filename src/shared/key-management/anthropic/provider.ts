@@ -4,18 +4,7 @@ import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { AnthropicModelFamily, getClaudeModelFamily } from "../../models";
 import { AnthropicKeyChecker } from "./checker";
-import { HttpError } from "../../errors";
-
-// https://docs.anthropic.com/claude/reference/selecting-a-model
-export type AnthropicModel =
-  | "claude-instant-v1"
-  | "claude-instant-v1-100k"
-  | "claude-v1"
-  | "claude-v1-100k"
-  | "claude-2"
-  | "claude-2.1"
-  | "claude-3-opus-20240229" // new expensive model
-  | "claude-3-sonnet-20240229"; // new cheap claude2 sidegrade
+import { HttpError, PaymentRequiredError } from "../../errors";
 
 export type AnthropicKeyUpdate = Omit<
   Partial<AnthropicKey>,
@@ -126,12 +115,12 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(_model: AnthropicModel) {
+  public get(_model: string) {
     // Currently, all Anthropic keys have access to all models. This will almost
     // certainly change when they move out of beta later this year.
     const availableKeys = this.keys.filter((k) => !k.isDisabled);
     if (availableKeys.length === 0) {
-      throw new HttpError(402, "No Anthropic keys available.");
+      throw new PaymentRequiredError("No Anthropic keys available.");
     }
 
     // (largely copied from the OpenAI provider, without trial key support)

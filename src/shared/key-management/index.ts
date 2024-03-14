@@ -1,9 +1,4 @@
 import type { LLMService, ModelFamily } from "../models";
-import { OpenAIModel } from "./openai/provider";
-import { AnthropicModel } from "./anthropic/provider";
-import { GoogleAIModel } from "./google-ai/provider";
-import { AwsBedrockModel } from "./aws/provider";
-import { AzureOpenAIModel } from "./azure/provider";
 import { KeyPool } from "./key-pool";
 
 /** The request and response format used by a model's API. */
@@ -15,12 +10,6 @@ export type APIFormat =
   | "anthropic-text" // Legacy flat string prompt format
   | "google-ai"
   | "mistral-ai";
-export type Model =
-  | OpenAIModel
-  | AnthropicModel
-  | GoogleAIModel
-  | AwsBedrockModel
-  | AzureOpenAIModel;
 
 export interface Key {
   /** The API key itself. Never log this, use `hash` instead. */
@@ -58,7 +47,7 @@ for service-agnostic functionality.
 export interface KeyProvider<T extends Key = Key> {
   readonly service: LLMService;
   init(): void;
-  get(model: Model): T;
+  get(model: string): T;
   list(): Omit<T, "key">[];
   disable(key: T): void;
   update(hash: string, update: Partial<T>): void;

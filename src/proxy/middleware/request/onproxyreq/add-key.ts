@@ -3,62 +3,54 @@ import { isEmbeddingsRequest } from "../../common";
 import { HPMRequestCallback } from "../index";
 import { assertNever } from "../../../../shared/utils";
 
-/** Add a key that can service this request to the request object. */
 export const addKey: HPMRequestCallback = (proxyReq, req) => {
   let assignedKey: Key;
+  const { service, inboundApi, outboundApi, body } = req;
 
-  if (!req.inboundApi || !req.outboundApi) {
+  if (!inboundApi || !outboundApi) {
     const err = new Error(
       "Request API format missing. Did you forget to add the request preprocessor to your router?"
     );
-    req.log.error(
-      { in: req.inboundApi, out: req.outboundApi, path: req.path },
-      err.message
-    );
+    req.log.error({ inboundApi, outboundApi, path: req.path }, err.message);
     throw err;
   }
 
-  if (!req.body?.model) {
+  if (!body?.model) {
     throw new Error("You must specify a model with your request.");
   }
 
-  if (req.inboundApi === req.outboundApi) {
-    assignedKey = keyPool.get(req.body.model, req.service);
+  if (inboundApi === outboundApi) {
+    assignedKey = keyPool.get(body.model, service);
   } else {
-    switch (req.outboundApi) {
+    switch (outboundApi) {
       // If we are translating between API formats we may need to select a model
       // for the user, because the provided model is for the inbound API.
+      // TODO: This whole else condition is probably no longer needed since API
+      // translation now reassigns the model earlier in the request pipeline.
       case "anthropic-chat":
       case "anthropic-text":
-        assignedKey = keyPool.get("claude-v1", req.service);
+        assignedKey = keyPool.get("claude-v1", service);
         break;
       case "openai-text":
-        assignedKey = keyPool.get("gpt-3.5-turbo-instruct", req.service);
+        assignedKey = keyPool.get("gpt-3.5-turbo-instruct", service);
+        break;
+      case "openai-image":
+        assignedKey = keyPool.get("dall-e-3", service);
         break;
       case "openai":
-        throw new Error(
-          "OpenAI Chat as an API translation target is not supported"
-        );
       case "google-ai":
-        throw new Error("add-key should not be used for this model.");
       case "mistral-ai":
-        throw new Error("Mistral AI should never be translated");
-      case "openai-image":
-        assignedKey = keyPool.get("dall-e-3", req.service);
-        break;
+        throw new Error(
+          `add-key should not be called for outbound API ${outboundApi}`
+        );
       default:
-        assertNever(req.outboundApi);
+        assertNever(outboundApi);
     }
   }
 
   req.key = assignedKey;
   req.log.info(
-    {
-      key: assignedKey.hash,
-      model: req.body?.model,
-      fromApi: req.inboundApi,
-      toApi: req.outboundApi,
-    },
+    { key: assignedKey.hash, model: body.model, inboundApi, outboundApi },
     "Assigned key to request"
   );
 

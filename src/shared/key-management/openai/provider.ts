@@ -1,25 +1,11 @@
-/* Manages OpenAI API keys. Tracks usage, disables expired keys, and provides
-round-robin access to keys. Keys are stored in the OPENAI_KEY environment
-variable as a comma-separated list of keys. */
 import crypto from "crypto";
 import http from "http";
-import { Key, KeyProvider, Model } from "../index";
+import { Key, KeyProvider } from "../index";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
 import { OpenAIKeyChecker } from "./checker";
 import { getOpenAIModelFamily, OpenAIModelFamily } from "../../models";
-import { HttpError } from "../../errors";
-
-export type OpenAIModel =
-  | "gpt-3.5-turbo"
-  | "gpt-3.5-turbo-instruct"
-  | "gpt-4"
-  | "gpt-4-32k"
-  | "gpt-4-1106"
-  | "text-embedding-ada-002"
-  | "dall-e-2"
-  | "dall-e-3"
-  | string;
+import { PaymentRequiredError } from "../../errors";
 
 // Flattening model families instead of using a nested object for easier
 // cloning.
@@ -161,7 +147,7 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     });
   }
 
-  public get(requestModel: Model) {
+  public get(requestModel: string) {
     let model = requestModel;
 
     // Special case for GPT-4-32k. Some keys have access to only gpt4-32k-0314
@@ -185,7 +171,9 @@ export class OpenAIKeyProvider implements KeyProvider<OpenAIKey> {
     );
 
     if (availableKeys.length === 0) {
-      throw new HttpError(402, `No keys can fulfill request for ${model}`);
+      throw new PaymentRequiredError(
+        `No keys can fulfill request for ${model}`
+      );
     }
 
     // Select a key, from highest priority to lowest priority:

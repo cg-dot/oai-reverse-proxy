@@ -3,14 +3,12 @@ import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
 import type { GoogleAIModelFamily } from "../../models";
-import { HttpError } from "../../errors";
+import { HttpError, PaymentRequiredError } from "../../errors";
 
 // Note that Google AI is not the same as Vertex AI, both are provided by Google
 // but Vertex is the GCP product for enterprise. while Google AI is the
 // consumer-ish product. The API is different, and keys are not compatible.
 // https://ai.google.dev/docs/migrate_to_cloud
-
-export type GoogleAIModel = "gemini-pro";
 
 export type GoogleAIKeyUpdate = Omit<
   Partial<GoogleAIKey>,
@@ -93,10 +91,10 @@ export class GoogleAIKeyProvider implements KeyProvider<GoogleAIKey> {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(_model: GoogleAIModel) {
+  public get(_model: string) {
     const availableKeys = this.keys.filter((k) => !k.isDisabled);
     if (availableKeys.length === 0) {
-      throw new HttpError(402, "No Google AI keys available");
+      throw new PaymentRequiredError("No Google AI keys available");
     }
 
     // (largely copied from the OpenAI provider, without trial key support)

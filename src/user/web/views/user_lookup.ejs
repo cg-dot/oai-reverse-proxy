@@ -24,40 +24,40 @@
   <tbody>
     <tr>
       <th scope="row">User Token</th>
-      <td colspan="2"><code> <%- "..." + user.token.slice(-5) %> </code></td>
+      <td colspan="2"><code> <%= "..." + user.token.slice(-5) %> </code></td>
     </tr>
 
     <tr>
       <th scope="row">Nickname</th>
-      <td><%- user.nickname ?? "none" %></td>
+      <td><%= user.nickname ?? "none" %></td>
       <td class="actions">
         <a title="Edit" id="edit-nickname" href="#" onclick="updateNickname()">✏️</a>
       </td>
     </tr>
     <tr>
       <th scope="row">Type</th>
-      <td colspan="2"><%- user.type %></td>
+      <td colspan="2"><%= user.type %></td>
     </tr>
     <tr>
       <th scope="row">Prompts</th>
-      <td colspan="2"><%- user.promptCount %></td>
+      <td colspan="2"><%= user.promptCount %></td>
     </tr>
     <tr>
       <th scope="row">Created At</th>
-      <td colspan="2"><%- user.createdAt %></td>
+      <td colspan="2"><%= user.createdAt %></td>
     </tr>
     <tr>
       <th scope="row">Last Used At</th>
-      <td colspan="2"><%- user.lastUsedAt || "never" %></td>
+      <td colspan="2"><%= user.lastUsedAt || "never" %></td>
     </tr>
     <tr>
-      <th scope="row">IPs<%- ipLimit ? ` (max ${ipLimit})` : "" %></th>
+      <th scope="row">IPs<%= ipLimit ? ` (max ${ipLimit})` : "" %></th>
       <td colspan="2"><%- include("partials/shared_user_ip_list", { user, shouldRedact: true }) %></td>
     </tr>
     <% if (user.type === "temporary") { %>
     <tr>
       <th scope="row">Expires At</th>
-      <td colspan="2"><%- user.expiresAt %></td>
+      <td colspan="2"><%= user.expiresAt %></td>
     </tr>
     <% } %>
   </tbody>
