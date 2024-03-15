@@ -88,7 +88,7 @@ export const signAwsRequest: RequestPreprocessor = async (req) => {
 
   const { key, body, inboundApi, outboundApi } = req;
   req.log.info(
-    { key, model: body.model, inboundApi, outboundApi },
+    { key: key.hash, model: body.model, inboundApi, outboundApi },
     "Assigned AWS credentials to request"
   );
 
