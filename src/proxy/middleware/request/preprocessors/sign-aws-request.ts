@@ -38,6 +38,7 @@ export const signAwsRequest: RequestPreprocessor = async (req) => {
   if (req.outboundApi === "anthropic-chat") {
     strippedParams = AnthropicV1MessagesSchema.pick({
       messages: true,
+      system: true,
       max_tokens: true,
       stop_sequences: true,
       temperature: true,
