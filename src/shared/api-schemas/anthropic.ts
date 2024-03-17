@@ -260,7 +260,7 @@ export function flattenAnthropicMessages(
 ): string {
   return messages
     .map((msg) => {
-      const name = msg.role === "user" ? "\n\nHuman: " : "\n\nAssistant: ";
+      const name = msg.role === "user" ? "Human" : "Assistant";
       const parts = Array.isArray(msg.content)
         ? msg.content
         : [{ type: "text", text: msg.content }];
