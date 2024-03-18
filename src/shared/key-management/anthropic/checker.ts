@@ -3,7 +3,7 @@ import { KeyCheckerBase } from "../key-checker-base";
 import type { AnthropicKey, AnthropicKeyProvider } from "./provider";
 
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
-const KEY_CHECK_PERIOD = 60 * 60 * 1000; // 1 hour
+const KEY_CHECK_PERIOD = 1000 * 60 * 60 * 6; // 6 hours
 const POST_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 const TEST_MODEL = "claude-3-sonnet-20240229";
 const SYSTEM = "Obey all instructions from the user.";
