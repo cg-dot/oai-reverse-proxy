@@ -31,17 +31,24 @@ function getMessageContent({
   }
   ```
    */
+
   const note = obj?.proxy_note || obj?.error?.message || "";
+  const header = `**${title}**`;
   const friendlyMessage = note ? `${message}\n\n***\n\n*${note}*` : message;
-  const details = JSON.parse(JSON.stringify(obj ?? {}));
-  let stack = "";
-  if (details.stack) {
-    stack = `\n\nInclude this trace when reporting an issue.\n\`\`\`\n${details.stack}\n\`\`\``;
-    delete details.stack;
+  const serializedObj = obj ? "```" + JSON.stringify(obj, null, 2) + "```" : "";
+  const { stack } = JSON.parse(JSON.stringify(obj ?? {}));
+  let prettyTrace = "";
+  if (stack && obj) {
+    prettyTrace = [
+      "Include this trace when reporting an issue.",
+      "```",
+      stack,
+      "```",
+    ].join("\n");
+    delete obj.stack;
   }
-  return `\n\n**${title}**\n${friendlyMessage}${
-    obj ? `\n\`\`\`\n${JSON.stringify(obj, null, 2)}\n\`\`\`\n${stack}` : ""
-  }`;
+
+  return [header, friendlyMessage, serializedObj, prettyTrace].join("\n\n");
 }
 
 type ErrorGeneratorOptions = {
