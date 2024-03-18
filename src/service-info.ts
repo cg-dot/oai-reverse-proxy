@@ -80,6 +80,7 @@ type OpenAIInfo = BaseFamilyInfo & {
   overQuotaKeys?: number;
 };
 type AnthropicInfo = BaseFamilyInfo & {
+  trialKeys?: number;
   prefilledKeys?: number;
   overQuotaKeys?: number;
 };
@@ -349,6 +350,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
         sumTokens += tokens;
         sumCost += getTokenCostUsd(f, tokens);
         increment(modelStats, `${f}__tokens`, tokens);
+        increment(modelStats, `${f}__trial`, k.tier === "free" ? 1 : 0);
         increment(modelStats, `${f}__revoked`, k.isRevoked ? 1 : 0);
         increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
         increment(modelStats, `${f}__overQuota`, k.isOverQuota ? 1 : 0);
@@ -437,6 +439,7 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
         break;
       case "anthropic":
         info.overQuotaKeys = modelStats.get(`${family}__overQuota`) || 0;
+        info.trialKeys = modelStats.get(`${family}__trial`) || 0;
         info.prefilledKeys = modelStats.get(`${family}__pozzed`) || 0;
         break;
       case "aws":

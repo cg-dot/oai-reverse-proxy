@@ -1,4 +1,4 @@
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError, AxiosResponse } from "axios";
 import { KeyCheckerBase } from "../key-checker-base";
 import type { AnthropicKey, AnthropicKeyProvider } from "./provider";
 
@@ -52,10 +52,13 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
   }
 
   protected async testKeyOrFail(key: AnthropicKey) {
-    const [{ pozzed }] = await Promise.all([this.testLiveness(key)]);
-    const updates = { isPozzed: pozzed };
+    const [{ pozzed, tier }] = await Promise.all([this.testLiveness(key)]);
+    const updates = { isPozzed: pozzed, tier };
     this.updateKey(key.hash, updates);
-    this.log.info({ key: key.hash, models: key.modelFamilies }, "Checked key.");
+    this.log.info(
+      { key: key.hash, tier, models: key.modelFamilies },
+      "Checked key."
+    );
   }
 
   protected handleAxiosError(key: AnthropicKey, error: AxiosError) {
@@ -124,7 +127,9 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
     this.updateKey(key.hash, { lastChecked: next });
   }
 
-  private async testLiveness(key: AnthropicKey): Promise<{ pozzed: boolean }> {
+  private async testLiveness(
+    key: AnthropicKey
+  ): Promise<{ pozzed: boolean; tier: AnthropicKey["tier"] }> {
     const payload = {
       model: TEST_MODEL,
       max_tokens: 40,
@@ -133,24 +138,27 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
       system: SYSTEM,
       messages: DETECTION_PROMPT,
     };
-    const { data } = await axios.post<MessageResponse>(
+    const { data, headers } = await axios.post<MessageResponse>(
       POST_MESSAGES_URL,
       payload,
-      { headers: AnthropicKeyChecker.getHeaders(key) }
+      { headers: AnthropicKeyChecker.getRequestHeaders(key) }
     );
     this.log.debug({ data }, "Response from Anthropic");
+
+    const tier = AnthropicKeyChecker.detectTier(headers);
+
     const completion = data.content.map((part) => part.text).join("");
     if (POZZ_PROMPT.some((re) => re.test(completion))) {
       this.log.info({ key: key.hash, response: completion }, "Key is pozzed.");
-      return { pozzed: true };
+      return { pozzed: true, tier };
     } else if (COPYRIGHT_PROMPT.some((re) => re.test(completion))) {
       this.log.info(
         { key: key.hash, response: completion },
         "Key has copyright CYA prompt."
       );
-      return { pozzed: true };
+      return { pozzed: true, tier };
     } else {
-      return { pozzed: false };
+      return { pozzed: false, tier };
     }
   }
 
@@ -161,7 +169,19 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
     return data?.error?.type;
   }
 
-  static getHeaders(key: AnthropicKey) {
+  static getRequestHeaders(key: AnthropicKey) {
     return { "X-API-Key": key.key, "anthropic-version": "2023-06-01" };
+  }
+
+  static detectTier(headers: AxiosResponse["headers"]) {
+    const tokensLimit = headers["anthropic-ratelimit-tokens-limit"];
+    const intTokensLimit = parseInt(tokensLimit, 10);
+    if (!tokensLimit || isNaN(intTokensLimit)) return "unknown";
+    if (intTokensLimit <= 25000) return "free";
+    if (intTokensLimit <= 50000) return "build_1";
+    if (intTokensLimit <= 100000) return "build_2";
+    if (intTokensLimit <= 200000) return "build_3";
+    if (intTokensLimit <= 400000) return "build_4";
+    return "scale";
   }
 }

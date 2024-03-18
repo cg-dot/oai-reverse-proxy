@@ -13,15 +13,15 @@ type KeyCheckerOptions<TKey extends Key = Key> = {
 
 export abstract class KeyCheckerBase<TKey extends Key> {
   protected readonly service: string;
-  protected readonly RECURRING_CHECKS_ENABLED: boolean;
+  protected readonly recurringChecksEnabled: boolean;
   /** Minimum time in between any two key checks. */
-  protected readonly MIN_CHECK_INTERVAL: number;
+  protected readonly minCheckInterval: number;
   /**
    * Minimum time in between checks for a given key. Because we can no longer
    * read quota usage, there is little reason to check a single key more often
    * than this.
    */
-  protected readonly KEY_CHECK_PERIOD: number;
+  protected readonly keyCheckPeriod: number;
   protected readonly updateKey: (hash: string, props: Partial<TKey>) => void;
   protected readonly keys: TKey[] = [];
   protected log: pino.Logger;
@@ -29,14 +29,13 @@ export abstract class KeyCheckerBase<TKey extends Key> {
   protected lastCheck = 0;
 
   protected constructor(keys: TKey[], opts: KeyCheckerOptions<TKey>) {
-    const { service, keyCheckPeriod, minCheckInterval } = opts;
     this.keys = keys;
-    this.KEY_CHECK_PERIOD = keyCheckPeriod;
-    this.MIN_CHECK_INTERVAL = minCheckInterval;
-    this.RECURRING_CHECKS_ENABLED = opts.recurringChecksEnabled ?? true;
+    this.keyCheckPeriod = opts.keyCheckPeriod;
+    this.minCheckInterval = opts.minCheckInterval;
+    this.recurringChecksEnabled = opts.recurringChecksEnabled ?? true;
     this.updateKey = opts.updateKey;
-    this.service = service;
-    this.log = logger.child({ module: "key-checker", service });
+    this.service = opts.service;
+    this.log = logger.child({ module: "key-checker", service: opts.service });
   }
 
   public start() {
@@ -102,7 +101,7 @@ export abstract class KeyCheckerBase<TKey extends Key> {
       return;
     }
 
-    if (!this.RECURRING_CHECKS_ENABLED) {
+    if (!this.recurringChecksEnabled) {
       checkLog.info(
         "Initial checks complete and recurring checks are disabled for this service. Stopping."
       );
@@ -117,8 +116,8 @@ export abstract class KeyCheckerBase<TKey extends Key> {
     // Don't check any individual key too often.
     // Don't check anything at all at a rate faster than once per 3 seconds.
     const nextCheck = Math.max(
-      oldestKey.lastChecked + this.KEY_CHECK_PERIOD,
-      this.lastCheck + this.MIN_CHECK_INTERVAL
+      oldestKey.lastChecked + this.keyCheckPeriod,
+      this.lastCheck + this.minCheckInterval
     );
 
     const delay = nextCheck - Date.now();
