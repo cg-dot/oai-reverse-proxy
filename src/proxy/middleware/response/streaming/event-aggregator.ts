@@ -67,6 +67,10 @@ export class EventAggregator {
         assertNever(this.format);
     }
   }
+
+  hasEvents() {
+    return this.events.length > 0;
+  }
 }
 
 function eventIsOpenAIEvent(

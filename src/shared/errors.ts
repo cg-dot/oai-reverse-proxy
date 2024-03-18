@@ -34,3 +34,10 @@ export class TooManyRequestsError extends HttpError {
     super(429, message);
   }
 }
+
+export class RetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RetryableError";
+  }
+}

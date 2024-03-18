@@ -12,7 +12,7 @@
  */
 
 import crypto from "crypto";
-import type { Handler, Request } from "express";
+import { Handler, Request } from "express";
 import { BadRequestError, TooManyRequestsError } from "../shared/errors";
 import { keyPool } from "../shared/key-management";
 import {
@@ -67,7 +67,7 @@ const sharesIdentifierWith = (incoming: Request) => (queued: Request) =>
 
 const isFromSharedIp = (req: Request) => SHARED_IP_ADDRESSES.has(req.ip);
 
-export async function enqueue(req: Request) {
+async function enqueue(req: Request) {
   const enqueuedRequestCount = queue.filter(sharesIdentifierWith(req)).length;
   let isGuest = req.user?.token === undefined;
 
@@ -134,6 +134,15 @@ export async function enqueue(req: Request) {
     const endpoint = req.url?.split("?")[0];
     req.log.info({ size, endpoint }, `Enqueued new request.`);
   }
+}
+
+export async function reenqueueRequest(req: Request) {
+  req.log.info(
+    { key: req.key?.hash, retryCount: req.retryCount },
+    `Re-enqueueing request due to retryable error`
+  );
+  req.retryCount++;
+  await enqueue(req);
 }
 
 function getQueueForPartition(partition: ModelFamily): Request[] {

@@ -3,10 +3,10 @@ import http from "http";
 import httpProxy from "http-proxy";
 import { ZodError } from "zod";
 import { generateErrorMessage } from "zod-error";
+import { HttpError } from "../../shared/errors";
 import { assertNever } from "../../shared/utils";
 import { QuotaExceededError } from "./request/preprocessors/apply-quota-limits";
 import { sendErrorToClient } from "./response/error-generator";
-import { HttpError } from "../../shared/errors";
 
 const OPENAI_CHAT_COMPLETION_ENDPOINT = "/v1/chat/completions";
 const OPENAI_TEXT_COMPLETION_ENDPOINT = "/v1/completions";

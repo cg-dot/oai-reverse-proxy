@@ -3,20 +3,21 @@ import { pipeline, Readable, Transform } from "stream";
 import StreamArray from "stream-json/streamers/StreamArray";
 import { StringDecoder } from "string_decoder";
 import { promisify } from "util";
+import type { logger } from "../../../logger";
+import { BadRequestError, RetryableError } from "../../../shared/errors";
 import { APIFormat, keyPool } from "../../../shared/key-management";
 import {
   copySseResponseHeaders,
   initializeSseStream,
 } from "../../../shared/streaming";
-import type { logger } from "../../../logger";
-import { enqueue } from "../../queue";
-import { decodeResponseBody, RawResponseBodyHandler, RetryableError } from ".";
+import { reenqueueRequest } from "../../queue";
+import type { RawResponseBodyHandler } from ".";
+import { handleBlockingResponse } from "./handle-blocking-response";
+import { buildSpoofedSSE, sendErrorToClient } from "./error-generator";
 import { getAwsEventStreamDecoder } from "./streaming/aws-event-stream-decoder";
 import { EventAggregator } from "./streaming/event-aggregator";
 import { SSEMessageTransformer } from "./streaming/sse-message-transformer";
 import { SSEStreamAdapter } from "./streaming/sse-stream-adapter";
-import { buildSpoofedSSE, sendErrorToClient } from "./error-generator";
-import { BadRequestError } from "../../../shared/errors";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -50,7 +51,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
       { statusCode: proxyRes.statusCode, key: hash },
       `Streaming request returned error status code. Falling back to non-streaming response handler.`
     );
-    return decodeResponseBody(proxyRes, req, res);
+    return handleBlockingResponse(proxyRes, req, res);
   }
 
   req.log.debug({ headers: proxyRes.headers }, `Starting to proxy SSE stream.`);
@@ -105,12 +106,7 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
   } catch (err) {
     if (err instanceof RetryableError) {
       keyPool.markRateLimited(req.key!);
-      req.log.warn(
-        { key: req.key!.hash, retryCount: req.retryCount },
-        `Re-enqueueing request due to retryable error during streaming response.`
-      );
-      req.retryCount++;
-      await enqueue(req);
+      await reenqueueRequest(req);
     } else if (err instanceof BadRequestError) {
       sendErrorToClient({
         req,
@@ -138,7 +134,17 @@ export const handleStreamedResponse: RawResponseBodyHandler = async (
       res.write(`data: [DONE]\n\n`);
       res.end();
     }
-    throw err;
+
+    // At this point the response is closed. If the request resulted in any
+    // tokens being consumed (suggesting a mid-stream error), we will resolve
+    // and continue the middleware chain so tokens can be counted.
+    if (aggregator.hasEvents()) {
+      return aggregator.getFinalResponse();
+    } else {
+      // If there is nothing, then this was a completely failed prompt that
+      // will not have billed any tokens. Throw to stop the middleware chain.
+      throw err;
+    }
   }
 };
 

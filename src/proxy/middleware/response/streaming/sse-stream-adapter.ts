@@ -2,9 +2,8 @@ import pino from "pino";
 import { Transform, TransformOptions } from "stream";
 import { Message } from "@smithy/eventstream-codec";
 import { APIFormat } from "../../../../shared/key-management";
-import { RetryableError } from "../index";
 import { buildSpoofedSSE } from "../error-generator";
-import { BadRequestError } from "../../../../shared/errors";
+import { BadRequestError, RetryableError } from "../../../../shared/errors";
 
 type SSEStreamAdapterOptions = TransformOptions & {
   contentType?: string;
