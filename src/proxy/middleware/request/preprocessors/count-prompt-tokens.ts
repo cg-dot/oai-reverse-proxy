@@ -31,7 +31,10 @@ export const countPromptTokens: RequestPreprocessor = async (req) => {
     }
     case "anthropic-chat": {
       req.outputTokens = req.body.max_tokens;
-      const prompt: AnthropicChatMessage[] = req.body.messages;
+      const prompt = {
+        system: req.body.system ?? "",
+        messages: req.body.messages,
+      };
       result = await countTokens({ req, prompt, service });
       break;
     }

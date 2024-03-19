@@ -35,7 +35,7 @@ type OpenAIChatTokenCountRequest = {
 };
 
 type AnthropicChatTokenCountRequest = {
-  prompt: AnthropicChatMessage[];
+  prompt: { system: string; messages: AnthropicChatMessage[] };
   completion?: never;
   service: "anthropic-chat";
 };

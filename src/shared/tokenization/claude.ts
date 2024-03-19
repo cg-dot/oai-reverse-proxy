@@ -19,7 +19,9 @@ export function init() {
   return true;
 }
 
-export async function getTokenCount(prompt: string | AnthropicChatMessage[]) {
+export async function getTokenCount(
+  prompt: string | { system: string; messages: AnthropicChatMessage[] }
+) {
   if (typeof prompt !== "string") {
     return getTokenCountForMessages(prompt);
   }
@@ -34,8 +36,16 @@ export async function getTokenCount(prompt: string | AnthropicChatMessage[]) {
   };
 }
 
-async function getTokenCountForMessages(messages: AnthropicChatMessage[]) {
+async function getTokenCountForMessages({
+  system,
+  messages,
+}: {
+  system: string;
+  messages: AnthropicChatMessage[];
+}) {
   let numTokens = 0;
+
+  numTokens += (await getTokenCount(system)).token_count;
 
   for (const message of messages) {
     const { content, role } = message;

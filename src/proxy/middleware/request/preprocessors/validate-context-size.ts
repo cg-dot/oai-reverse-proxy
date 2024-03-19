@@ -46,6 +46,11 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
   }
   proxyMax ||= Number.MAX_SAFE_INTEGER;
 
+  if (req.user?.type === "special") {
+    req.log.debug("Special user, not enforcing proxy context limit.");
+    proxyMax = Number.MAX_SAFE_INTEGER;
+  }
+
   let modelMax: number;
   if (model.match(/gpt-3.5-turbo-16k/)) {
     modelMax = 16384;

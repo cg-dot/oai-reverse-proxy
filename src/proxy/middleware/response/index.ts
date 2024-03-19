@@ -370,7 +370,7 @@ async function handleAnthropicBadRequestError(
       "Anthropic key has been disabled."
     );
     keyPool.disable(req.key!, "revoked");
-    errorPayload.proxy_note = `Assigned key has been disabled. ${error?.message}`;
+    errorPayload.proxy_note = `Assigned key has been disabled. (${error?.message})`;
     return;
   }
 
