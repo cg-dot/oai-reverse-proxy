@@ -191,6 +191,9 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     { statusCode, type: errorType, errorPayload, key: req.key?.hash },
     `Received error response from upstream. (${proxyRes.statusMessage})`
   );
+  
+  // TODO: split upstream error handling into separate modules for each service,
+  // this is out of control.
 
   const service = req.key!.service;
   if (service === "aws") {
@@ -200,8 +203,6 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   }
 
   if (statusCode === 400) {
-    // Bad request. For OpenAI, this is usually due to prompt length.
-    // For Anthropic, this is usually due to missing preamble.
     switch (service) {
       case "openai":
       case "google-ai":
@@ -231,31 +232,46 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     keyPool.disable(req.key!, "revoked");
     errorPayload.proxy_note = `Assigned API key is invalid or revoked, please try again.`;
   } else if (statusCode === 403) {
-    if (service === "anthropic") {
-      keyPool.disable(req.key!, "revoked");
-      errorPayload.proxy_note = `Assigned API key is invalid or revoked, please try again.`;
-      return;
-    }
-    switch (errorType) {
-      case "UnrecognizedClientException":
-        // Key is invalid.
-        keyPool.disable(req.key!, "revoked");
-        errorPayload.proxy_note = `Assigned API key is invalid or revoked, please try again.`;
-        break;
-      case "AccessDeniedException":
-        const isModelAccessError =
-          errorPayload.error?.message?.includes(`specified model ID`);
-        if (!isModelAccessError) {
-          req.log.error(
-            { key: req.key?.hash, model: req.body?.model },
-            "Disabling key due to AccessDeniedException when invoking model. If credentials are valid, check IAM permissions."
+    switch (service) {
+      case "anthropic":
+        if (
+          errorType === "permission_error" &&
+          errorPayload.error?.message?.toLowerCase().includes("multimodal")
+        ) {
+          req.log.warn(
+            { key: req.key?.hash },
+            "This Anthropic key does not support multimodal prompts."
           );
+          keyPool.update(req.key!, { allowsMultimodality: false });
+          await reenqueueRequest(req);
+          throw new RetryableError("Claude request re-enqueued because key does not support multimodality.");
+        } else {
           keyPool.disable(req.key!, "revoked");
+          errorPayload.proxy_note = `Assigned API key is invalid or revoked, please try again.`;
         }
-        errorPayload.proxy_note = `API key doesn't have access to the requested resource. Model ID: ${req.body?.model}`;
-        break;
-      default:
-        errorPayload.proxy_note = `Received 403 error. Key may be invalid.`;
+        return;
+      case "aws":
+        switch (errorType) {
+          case "UnrecognizedClientException":
+            // Key is invalid.
+            keyPool.disable(req.key!, "revoked");
+            errorPayload.proxy_note = `Assigned API key is invalid or revoked, please try again.`;
+            break;
+          case "AccessDeniedException":
+            const isModelAccessError =
+              errorPayload.error?.message?.includes(`specified model ID`);
+            if (!isModelAccessError) {
+              req.log.error(
+                { key: req.key?.hash, model: req.body?.model },
+                "Disabling key due to AccessDeniedException when invoking model. If credentials are valid, check IAM permissions."
+              );
+              keyPool.disable(req.key!, "revoked");
+            }
+            errorPayload.proxy_note = `API key doesn't have access to the requested resource. Model ID: ${req.body?.model}`;
+            break;
+          default:
+            errorPayload.proxy_note = `Received 403 error. Key may be invalid.`;
+        }
     }
   } else if (statusCode === 429) {
     switch (service) {

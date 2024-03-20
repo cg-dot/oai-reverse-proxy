@@ -54,13 +54,13 @@ export function sendProxyError(
   const msg =
     statusCode === 500
       ? `The proxy encountered an error while trying to process your prompt.`
-      : `The proxy encountered an error while trying to send your prompt to the upstream service.`;
+      : `The proxy encountered an error while trying to send your prompt to the API.`;
 
   sendErrorToClient({
     options: {
       format: req.inboundApi,
       title: `Proxy error (HTTP ${statusCode} ${statusMessage})`,
-      message: `${msg} Further technical details are provided below.`,
+      message: `${msg} Further details are provided below.`,
       obj: errorPayload,
       reqId: req.id,
       model: req.body?.model,

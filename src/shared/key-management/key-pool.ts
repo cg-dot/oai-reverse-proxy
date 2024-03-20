@@ -41,7 +41,13 @@ export class KeyPool {
     this.scheduleRecheck();
   }
 
-  public get(model: string, service?: LLMService): Key {
+  public get(model: string, service?: LLMService, multimodal?: boolean): Key {
+    // hack for some claude requests needing keys with particular permissions
+    // even though they use the same models as the non-multimodal requests
+    if (multimodal) {
+      model += "-multimodal";
+    }
+    
     const queryService = service || this.getServiceForModel(model);
     return this.getKeyProvider(queryService).get(model);
   }

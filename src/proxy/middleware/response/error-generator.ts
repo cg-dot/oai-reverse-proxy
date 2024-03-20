@@ -33,9 +33,13 @@ function getMessageContent({
    */
 
   const note = obj?.proxy_note || obj?.error?.message || "";
-  const header = `**${title}**`;
-  const friendlyMessage = note ? `${message}\n\n***\n\n*${note}*` : message;
-  const serializedObj = obj ? "```" + JSON.stringify(obj, null, 2) + "```" : "";
+  const header = `### **${title}**`;
+  const friendlyMessage = note ? `${message}\n\n----\n\n*${note}*` : message;
+
+  const serializedObj = obj
+    ? ["```", JSON.stringify(obj, null, 2), "```"].join("\n")
+    : "";
+
   const { stack } = JSON.parse(JSON.stringify(obj ?? {}));
   let prettyTrace = "";
   if (stack && obj) {

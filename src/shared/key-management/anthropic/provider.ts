@@ -45,10 +45,11 @@ export interface AnthropicKey extends Key, AnthropicKeyUsage {
    */
   isPozzed: boolean;
   isOverQuota: boolean;
+  allowsMultimodality: boolean;
   /**
    * Key billing tier (https://docs.anthropic.com/claude/reference/rate-limits)
    **/
-  tier: typeof TIER_PRIORITY[number];
+  tier: (typeof TIER_PRIORITY)[number];
 }
 
 /**
@@ -111,6 +112,7 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
         isOverQuota: false,
         isRevoked: false,
         isPozzed: false,
+        allowsMultimodality: true,
         promptCount: 0,
         lastUsed: 0,
         rateLimitedAt: 0,
@@ -142,12 +144,20 @@ export class AnthropicKeyProvider implements KeyProvider<AnthropicKey> {
     return this.keys.map((k) => Object.freeze({ ...k, key: undefined }));
   }
 
-  public get(_model: string) {
-    // Currently, all Anthropic keys have access to all models. This will almost
-    // certainly change when they move out of beta later this year.
-    const availableKeys = this.keys.filter((k) => !k.isDisabled);
+  public get(rawModel: string) {
+    this.log.debug({ model: rawModel }, "Selecting key");
+    const needsMultimodal = rawModel.endsWith("-multimodal");
+
+    const availableKeys = this.keys.filter((k) => {
+      return !k.isDisabled && (!needsMultimodal || k.allowsMultimodality);
+    });
+
     if (availableKeys.length === 0) {
-      throw new PaymentRequiredError("No Anthropic keys available.");
+      throw new PaymentRequiredError(
+        needsMultimodal
+          ? "No multimodal Anthropic keys available. Please disable multimodal input (such as inline images) and try again."
+          : "No Anthropic keys available."
+      );
     }
 
     // Select a key, from highest priority to lowest priority:
