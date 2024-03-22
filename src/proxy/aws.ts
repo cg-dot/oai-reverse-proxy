@@ -222,7 +222,7 @@ function maybeReassignModel(req: Request) {
   }
 
   const pattern =
-    /^(claude-)?(instant-)?(v)?(\d+)(\.(\d+))?(-\d+k)?(-sonnet-?|-opus-?)(\d*)/i;
+    /^(claude-)?(instant-)?(v)?(\d+)(\.(\d+))?(-\d+k)?(-sonnet-?|-opus-?|-haiku-?)(\d*)/i;
   const match = model.match(pattern);
 
   // If there's no match, return the latest v2 model

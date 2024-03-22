@@ -212,7 +212,7 @@ export function buildInfo(baseUrl: string, forAdmin = false): ServiceInfo {
 }
 
 function getStatus() {
-  if (!config.checkKeys) return "Key checking is disabled.";
+  if (!config.checkKeys) return "Key checking is disabled. The data displayed are not reliable.";
 
   let unchecked = 0;
   for (const service of LLM_SERVICES) {
