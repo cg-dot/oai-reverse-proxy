@@ -250,6 +250,14 @@ type Config = {
    */
   allowOpenAIToolUsage?: boolean;
   /**
+   * Whether to allow prompts containing images, for use with multimodal models.
+   * Avoid giving this to untrusted users, as they can submit illegal content.
+   *
+   * Applies to GPT-4 Vision and Claude Vision. Users with `special` role are
+   * exempt from this restriction.
+   */
+  allowImagePrompts?: boolean;
+  /**
    * Allows overriding the default proxy endpoint route. Defaults to /proxy.
    * A leading slash is required.
    */
@@ -348,6 +356,7 @@ export const config: Config = {
   staticServiceInfo: getEnvWithDefault("STATIC_SERVICE_INFO", false),
   trustedProxies: getEnvWithDefault("TRUSTED_PROXIES", 1),
   allowOpenAIToolUsage: getEnvWithDefault("ALLOW_OPENAI_TOOL_USAGE", false),
+  allowImagePrompts: getEnvWithDefault("ALLOW_IMAGE_PROMPTS", false),
   proxyEndpointRoute: getEnvWithDefault("PROXY_ENDPOINT_ROUTE", "/proxy"),
 } as const;
 

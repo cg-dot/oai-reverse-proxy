@@ -1,4 +1,5 @@
 import { AnthropicChatMessage } from "../../../../shared/api-schemas";
+import { containsImageContent } from "../../../../shared/api-schemas/anthropic";
 import { Key, OpenAIKey, keyPool } from "../../../../shared/key-management";
 import { isEmbeddingsRequest } from "../../common";
 import { HPMRequestCallback } from "../index";
@@ -22,7 +23,7 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
 
   let needsMultimodal = false;
   if (outboundApi === "anthropic-chat") {
-    needsMultimodal = needsMultimodalKey(
+    needsMultimodal = containsImageContent(
       body.messages as AnthropicChatMessage[]
     );
   }
@@ -122,10 +123,3 @@ export const addKeyForEmbeddingsRequest: HPMRequestCallback = (
     proxyReq.setHeader("OpenAI-Organization", key.organizationId);
   }
 };
-
-function needsMultimodalKey(messages: AnthropicChatMessage[]) {
-  return messages.some(
-    ({ content }) =>
-      typeof content !== "string" && content.some((c) => c.type === "image")
-  );
-}

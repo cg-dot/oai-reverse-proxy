@@ -11,16 +11,17 @@ export {
 // Express middleware (runs before http-proxy-middleware, can be async)
 export { addAzureKey } from "./preprocessors/add-azure-key";
 export { applyQuotaLimits } from "./preprocessors/apply-quota-limits";
-export { validateContextSize } from "./preprocessors/validate-context-size";
 export { countPromptTokens } from "./preprocessors/count-prompt-tokens";
 export { languageFilter } from "./preprocessors/language-filter";
 export { setApiFormat } from "./preprocessors/set-api-format";
 export { signAwsRequest } from "./preprocessors/sign-aws-request";
 export { transformOutboundPayload } from "./preprocessors/transform-outbound-payload";
+export { validateContextSize } from "./preprocessors/validate-context-size";
+export { validateVision } from "./preprocessors/validate-vision";
 
 // http-proxy-middleware callbacks (runs on onProxyReq, cannot be async)
-export { addKey, addKeyForEmbeddingsRequest } from "./onproxyreq/add-key";
 export { addAnthropicPreamble } from "./onproxyreq/add-anthropic-preamble";
+export { addKey, addKeyForEmbeddingsRequest } from "./onproxyreq/add-key";
 export { blockZoomerOrigins } from "./onproxyreq/block-zoomer-origins";
 export { checkModelFamily } from "./onproxyreq/check-model-family";
 export { finalizeBody } from "./onproxyreq/finalize-body";

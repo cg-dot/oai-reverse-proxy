@@ -438,3 +438,10 @@ function convertOpenAIContent(
     }
   });
 }
+
+export function containsImageContent(messages: AnthropicChatMessage[]) {
+  return messages.some(
+    ({ content }) =>
+      typeof content !== "string" && content.some((c) => c.type === "image")
+  );
+}

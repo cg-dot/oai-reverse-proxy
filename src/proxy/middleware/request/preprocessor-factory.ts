@@ -4,11 +4,12 @@ import { initializeSseStream } from "../../../shared/streaming";
 import { classifyErrorAndSend } from "../common";
 import {
   RequestPreprocessor,
-  validateContextSize,
   countPromptTokens,
+  languageFilter,
   setApiFormat,
   transformOutboundPayload,
-  languageFilter,
+  validateContextSize,
+  validateVision,
 } from ".";
 
 type RequestPreprocessorOptions = {
@@ -50,6 +51,7 @@ export const createPreprocessorMiddleware = (
     languageFilter,
     ...(afterTransform ?? []),
     validateContextSize,
+    validateVision,
   ];
   return async (...args) => executePreprocessors(preprocessors, args);
 };

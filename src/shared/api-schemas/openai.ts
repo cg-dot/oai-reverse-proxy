@@ -131,3 +131,13 @@ export function flattenOpenAIChatMessages(messages: OpenAIChatMessage[]) {
       throw new Error(`Unknown prompt version: ${PROMPT_VERSION}`);
   }
 }
+
+export function containsImageContent(
+  messages: OpenAIChatMessage[]
+): boolean {
+  return messages.some((m) =>
+    Array.isArray(m.content)
+      ? m.content.some((contentItem) => "image_url" in contentItem)
+      : false
+  );
+}
