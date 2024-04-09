@@ -190,7 +190,7 @@ function buildRecentImageSection() {
 </div>`;
   }
   html += `</div>`;
-  html += `<p style="clear: both; text-align: center;"><a href="/user/image-history">View all recent images</a></p>`
+  html += `<p style="clear: both; text-align: center;"><a href="/user/image-history">View all recent images</a></p>`;
 
   return html;
 }
@@ -201,7 +201,9 @@ function escapeHtml(unsafe: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/'/g, "&#39;")
+    .replace(/\[/g, "&#91;")
+    .replace(/]/g, "&#93;");
 }
 
 function getExternalUrlForHuggingfaceSpaceId(spaceId: string) {
