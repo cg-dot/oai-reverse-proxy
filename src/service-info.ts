@@ -387,21 +387,22 @@ function addKeyToAggregates(k: KeyPoolKey) {
     }
     case "aws": {
       if (!keyIsAwsKey(k)) throw new Error("Invalid key type");
-      const family = "aws-claude";
-      sumTokens += k["aws-claudeTokens"];
-      sumCost += getTokenCostUsd(family, k["aws-claudeTokens"]);
-      increment(modelStats, `${family}__active`, k.isDisabled ? 0 : 1);
-      increment(modelStats, `${family}__revoked`, k.isRevoked ? 1 : 0);
-      increment(modelStats, `${family}__tokens`, k["aws-claudeTokens"]);
-      increment(modelStats, `${family}__awsSonnet`, k.sonnetEnabled ? 1 : 0);
-      increment(modelStats, `${family}__awsHaiku`, k.haikuEnabled ? 1 : 0);
+      k.modelFamilies.forEach((f) => {
+        const tokens = k[`${f}Tokens`];
+        sumTokens += tokens;
+        sumCost += getTokenCostUsd(f, tokens);
+        increment(modelStats, `${f}__tokens`, tokens);
+        increment(modelStats, `${f}__revoked`, k.isRevoked ? 1 : 0);
+        increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
+      });
+      increment(modelStats, `aws-claude__awsSonnet`, k.sonnetEnabled ? 1 : 0);
+      increment(modelStats, `aws-claude__awsHaiku`, k.haikuEnabled ? 1 : 0);
 
       // Ignore revoked keys for aws logging stats, but include keys where the
       // logging status is unknown.
       const countAsLogged =
         k.lastChecked && !k.isDisabled && k.awsLoggingStatus !== "disabled";
-      increment(modelStats, `${family}__awsLogged`, countAsLogged ? 1 : 0);
-
+      increment(modelStats, `aws-claude__awsLogged`, countAsLogged ? 1 : 0);
       break;
     }
     default:

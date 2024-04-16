@@ -312,6 +312,7 @@ export const config: Config = {
     "mistral-medium",
     "mistral-large",
     "aws-claude",
+    "aws-claude-opus",
     "azure-turbo",
     "azure-gpt4",
     "azure-gpt4-turbo",

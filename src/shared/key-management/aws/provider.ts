@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { Key, KeyProvider } from "..";
 import { config } from "../../../config";
 import { logger } from "../../../logger";
-import type { AwsBedrockModelFamily } from "../../models";
+import { AwsBedrockModelFamily, getAwsBedrockModelFamily } from "../../models";
 import { AwsKeyChecker } from "./checker";
 import { PaymentRequiredError } from "../../errors";
 
@@ -61,7 +61,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
       const newKey: AwsBedrockKey = {
         key,
         service: this.service,
-        modelFamilies: ["aws-claude"],
+        modelFamilies: ["aws-claude", "aws-claude-opus"],
         isDisabled: false,
         isRevoked: false,
         promptCount: 0,
@@ -78,6 +78,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
         sonnetEnabled: true,
         haikuEnabled: false,
         ["aws-claudeTokens"]: 0,
+        ["aws-claude-opusTokens"]: 0,
       };
       this.keys.push(newKey);
     }
@@ -157,11 +158,11 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     return this.keys.filter((k) => !k.isDisabled).length;
   }
 
-  public incrementUsage(hash: string, _model: string, tokens: number) {
+  public incrementUsage(hash: string, model: string, tokens: number) {
     const key = this.keys.find((k) => k.hash === hash);
     if (!key) return;
     key.promptCount++;
-    key["aws-claudeTokens"] += tokens;
+    key[`${getAwsBedrockModelFamily(model)}Tokens`] += tokens;
   }
 
   public getLockoutPeriod() {

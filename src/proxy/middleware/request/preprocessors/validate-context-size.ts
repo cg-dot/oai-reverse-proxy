@@ -63,7 +63,7 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
   } else if (model.match(/^gpt-4(-\d{4})?-vision(-preview)?$/)) {
     modelMax = 131072;
   } else if (model.match(/gpt-3.5-turbo/)) {
-    modelMax = 4096;
+    modelMax = 16384;
   } else if (model.match(/gpt-4-32k/)) {
     modelMax = 32768;
   } else if (model.match(/gpt-4/)) {
@@ -82,7 +82,7 @@ export const validateContextSize: RequestPreprocessor = async (req) => {
     modelMax = GOOGLE_AI_MAX_CONTEXT;
   } else if (model.match(/^mistral-(tiny|small|medium)$/)) {
     modelMax = MISTRAL_AI_MAX_CONTENT;
-  } else if (model.match(/^anthropic\.claude-3-sonnet/)) {
+  } else if (model.match(/^anthropic\.claude-3/)) {
     modelMax = 200000;
   } else if (model.match(/^anthropic\.claude-v2:\d/)) {
     modelMax = 200000;

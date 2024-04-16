@@ -257,10 +257,16 @@ function maybeReassignModel(req: Request) {
   }
 
   // AWS currently only supports one v3 model.
-  const variant = match[8]; // sonnet or opus
+  const variant = match[8]; // sonnet, opus, or haiku
   const variantVersion = match[9];
   if (major === "3") {
-    req.body.model = "anthropic.claude-3-sonnet-20240229-v1:0";
+    if (variant.includes("opus")) {
+      req.body.model = "anthropic.claude-3-opus-20240229-v1:0";
+    } else if (variant.includes("haiku")) {
+      req.body.model = "anthropic.claude-3-haiku-20240307-v1:0";
+    } else {
+      req.body.model = "anthropic.claude-3-sonnet-20240229-v1:0";
+    }
     return;
   }
 
