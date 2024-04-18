@@ -61,7 +61,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
       const newKey: AwsBedrockKey = {
         key,
         service: this.service,
-        modelFamilies: ["aws-claude", "aws-claude-opus"],
+        modelFamilies: ["aws-claude"],
         isDisabled: false,
         isRevoked: false,
         promptCount: 0,
@@ -99,13 +99,17 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
   public get(model: string) {
     const availableKeys = this.keys.filter((k) => {
       const isNotLogged = k.awsLoggingStatus === "disabled";
-      const needsSonnet = model.includes("sonnet");
-      const needsHaiku = model.includes("haiku");
+      const neededFamily = getAwsBedrockModelFamily(model);
+      const needsSonnet =
+        model.includes("sonnet") && neededFamily === "aws-claude";
+      const needsHaiku =
+        model.includes("haiku") && neededFamily === "aws-claude";
       return (
         !k.isDisabled &&
         (isNotLogged || config.allowAwsLogging) &&
-        (k.sonnetEnabled || !needsSonnet) &&
-        (k.haikuEnabled || !needsHaiku)
+        (k.sonnetEnabled || !needsSonnet) && // sonnet and haiku are both under aws-claude, while opus is not
+        (k.haikuEnabled || !needsHaiku) &&
+        k.modelFamilies.includes(neededFamily)
       );
     });
     if (availableKeys.length === 0) {

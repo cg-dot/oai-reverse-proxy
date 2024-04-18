@@ -141,8 +141,6 @@ const SERVICE_ENDPOINTS: { [s in LLMService]: Record<string, string> } = {
   },
   anthropic: {
     anthropic: `%BASE%/anthropic`,
-    "anthropic-sonnet (⚠️Temporary: for Claude 3 Sonnet)": `%BASE%/anthropic/sonnet`,
-    "anthropic-opus (⚠️Temporary: for Claude 3 Opus)": `%BASE%/anthropic/opus`,
   },
   "google-ai": {
     "google-ai": `%BASE%/google-ai`,
@@ -152,7 +150,6 @@ const SERVICE_ENDPOINTS: { [s in LLMService]: Record<string, string> } = {
   },
   aws: {
     aws: `%BASE%/aws/claude`,
-    "aws-sonnet (⚠️Temporary: for AWS Claude 3 Sonnet)": `%BASE%/aws/claude/sonnet`,
   },
   azure: {
     azure: `%BASE%/azure/openai`,
@@ -212,7 +209,8 @@ export function buildInfo(baseUrl: string, forAdmin = false): ServiceInfo {
 }
 
 function getStatus() {
-  if (!config.checkKeys) return "Key checking is disabled. The data displayed are not reliable.";
+  if (!config.checkKeys)
+    return "Key checking is disabled. The data displayed are not reliable.";
 
   let unchecked = 0;
   for (const service of LLM_SERVICES) {
@@ -444,13 +442,15 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
         info.prefilledKeys = modelStats.get(`${family}__pozzed`) || 0;
         break;
       case "aws":
-        info.sonnetKeys = modelStats.get(`${family}__awsSonnet`) || 0;
-        info.haikuKeys = modelStats.get(`${family}__awsHaiku`) || 0;
-        const logged = modelStats.get(`${family}__awsLogged`) || 0;
-        if (logged > 0) {
-          info.privacy = config.allowAwsLogging
-            ? `${logged} active keys are potentially logged.`
-            : `${logged} active keys are potentially logged and can't be used. Set ALLOW_AWS_LOGGING=true to override.`;
+        if (family === "aws-claude") {
+          info.sonnetKeys = modelStats.get(`${family}__awsSonnet`) || 0;
+          info.haikuKeys = modelStats.get(`${family}__awsHaiku`) || 0;
+          const logged = modelStats.get(`${family}__awsLogged`) || 0;
+          if (logged > 0) {
+            info.privacy = config.allowAwsLogging
+              ? `${logged} active keys are potentially logged.`
+              : `${logged} active keys are potentially logged and can't be used. Set ALLOW_AWS_LOGGING=true to override.`;
+          }
         }
         break;
     }

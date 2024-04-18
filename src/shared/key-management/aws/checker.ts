@@ -5,6 +5,7 @@ import axios, { AxiosError, AxiosRequestConfig, AxiosHeaders } from "axios";
 import { URL } from "url";
 import { KeyCheckerBase } from "../key-checker-base";
 import type { AwsBedrockKey, AwsBedrockKeyProvider } from "./provider";
+import { AwsBedrockModelFamily } from "../../models";
 
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
 const KEY_CHECK_PERIOD = 30 * 60 * 1000; // 30 minutes
@@ -54,18 +55,32 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
         this.invokeModel("anthropic.claude-v2", key),
         this.invokeModel("anthropic.claude-3-sonnet-20240229-v1:0", key),
         this.invokeModel("anthropic.claude-3-haiku-20240307-v1:0", key),
+        this.invokeModel("anthropic.claude-3-opus-20240229-v1:0", key),
       ];
     }
     checks.unshift(this.checkLoggingConfiguration(key));
 
-    const [_logging, _claudeV2, sonnet, haiku] = await Promise.all(checks);
+    const [_logging, claudeV2, sonnet, haiku, opus] = await Promise.all(checks);
 
     if (isInitialCheck) {
-      this.updateKey(key.hash, { sonnetEnabled: sonnet, haikuEnabled: haiku });
+      const families: AwsBedrockModelFamily[] = [];
+      if (claudeV2 || sonnet || haiku) families.push("aws-claude");
+      if (opus) families.push("aws-claude-opus");
+      this.updateKey(key.hash, {
+        sonnetEnabled: sonnet,
+        haikuEnabled: haiku,
+        modelFamilies: families,
+      });
     }
 
     this.log.info(
-      { key: key.hash, sonnet, haiku, logged: key.awsLoggingStatus },
+      {
+        key: key.hash,
+        sonnet,
+        haiku,
+        families: key.modelFamilies,
+        logged: key.awsLoggingStatus,
+      },
       "Checked key."
     );
   }
