@@ -16,7 +16,7 @@ import {
   ProxyResHandlerWithBody,
   createOnProxyResHandler,
 } from "./middleware/response";
-import { transformAnthropicChatResponseToAnthropicText } from "./anthropic";
+import { transformAnthropicChatResponseToAnthropicText, transformAnthropicChatResponseToOpenAI } from "./anthropic";
 import { sendErrorToClient } from "./middleware/response/error-generator";
 
 const LATEST_AWS_V2_MINOR_VERSION = "1";
@@ -37,7 +37,7 @@ const getModelsResponse = () => {
     "anthropic.claude-v2:1",
     "anthropic.claude-3-haiku-20240307-v1:0",
     "anthropic.claude-3-sonnet-20240229-v1:0",
-    "anthropic.claude-3-opus-20240229-v1:0"
+    "anthropic.claude-3-opus-20240229-v1:0",
   ];
 
   const models = variants.map((id) => ({
@@ -77,8 +77,10 @@ const awsResponseHandler: ProxyResHandlerWithBody = async (
       req.log.info("Transforming Anthropic Text back to OpenAI format");
       newBody = transformAwsTextResponseToOpenAI(body, req);
       break;
-    // case "openai<-anthropic-chat":
-    // todo: implement this
+    case "openai<-anthropic-chat":
+      req.log.info("Transforming AWS Anthropic Chat back to OpenAI format");
+      newBody = transformAnthropicChatResponseToOpenAI(body);
+      break;
     case "anthropic-text<-anthropic-chat":
       req.log.info("Transforming AWS Anthropic Chat back to Text format");
       newBody = transformAnthropicChatResponseToAnthropicText(body);
@@ -160,7 +162,7 @@ const textToChatPreprocessor = createPreprocessorMiddleware(
  * Routes text completion prompts to aws anthropic-chat if they need translation
  * (claude-3 based models do not support the old text completion endpoint).
  */
-const awsTextCompletionRouter: RequestHandler = (req, res, next) => {
+const preprocessAwsTextRequest: RequestHandler = (req, res, next) => {
   if (req.body.model?.includes("claude-3")) {
     textToChatPreprocessor(req, res, next);
   } else {
@@ -168,10 +170,32 @@ const awsTextCompletionRouter: RequestHandler = (req, res, next) => {
   }
 };
 
+const oaiToAwsTextPreprocessor = createPreprocessorMiddleware(
+  { inApi: "openai", outApi: "anthropic-text", service: "aws" },
+  { afterTransform: [maybeReassignModel] }
+);
+
+const oaiToAwsChatPreprocessor = createPreprocessorMiddleware(
+  { inApi: "openai", outApi: "anthropic-chat", service: "aws" },
+  { afterTransform: [maybeReassignModel] }
+);
+
+/**
+ * Routes an OpenAI prompt to either the legacy Claude text completion endpoint
+ * or the new Claude chat completion endpoint, based on the requested model.
+ */
+const preprocessOpenAICompatRequest: RequestHandler = (req, res, next) => {
+  if (req.body.model?.includes("claude-3")) {
+    oaiToAwsChatPreprocessor(req, res, next);
+  } else {
+    oaiToAwsTextPreprocessor(req, res, next);
+  }
+};
+
 const awsRouter = Router();
 awsRouter.get("/v1/models", handleModelRequest);
 // Native(ish) Anthropic text completion endpoint.
-awsRouter.post("/v1/complete", ipLimiter, awsTextCompletionRouter, awsProxy);
+awsRouter.post("/v1/complete", ipLimiter, preprocessAwsTextRequest, awsProxy);
 // Native Anthropic chat completion endpoint.
 awsRouter.post(
   "/v1/messages",
@@ -199,10 +223,7 @@ awsRouter.post(
 awsRouter.post(
   "/v1/chat/completions",
   ipLimiter,
-  createPreprocessorMiddleware(
-    { inApi: "openai", outApi: "anthropic-text", service: "aws" },
-    { afterTransform: [maybeReassignModel] }
-  ),
+  preprocessOpenAICompatRequest,
   awsProxy
 );
 

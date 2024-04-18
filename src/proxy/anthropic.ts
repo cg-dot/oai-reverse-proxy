@@ -156,7 +156,7 @@ function transformAnthropicTextResponseToOpenAI(
   };
 }
 
-function transformAnthropicChatResponseToOpenAI(
+export function transformAnthropicChatResponseToOpenAI(
   anthropicBody: Record<string, any>
 ): Record<string, any> {
   return {
