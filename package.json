@@ -35,7 +35,8 @@
     "ejs": "^3.1.9",
     "express": "^4.18.2",
     "express-session": "^1.17.3",
-    "firebase-admin": "^11.10.1",
+    "firebase-admin": "^12.1.0",
+    "glob": "^10.3.12",
     "googleapis": "^122.0.0",
     "http-proxy-middleware": "^3.0.0-beta.1",
     "memorystore": "^1.6.7",
@@ -76,7 +77,6 @@
     "typescript": "^5.4.2"
   },
   "overrides": {
-    "google-gax": "^3.6.1",
     "postcss": "^8.4.31",
     "follow-redirects": "^1.15.4"
   }
