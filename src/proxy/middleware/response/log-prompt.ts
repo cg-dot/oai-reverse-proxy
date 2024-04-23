@@ -11,7 +11,7 @@ import { ProxyResHandlerWithBody } from ".";
 import { assertNever } from "../../../shared/utils";
 import {
   AnthropicChatMessage,
-  flattenAnthropicMessages,
+  flattenAnthropicMessages, GoogleAIChatMessage,
   MistralAIChatMessage,
   OpenAIChatMessage,
 } from "../../../shared/api-schemas";
@@ -62,6 +62,7 @@ const getPromptForRequest = (
 ):
   | string
   | OpenAIChatMessage[]
+  | { contents: GoogleAIChatMessage[] }
   | { system: string; messages: AnthropicChatMessage[] }
   | MistralAIChatMessage[]
   | OaiImageResult => {
@@ -87,7 +88,7 @@ const getPromptForRequest = (
     case "anthropic-text":
       return req.body.prompt;
     case "google-ai":
-      return req.body.prompt.text;
+      return { contents: req.body.contents };
     default:
       assertNever(req.outboundApi);
   }
@@ -98,6 +99,7 @@ const flattenMessages = (
     | string
     | OaiImageResult
     | OpenAIChatMessage[]
+    | { contents: GoogleAIChatMessage[] }
     | { system: string; messages: AnthropicChatMessage[] }
     | MistralAIChatMessage[]
 ): string => {
@@ -107,6 +109,16 @@ const flattenMessages = (
   if (isAnthropicChatPrompt(val)) {
     const { system, messages } = val;
     return `System: ${system}\n\n${flattenAnthropicMessages(messages)}`;
+  }
+  if (isGoogleAIChatPrompt(val)) {
+    return val.contents
+      .map(({ parts, role }) => {
+        const text = parts
+          .map((p) => p.text)
+          .join("\n");
+        return `${role}: ${text}`;
+      })
+      .join("\n");
   }
   if (Array.isArray(val)) {
     return val
@@ -127,6 +139,16 @@ const flattenMessages = (
   }
   return val.prompt.trim();
 };
+
+function isGoogleAIChatPrompt(
+  val: unknown
+): val is { contents: GoogleAIChatMessage[] } {
+  return (
+    typeof val === "object" &&
+    val !== null &&
+    "contents" in val
+  );
+}
 
 function isAnthropicChatPrompt(
   val: unknown
