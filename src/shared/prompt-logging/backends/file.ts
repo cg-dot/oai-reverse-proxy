@@ -7,7 +7,7 @@ import { logger } from "../../../logger";
 import { LogBackend, PromptLogEntry } from "../index";
 import { glob } from "glob";
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 let currentFileNumber = 0;
 let currentFilePath = "";
@@ -57,7 +57,16 @@ export const fileBackend: LogBackend = {
       }
 
       const batchString =
-        batch.map((entry) => JSON.stringify(entry)).join("\n") + "\n";
+        batch
+          .map((entry) =>
+            JSON.stringify({
+              endpoint: entry.endpoint,
+              model: entry.model,
+              prompt: entry.promptRaw,
+              response: entry.response,
+            })
+          )
+          .join("\n") + "\n";
       const batchSizeBytes = Buffer.byteLength(batchString);
       const batchLines = batch.length;
       logger.debug(
