@@ -6,6 +6,10 @@ import { ModelFamily } from "./models";
 export function getTokenCostUsd(model: ModelFamily, tokens: number) {
   let cost = 0;
   switch (model) {
+    // case "gpt4o":
+    // case "azure-gpt4o":
+    //   cost = 0.000005;
+    //   break;
     case "azure-gpt4-turbo":
     case "gpt4-turbo":
       cost = 0.00001;

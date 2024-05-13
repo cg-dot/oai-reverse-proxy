@@ -28,6 +28,8 @@ import {
 
 // https://platform.openai.com/docs/models/overview
 export const KNOWN_OPENAI_MODELS = [
+  "gpt-4o",
+  "gpt-4o-2024-05-13",
   "gpt-4-turbo", // alias for latest gpt4-turbo stable
   "gpt-4-turbo-2024-04-09", // gpt4-turbo stable, with vision
   "gpt-4-turbo-preview", // alias for latest turbo preview
