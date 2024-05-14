@@ -21,6 +21,7 @@ export type OpenAIModelFamily =
   | "gpt4"
   | "gpt4-32k"
   | "gpt4-turbo"
+  | "gpt4o"
   | "dall-e";
 export type AnthropicModelFamily = "claude" | "claude-opus";
 export type GoogleAIModelFamily = "gemini-pro";
@@ -46,6 +47,7 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "gpt4",
   "gpt4-32k",
   "gpt4-turbo",
+  "gpt4o",
   "dall-e",
   "claude",
   "claude-opus",
@@ -60,6 +62,7 @@ export const MODEL_FAMILIES = (<A extends readonly ModelFamily[]>(
   "azure-gpt4",
   "azure-gpt4-32k",
   "azure-gpt4-turbo",
+  "azure-gpt4o",
   "azure-dall-e",
 ] as const);
 
@@ -75,7 +78,7 @@ export const LLM_SERVICES = (<A extends readonly LLMService[]>(
 ] as const);
 
 export const OPENAI_MODEL_FAMILY_MAP: { [regex: string]: OpenAIModelFamily } = {
-  "^gpt-4o": "gpt4-turbo", //todo: separate model family
+  "^gpt-4o": "gpt4o",
   "^gpt-4-turbo(-\\d{4}-\\d{2}-\\d{2})?$": "gpt4-turbo",
   "^gpt-4-turbo(-preview)?$": "gpt4-turbo",
   "^gpt-4-(0125|1106)(-preview)?$": "gpt4-turbo",
@@ -96,6 +99,7 @@ export const MODEL_FAMILY_SERVICE: {
   gpt4: "openai",
   "gpt4-turbo": "openai",
   "gpt4-32k": "openai",
+  "gpt4o": "openai",
   "dall-e": "openai",
   claude: "anthropic",
   "claude-opus": "anthropic",
@@ -105,6 +109,7 @@ export const MODEL_FAMILY_SERVICE: {
   "azure-gpt4": "azure",
   "azure-gpt4-32k": "azure",
   "azure-gpt4-turbo": "azure",
+  "azure-gpt4o": "azure",
   "azure-dall-e": "azure",
   "gemini-pro": "google-ai",
   "mistral-tiny": "mistral-ai",
