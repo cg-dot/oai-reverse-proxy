@@ -194,7 +194,7 @@ router.post("/challenge", (req, res) => {
   }
 
   if (action === "refresh") {
-    if (verifyTokenRefreshable(refreshToken, req.log)) {
+    if (!verifyTokenRefreshable(refreshToken, req.log)) {
       res
         .status(400)
         .json({
