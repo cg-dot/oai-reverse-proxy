@@ -1,4 +1,5 @@
 import { Router } from "express";
+import ipaddr from "ipaddr.js";
 import multer from "multer";
 import { z } from "zod";
 import { config } from "../../config";
@@ -15,6 +16,7 @@ import {
   UserTokenCounts,
 } from "../../shared/users/schema";
 import { getLastNImages } from "../../shared/file-storage/image-history";
+import { blacklists, parseCidrs, whitelists } from "../../shared/cidr";
 
 const router = Router();
 
@@ -38,6 +40,74 @@ router.get("/create-user", (req, res) => {
     recentUsers,
     newToken: !!req.query.created,
   });
+});
+
+router.get("/anti-abuse", (_req, res) => {
+  const wl = [...whitelists.entries()];
+  const bl = [...blacklists.entries()];
+
+  res.render("admin_anti-abuse", {
+    captchaMode: config.captchaMode,
+    difficulty: config.powDifficultyLevel,
+    whitelists: wl.map((w) => ({
+      name: w[0],
+      mode: "whitelist",
+      ranges: w[1].ranges,
+    })),
+    blacklists: bl.map((b) => ({
+      name: b[0],
+      mode: "blacklist",
+      ranges: b[1].ranges,
+    })),
+  });
+});
+
+router.post("/cidr", (req, res) => {
+  const body = req.body;
+  const valid = z
+    .object({
+      action: z.enum(["add", "remove"]),
+      mode: z.enum(["whitelist", "blacklist"]),
+      name: z.string().min(1),
+      mask: z.string().min(1),
+    })
+    .safeParse(body);
+
+  if (!valid.success) {
+    throw new HttpError(
+      400,
+      valid.error.issues.flatMap((issue) => issue.message).join(", ")
+    );
+  }
+
+  const { mode, name, mask } = valid.data;
+  const list = (mode === "whitelist" ? whitelists : blacklists).get(name);
+  if (!list) {
+    throw new HttpError(404, "List not found");
+  }
+  if (valid.data.action === "remove") {
+    const newRanges = new Set(list.ranges);
+    newRanges.delete(mask);
+    list.updateRanges([...newRanges]);
+    req.session.flash = {
+      type: "success",
+      message: `${mode} ${name} updated`,
+    };
+    return res.redirect("/admin/manage/anti-abuse");
+  } else if (valid.data.action === "add") {
+    const result = parseCidrs(mask);
+    if (result.length === 0) {
+      throw new HttpError(400, "Invalid CIDR mask");
+    }
+
+    const newRanges = new Set([...list.ranges, mask]);
+    list.updateRanges([...newRanges]);
+    req.session.flash = {
+      type: "success",
+      message: `${mode} ${name} updated`,
+    };
+    return res.redirect("/admin/manage/anti-abuse");
+  }
 });
 
 router.post("/create-user", (req, res) => {
@@ -223,13 +293,127 @@ router.post("/maintenance", (req, res) => {
       break;
     }
     case "downloadImageMetadata": {
-      const data = JSON.stringify({
-        exportedAt: new Date().toISOString(),
-        generations: getLastNImages()
-      }, null, 2);
+      const data = JSON.stringify(
+        {
+          exportedAt: new Date().toISOString(),
+          generations: getLastNImages(),
+        },
+        null,
+        2
+      );
       res.setHeader(
         "Content-Disposition",
         `attachment; filename=image-metadata-${new Date().toISOString()}.json`
+      );
+      res.setHeader("Content-Type", "application/json");
+      return res.send(data);
+    }
+    case "expireTempTokens": {
+      const users = userStore.getUsers();
+      const temps = users.filter((u) => u.type === "temporary");
+      temps.forEach((user) => {
+        user.expiresAt = Date.now();
+        userStore.upsertUser(user);
+      });
+      flash.type = "success";
+      flash.message = `${temps.length} temporary users marked for expiration.`;
+      break;
+    }
+    case "cleanTempTokens": {
+      const users = userStore.getUsers();
+      const disabledTempUsers = users.filter(
+        (u) => u.type === "temporary" && u.expiresAt && u.expiresAt < Date.now()
+      );
+      disabledTempUsers.forEach((user) => {
+        user.disabledAt = 1; //will be cleaned up by the next cron job
+        userStore.upsertUser(user);
+      });
+      flash.type = "success";
+      flash.message = `${disabledTempUsers.length} disabled temporary users marked for cleanup.`;
+      break;
+    }
+    case "setDifficulty": {
+      const selected = req.body["pow-difficulty"];
+      const valid = ["low", "medium", "high", "extreme"];
+      if (!selected || !valid.includes(selected)) {
+        throw new HttpError(400, "Invalid difficulty" + selected);
+      }
+      config.powDifficultyLevel = selected;
+      break;
+    }
+    case "generateTempIpReport": {
+      const tempUsers = userStore
+        .getUsers()
+        .filter((u) => u.type === "temporary");
+      const ipv4RangeMap: Map<string, Set<string>> = new Map<
+        string,
+        Set<string>
+      >();
+      const ipv6RangeMap: Map<string, Set<string>> = new Map<
+        string,
+        Set<string>
+      >();
+
+      tempUsers.forEach((u) => {
+        u.ip.forEach((ip) => {
+          try {
+            const parsed = ipaddr.parse(ip);
+            if (parsed.kind() === "ipv4") {
+              const subnet =
+                parsed.toNormalizedString().split(".").slice(0, 3).join(".") +
+                ".0/24";
+              const userSet = ipv4RangeMap.get(subnet) || new Set<string>();
+              userSet.add(u.token);
+              ipv4RangeMap.set(subnet, userSet);
+            } else if (parsed.kind() === "ipv6") {
+              const subnet =
+                parsed.toNormalizedString().split(":").slice(0, 3).join(":") +
+                "::/56";
+              const userSet = ipv6RangeMap.get(subnet) || new Set<string>();
+              userSet.add(u.token);
+              ipv6RangeMap.set(subnet, userSet);
+            }
+          } catch (e) {
+            req.log.warn(
+              { ip, error: e.message },
+              "Invalid IP address; skipping"
+            );
+          }
+        });
+      });
+
+      const ipv4Ranges = Array.from(ipv4RangeMap.entries())
+        .map(([subnet, userSet]) => ({
+          subnet,
+          distinctTokens: userSet.size,
+        }))
+        .sort((a, b) => b.distinctTokens - a.distinctTokens);
+
+      const ipv6Ranges = Array.from(ipv6RangeMap.entries())
+        .map(([subnet, userSet]) => ({
+          subnet,
+          distinctTokens: userSet.size,
+        }))
+        .sort((a, b) => {
+          if (a.distinctTokens === b.distinctTokens) {
+            return a.subnet.localeCompare(b.subnet);
+          }
+          return b.distinctTokens - a.distinctTokens;
+        });
+
+      const data = JSON.stringify(
+        {
+          exportedAt: new Date().toISOString(),
+          ipv4Ranges,
+          ipv6Ranges,
+        },
+        null,
+        2
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=temp-ip-report-${new Date().toISOString()}.json`
       );
       res.setHeader("Content-Type", "application/json");
       return res.send(data);
@@ -240,8 +424,9 @@ router.post("/maintenance", (req, res) => {
   }
 
   req.session.flash = flash;
+  const referer = req.get("referer");
 
-  return res.redirect(`/admin/manage`);
+  return res.redirect(referer || "/admin/manage");
 });
 
 router.get("/download-stats", (_req, res) => {

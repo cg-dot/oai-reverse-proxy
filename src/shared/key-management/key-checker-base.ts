@@ -120,13 +120,16 @@ export abstract class KeyCheckerBase<TKey extends Key> {
       this.lastCheck + this.minCheckInterval
     );
 
-    const delay = nextCheck - Date.now();
+    const baseDelay = nextCheck - Date.now();
+    const jitter = (Math.random() - 0.5) * baseDelay * 0.5;
+    const jitteredDelay = Math.max(1000, baseDelay + jitter);
+
     this.timeout = setTimeout(
       () => this.checkKey(oldestKey).then(() => this.scheduleNextCheck()),
-      delay
+      jitteredDelay
     );
     checkLog.debug(
-      { key: oldestKey.hash, nextCheck: new Date(nextCheck), delay },
+      { key: oldestKey.hash, nextCheck: new Date(nextCheck), jitteredDelay },
       "Scheduled next recurring check."
     );
   }

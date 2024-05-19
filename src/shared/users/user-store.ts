@@ -80,6 +80,7 @@ export function createUser(createOptions?: {
     tokenCounts: { ...INITIAL_TOKENS },
     tokenLimits: createOptions?.tokenLimits ?? { ...config.tokenQuota },
     createdAt: Date.now(),
+    meta: {},
   };
 
   if (createOptions?.type === "temporary") {
@@ -123,6 +124,7 @@ export function upsertUser(user: UserUpdate) {
     tokenCounts: { ...INITIAL_TOKENS },
     tokenLimits: { ...config.tokenQuota },
     createdAt: Date.now(),
+    meta: {},
   };
 
   const updates: Partial<User> = {};
@@ -274,6 +276,10 @@ export function disableUser(token: string, reason?: string) {
   if (!user) return;
   user.disabledAt = Date.now();
   user.disabledReason = reason;
+  if (user.meta) {
+    // manually banned tokens cannot be refreshed
+    user.meta.refreshable = false;
+  }
   usersToFlush.add(token);
 }
 
@@ -295,6 +301,10 @@ function cleanupExpiredTokens() {
     if (user.type !== "temporary") continue;
     if (user.expiresAt && user.expiresAt < now && !user.disabledAt) {
       disableUser(user.token, "Temporary token expired.");
+      if (!user.meta) {
+        user.meta = {};
+      }
+      user.meta.refreshable = config.captchaMode !== "none";
       disabled++;
     }
     if (user.disabledAt && user.disabledAt + 72 * 60 * 60 * 1000 < now) {

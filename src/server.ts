@@ -8,6 +8,7 @@ import pinoHttp from "pino-http";
 import os from "os";
 import childProcess from "child_process";
 import { logger } from "./logger";
+import { createBlacklistMiddleware } from "./shared/cidr";
 import { setupAssetsDir } from "./shared/file-storage/setup-assets-dir";
 import { keyPool } from "./shared/key-management";
 import { adminRouter } from "./admin/routes";
@@ -62,9 +63,17 @@ app.set("views", [
 ]);
 
 app.use("/user_content", express.static(USER_ASSETS_DIR, { maxAge: "2h" }));
+app.use(
+  "/res",
+  express.static(path.join(__dirname, "..", "public"), { etag: true })
+);
 
 app.get("/health", (_req, res) => res.sendStatus(200));
 app.use(cors());
+
+const blacklist = createBlacklistMiddleware("IP_BLACKLIST", config.ipBlacklist);
+app.use(blacklist);
+
 app.use(checkOrigin);
 
 app.use("/admin", adminRouter);

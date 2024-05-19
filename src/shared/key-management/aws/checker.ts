@@ -6,9 +6,10 @@ import { URL } from "url";
 import { KeyCheckerBase } from "../key-checker-base";
 import type { AwsBedrockKey, AwsBedrockKeyProvider } from "./provider";
 import { AwsBedrockModelFamily } from "../../models";
+import { config } from "../../../config";
 
 const MIN_CHECK_INTERVAL = 3 * 1000; // 3 seconds
-const KEY_CHECK_PERIOD = 30 * 60 * 1000; // 30 minutes
+const KEY_CHECK_PERIOD = 90 * 60 * 1000; // 90 minutes
 const AMZ_HOST =
   process.env.AMZ_HOST || "bedrock-runtime.%REGION%.amazonaws.com";
 const GET_CALLER_IDENTITY_URL = `https://sts.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15`;
@@ -66,6 +67,15 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
       const families: AwsBedrockModelFamily[] = [];
       if (claudeV2 || sonnet || haiku) families.push("aws-claude");
       if (opus) families.push("aws-claude-opus");
+
+      if (families.length === 0) {
+        this.log.warn(
+          { key: key.hash },
+          "Key does not have access to any models; disabling."
+        );
+        return this.updateKey(key.hash, { isDisabled: true });
+      }
+
       this.updateKey(key.hash, {
         sonnetEnabled: sonnet,
         haikuEnabled: haiku,
@@ -190,13 +200,14 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     const correctErrorType = errorType === "ValidationException";
     const correctErrorMessage = errorMessage?.match(/max_tokens/);
     if (!correctErrorType || !correctErrorMessage) {
-      throw new AxiosError(
-        `Unexpected error when invoking model ${model}: ${errorMessage}`,
-        "AWS_ERROR",
-        response.config,
-        response.request,
-        response
-      );
+      return false;
+      // throw new AxiosError(
+      //   `Unexpected error when invoking model ${model}: ${errorMessage}`,
+      //   "AWS_ERROR",
+      //   response.config,
+      //   response.request,
+      //   response
+      // );
     }
 
     this.log.debug(
@@ -207,16 +218,22 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
   }
 
   private async checkLoggingConfiguration(key: AwsBedrockKey) {
+    if (config.allowAwsLogging) {
+      // Don't check logging status if we're allowing it to reduce API calls.
+      this.updateKey(key.hash, { awsLoggingStatus: "unknown" });
+      return true;
+    }
+
     const creds = AwsKeyChecker.getCredentialsFromKey(key);
-    const config: AxiosRequestConfig = {
+    const req: AxiosRequestConfig = {
       method: "GET",
       url: GET_INVOCATION_LOGGING_CONFIG_URL(creds.region),
       headers: { accept: "application/json" },
       validateStatus: () => true,
     };
-    await AwsKeyChecker.signRequestForAws(config, key);
+    await AwsKeyChecker.signRequestForAws(req, key);
     const { data, status, headers } =
-      await axios.request<GetLoggingConfigResponse>(config);
+      await axios.request<GetLoggingConfigResponse>(req);
 
     let result: AwsBedrockKey["awsLoggingStatus"] = "unknown";
 

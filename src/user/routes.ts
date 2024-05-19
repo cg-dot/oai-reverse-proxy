@@ -2,6 +2,7 @@ import express, { Router } from "express";
 import { injectCsrfToken, checkCsrfToken } from "../shared/inject-csrf";
 import { browseImagesRouter } from "./web/browse-images";
 import { selfServiceRouter } from "./web/self-service";
+import { powRouter } from "./web/pow-captcha";
 import { injectLocals } from "../shared/inject-locals";
 import { withSession } from "../shared/with-session";
 import { config } from "../config";
@@ -18,17 +19,25 @@ userRouter.use(injectLocals);
 if (config.showRecentImages) {
   userRouter.use(browseImagesRouter);
 }
+if (config.captchaMode !== "none") {
+  userRouter.use("/captcha", powRouter);
+}
 userRouter.use(selfServiceRouter);
 
 userRouter.use(
   (
     err: Error,
-    _req: express.Request,
+    req: express.Request,
     res: express.Response,
     _next: express.NextFunction
   ) => {
     const data: any = { message: err.message, stack: err.stack, status: 500 };
-    res.status(500).render("user_error", { ...data, flash: null });
+
+    if (req.accepts("json", "html") === "json") {
+      return res.status(500).json({ error: err.message });
+    } else {
+      return res.status(500).render("user_error", { ...data, flash: null });
+    }
   }
 );
 

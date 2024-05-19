@@ -1,0 +1,114 @@
+<%- include("partials/shared_header", { title: "Request User Token" }) %>
+
+<style>
+  #request-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+    width: 400px;
+  }
+
+  #request-buttons button {
+    margin: 0 10px;
+    flex: 1;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+</style>
+
+<h1>Request User Token</h1>
+<p>
+  You can request a temporary user token to use this proxy. The token will be valid for <%= tokenLifetime %> hours.
+</p>
+<% if (keyRequired) { %>
+<div>
+  <p>You need to supply the proxy password to request or refresh a token.</p>
+  <div>
+    <label for="proxy-key">Proxy password:</label>
+    <input type="password" id="proxy-key" />
+  </div>
+</div>
+<% } %>
+<div id="existing-token" style="display: none">
+  <p>
+    It looks like you might have an older temporary user token. You can refresh its expiration by completing a
+    faster verification challenge.
+  </p>
+  <strong id="existing-token-value">Existing token:</strong>
+</div>
+<div id="request-buttons">
+  <button disabled id="refresh-token" onclick="requestChallenge('refresh')">Refresh old token</button>
+  <button id="request_token" onclick="requestChallenge('new')">Request new token</button>
+</div>
+<%- include("partials/user_challenge_widget") %>
+<script>
+  function requestChallenge(action) {
+    const token = localStorage.getItem("captcha-temp-token");
+    if (token && action === "new") {
+      const data = JSON.parse(token);
+      const { expires } = data;
+      const expiresDate = new Date(expires);
+      const now = new Date();
+      if (expiresDate > now) {
+        if (!confirm("You already have an existing token. Are you sure you want to request a new one?")) {
+          return;
+        }
+        localStorage.removeItem("captcha-temp-token");
+        document.getElementById("existing-token").style.display = "none";
+        document.getElementById("refresh-token").disabled = true;
+      }
+    } else if (!token && action === "refresh") {
+      alert("You don't have an existing token to refresh");
+      return;
+    }
+
+    const refreshToken = token && action === "refresh" ? JSON.parse(token).token : undefined;
+    const keyInput = document.getElementById("proxy-key");
+    const proxyKey = (keyInput && keyInput.value) || undefined;
+    localStorage.setItem("captcha-proxy-key", proxyKey);
+
+    fetch("/user/captcha/challenge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, proxyKey, refreshToken, _csrf: "<%= csrfToken %>" }),
+    })
+      .then((response) => response.json())
+      .then(function (data) {
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        const { challenge, signature } = data;
+        loadNewChallenge(challenge, signature);
+        document.getElementById("request-buttons").style.display = "none";
+      })
+      .catch(function (error) {
+        console.error(error);
+        alert(`Error getting verification - ${error.message}`);
+      });
+  }
+
+  const existingToken = localStorage.getItem("captcha-temp-token");
+  if (existingToken) {
+    const data = JSON.parse(existingToken);
+    const { token, expires } = data;
+    const expiresDate = new Date(expires);
+    const now = new Date();
+    if (expiresDate > now) {
+      document.getElementById(
+        "existing-token-value"
+      ).textContent = `Your token: ${token} (valid until ${expiresDate.toLocaleString()})`;
+      document.getElementById("existing-token").style.display = "block";
+      document.getElementById("refresh-token").disabled = false;
+    } else {
+      localStorage.removeItem("captcha-temp-token");
+    }
+  }
+
+  const proxyKey = localStorage.getItem("captcha-proxy-key");
+  if (proxyKey && document.getElementById("proxy-key")) {
+    document.getElementById("proxy-key").value = proxyKey;
+  }
+</script>
+
+<%- include("partials/user_footer") %>

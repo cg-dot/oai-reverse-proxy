@@ -1,0 +1,13 @@
+<h3>
+  <%= list.name %>
+  (<%= list.mode %>)
+</h3>
+<ul>
+  <% list.ranges.forEach(function(mask) { %>
+  <li>
+    <%= mask %>
+    <button class="remove" data-mode="<%= list.mode %>" data-name="<%= list.name %>" data-mask="<%= mask %>" onclick="onRemoveCidr(event)">Remove</button>
+  </li>
+  <% }); %>
+</ul>
+<button class="add" data-mode="<%= list.mode %>" data-name="<%= list.name %>" onclick="onAddCidr(event)">Add</button>

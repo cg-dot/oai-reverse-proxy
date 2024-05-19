@@ -51,6 +51,7 @@ export const UserSchema = z
     maxIps: z.coerce.number().int().min(0).optional(),
     /** Private note about the user. */
     adminNote: z.string().optional(),
+    meta: z.record(z.any()).optional(),
   })
   .strict();
 

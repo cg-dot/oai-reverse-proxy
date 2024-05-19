@@ -98,7 +98,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
 
   public get(model: string) {
     const availableKeys = this.keys.filter((k) => {
-      const isNotLogged = k.awsLoggingStatus === "disabled";
+      const isNotLogged = k.awsLoggingStatus !== "enabled";
       const neededFamily = getAwsBedrockModelFamily(model);
       const needsSonnet =
         model.includes("sonnet") && neededFamily === "aws-claude";

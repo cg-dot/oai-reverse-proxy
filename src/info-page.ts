@@ -90,9 +90,9 @@ export function renderPage(info: ServiceInfo) {
   <body>
     ${headerHtml}
     <hr />
+    ${getSelfServiceLinks()}
     <h2>Service Info</h2>
     <pre>${JSON.stringify(info, null, 2)}</pre>
-    ${getSelfServiceLinks()}
   </body>
 </html>`;
 }
@@ -146,7 +146,11 @@ This proxy keeps full logs of all prompts and AI responses. Prompt logs are anon
 
 function getSelfServiceLinks() {
   if (config.gatekeeper !== "user_token") return "";
-  return `<footer style="font-size: 0.8em;"><hr /><a target="_blank" href="/user/lookup">Check your user token info</a></footer>`;
+  const links = [
+    ["Request a user token", "/user/captcha",],
+    ["Check your user token", "/user/lookup",]
+  ]
+  return `<div style="font-size: 0.8em;">${links.map(([text, link]) => `<a target="_blank" href="${link}">${text}</a>`).join(" / ")}</div><hr />`;
 }
 
 function getServerTitle() {

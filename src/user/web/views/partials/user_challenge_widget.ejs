@@ -1,0 +1,353 @@
+<noscript>
+  <p style="color: darkorange; background-color: #ffeecc; padding: 1em">
+    JavaScript needs to be enabled to complete verification.
+  </p>
+</noscript>
+<style>
+  #captcha-container {
+    max-width: 500px;
+    margin: 50px auto;
+  }
+  @media (max-width: 1000px) {
+    #captcha-container {
+      margin: 20px;
+    }
+  }
+
+  #captcha-container p {
+    padding: 2px;
+    line-height: 1.5;
+  }
+
+  #captcha-container details {
+    margin: 10px 0;
+  }
+
+  #captcha-container details p {
+    margin-left: 20px;
+  }
+
+  #captcha-container details li {
+    margin: 2px 0 0 20px;
+    line-height: 1.5;
+  }
+
+  #captcha-control {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  #captcha-control button {
+    flex-grow: 1;
+    margin: 10px;
+    padding: 10px 20px;
+  }
+
+  #captcha-progress-container {
+    margin: 20px 0;
+  }
+
+  #captcha-progress-container textarea {
+    margin-top: 5px;
+    background-color: transparent;
+    color: inherit;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 20px;
+    background-color: #e0e6f6;
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .progress {
+    width: 0;
+    height: 100%;
+    background-color: #76c7c0;
+    transition: width 0.2s;
+  }
+</style>
+<div style="display: none" id="captcha-container">
+  <p>
+    Your device needs to perform a verification task before a user token will be issued. This verification might take
+    anywhere from a few seconds to a few minutes, depending on your device and the proxy's security settings.
+  </p>
+  <p>Click the button below to start.</p>
+  <details>
+    <summary>What is this?</summary>
+    <p>
+      This is an anti-abuse measure to slow down automated requests. It requires your device's CPU to find a solution to
+      a cryptographic puzzle, after which a user token will be issued.
+    </p>
+    <p>
+      Your browser may slow down during the verification process. If you want to do something else while waiting, reduce
+      the number of workers to reduce the load on your device's CPU.
+    </p>
+  </details>
+  <details>
+    <summary>How long does verification take?</summary>
+    <p>
+      The exact time depends on the device you're using and the server's difficulty setting (currently
+      <strong><%= difficultyLevel %></strong>). It could take anywhere from a few seconds to a few minutes.
+    </p>
+  </details>
+  <details>
+    <summary>How often do I need to do this?</summary>
+    <p>Once you've earned a user token, you can use it for <%= tokenLifetime %> hours before it expires.</p>
+    <p>
+      You can refresh an expired token by returning to this page and completing the verification again, which will be
+      faster than the first time.
+    </p>
+  </details>
+  <details>
+    <summary>Other important information</summary>
+    <ul>
+      <li>Verification must be submitted from the same device and IP address that started the verification.</li>
+      <li>Don't close this tab until verification is complete or you will need to start over.</li>
+      <li>You can pause the task, but verification must be finished <strong>within 30 minutes</strong> of issuance.</li>
+      <li>
+        Up to <strong><%= tokenMaxIps || "unlimited" %></strong> IP addresses can be associated with a user token at
+        once.
+      </li>
+      <li>JavaScript is required to complete verification.</li>
+      <li>If the proxy is restarted, any verification tasks currently in progress will be invalidated.</li>
+    </ul>
+  </details>
+  <form id="captcha-form" style="display: none">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <input type="hidden" name="tokenLifetime" value="<%= tokenLifetime %>" />
+  </form>
+  <div id="captcha-control">
+    <div>
+      <label for="workers">Workers:</label>
+      <input type="number" id="workers" value="1" min="1" max="16" onchange="spawnWorkers()" />
+    </div>
+    <button id="worker-control" onclick="toggleWorker()">Start verification</button>
+  </div>
+  <div id="captcha-progress-container" style="display: none">
+    <label for="captcha-progress-text">Status:</label>
+    <div id="captcha-progress" class="progress-bar">
+      <div class="progress"></div>
+    </div>
+    <textarea disabled id="captcha-progress-text" style="width: 100%; height: 100px; resize: none"></textarea>
+  </div>
+  <div id="captcha-result"></div>
+</div>
+
+<script>
+  let workers = [];
+  let challenge = null;
+  let signature = null;
+  let solution = null;
+  let totalHashes = 0;
+  let startTime = 0;
+  let lastUpdateTime = 0;
+  let reports = 0;
+  let elapsedTime = 0;
+  let workFactor = 0;
+  let active = false;
+
+  // Safari is all kinds of fucked and throws WASM Memory errors when memory
+  // pressure is high. Batch size and worker count need to be reduced to prevent
+  // this.
+  function isIOSiPadOSWebKit() {
+    const userAgent = navigator.userAgent;
+    const isWebKit = userAgent.includes("Safari") && !userAgent.includes("Chrome") && !userAgent.includes("Android");
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.platform) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    return isWebKit && isIOS;
+  }
+  let isMobileWebkit = isIOSiPadOSWebKit();
+
+  function handleWorkerMessage(e) {
+    switch (e.data.type) {
+      case "progress":
+        totalHashes += e.data.hashes;
+        reports++;
+        break;
+      case "started":
+        active = true;
+        document.getElementById("worker-control").textContent = "Pause verification";
+        startTime = Date.now();
+        lastUpdateTime = startTime;
+        document.getElementById("captcha-progress-container").style.display = "block";
+        break;
+      case "paused":
+        active = false;
+        document.getElementById("worker-control").textContent = "Start verification";
+        document.getElementById("workers").disabled = false;
+        break;
+      case "solved":
+        if (solution) {
+          return;
+        }
+        workers.forEach((w) => w.postMessage({ type: "stop" }));
+        active = false;
+        solution = e.data.nonce;
+        document.getElementById("captcha-result").textContent =
+          "Verification completed. Submitting solution for verification...";
+        document.getElementById("captcha-control").style.display = "none";
+        submitVerification();
+        break;
+      case "error":
+        workers.forEach((w) => w.postMessage({ type: "stop" }));
+        active = false;
+        const msg = e.data.error || "An unknown error occurred.";
+        const debug = e.data.debug || "";
+        document.getElementById("captcha-result").innerHTML = `
+                <p style="color:red">Error: ${msg}</p>
+                <pre style="color: red">${debug.stack}</pre>
+                <pre style="color: red">${debug.lastNonce}, ${String(debug.targetValue)}</pre>
+                <p>Refresh the page and try again. Use another device or browser if the problem persists, or lower the number of workers.</p>
+    `;
+        break;
+    }
+
+    estimateProgress();
+  }
+
+  function loadNewChallenge(c, s) {
+    const btn = document.getElementById("worker-control");
+    btn.textContent = "Start verification";
+    document.getElementById("captcha-container").style.display = "block";
+    document.getElementById("workers").disabled = false;
+    const maxWorkers = isMobileWebkit ? 6 : 16;
+    document.getElementById("workers").value = Math.min(maxWorkers, navigator.hardwareConcurrency || 4).toString();
+
+    challenge = c;
+    signature = s;
+    solution = null;
+    nonce = 0;
+    startTime = 0;
+    lastUpdateTime = 0;
+    elapsedTime = 0;
+    const targetValue = challenge.d.slice(0, -1);
+    const hashLength = challenge.hl;
+    workFactor = Number(BigInt(2) ** BigInt(8 * hashLength) / BigInt(targetValue));
+    spawnWorkers();
+  }
+
+  function spawnWorkers() {
+    for (const worker of workers) {
+      worker.terminate();
+    }
+    workers = [];
+
+    const selectedWorkers = document.getElementById("workers").value;
+    const workerCount = Math.min(16, Math.max(1, parseInt(selectedWorkers)));
+    for (let i = 0; i < workerCount; i++) {
+      const worker = new Worker("/res/js/hash-worker.js");
+      worker.onmessage = handleWorkerMessage;
+      workers.push(worker);
+    }
+  }
+
+  function toggleWorker() {
+    if (active) {
+      workers.forEach((w) => w.postMessage({ type: "stop" }));
+    } else {
+      const workerCount = workers.length;
+      const hashSpace = BigInt(challenge.hl * 8) ** BigInt(2);
+      const workerSpace = hashSpace / BigInt(workerCount);
+      const alreadyHashed = Math.floor(totalHashes / workerCount);
+      document.getElementById("workers").disabled = true;
+
+      for (let i = 0; i < workerCount; i++) {
+        const startNonce = workerSpace * BigInt(i) + BigInt(alreadyHashed);
+        workers[i].postMessage({
+          type: "start",
+          challenge: challenge,
+          signature: signature,
+          nonce: startNonce,
+          isMobileWebkit,
+        });
+      }
+    }
+  }
+
+  function submitVerification() {
+    if (!solution) {
+      return;
+    }
+    const body = {
+      challenge: challenge,
+      signature: signature,
+      solution: String(solution),
+      _csrf: document.querySelector("meta[name=csrf-token]").getAttribute("content"),
+    };
+
+    fetch("/user/captcha/verify", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) {
+          document.getElementById("captcha-result").textContent = "Error: " + data.error;
+        } else {
+          const lifetime = document.getElementById("captcha-form").querySelector('input[name="tokenLifetime"]').value;
+          window.localStorage.setItem(
+            "captcha-temp-token",
+            JSON.stringify({
+              token: data.token,
+              expires: Date.now() + lifetime * 3600 * 1000,
+            })
+          );
+          document.getElementById("captcha-progress").style.display = "none";
+          document.getElementById("captcha-result").innerHTML = `
+                  <p style="color: green">Verification complete</p>
+                  <p>Your user token is: <code>${data.token}</code></p>
+                  <p>Valid until: ${new Date(Date.now() + lifetime * 3600 * 1000).toLocaleString()}</p>
+      `;
+        }
+      });
+  }
+
+  function estimateProgress() {
+    if (reports % workers.length !== 0) {
+      return;
+    }
+    elapsedTime += (Date.now() - lastUpdateTime) / 1000;
+    lastUpdateTime = Date.now();
+    const hashRate = totalHashes / elapsedTime;
+    const expectedTimeRemaining = (workFactor - totalHashes) / hashRate;
+    const progress = 100 * (1 - Math.exp(-totalHashes / workFactor));
+
+    const formatTime = (time) => {
+      if (time < 60) {
+        return time.toFixed(1) + "s";
+      } else if (time < 3600) {
+        const minutes = Math.floor(time / 60);
+        const seconds = Math.floor(time % 60);
+        return minutes + "m " + seconds + "s";
+      } else {
+        const hours = Math.floor(time / 3600);
+        const minutes = Math.floor((time % 3600) / 60);
+        return hours + "h " + minutes + "m";
+      }
+    };
+
+    const p = 1 / workFactor;
+    const odds = ((1 - p) ** totalHashes * 100).toFixed(2);
+
+    let note = "";
+    if (odds < 33) {
+      note = " (" + odds + "% odds of no solution yet)";
+    }
+
+    document.getElementById("captcha-progress").style.width = Math.min(progress, 100) + "%";
+    document.getElementById("captcha-progress-text").value = `
+Average hashes needed: ${workFactor.toLocaleString()}
+Hashes computed: ${totalHashes.toLocaleString()}${note}
+Elapsed time: ${formatTime(elapsedTime)}
+Hash rate: ${hashRate.toFixed(2)} H/s
+Workers: ${workers.length}${isMobileWebkit ? " (iOS/iPadOS detected)" : ""}
+${active ? `Approx. time remaining: ${formatTime(expectedTimeRemaining)}` : "Verification task stopped"}`.trim();
+  }
+</script>

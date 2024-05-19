@@ -55,8 +55,9 @@
       <td><%- user.disabledReason %></td>
       <% if (user.disabledAt) { %>
       <td class="actions">
-        <a title="Edit" id="edit-disabledReason" href="#" data-field="disabledReason"
-          data-token="<%= user.token %>">✏️</a>
+        <a title="Edit" id="edit-disabledReason" href="#" data-field="disabledReason" data-token="<%= user.token %>"
+          >✏️</a
+        >
       </td>
       <% } %>
     </tr>
@@ -72,7 +73,8 @@
       <td colspan="2"><%- include("partials/shared_user_ip_list", { user, shouldRedact: false }) %></td>
     </tr>
     <tr>
-      <th scope="row">Admin Note <span title="Unlike nickname, this is not visible to or editable by the user">🔒</span>
+      <th scope="row">
+        Admin Note <span title="Unlike nickname, this is not visible to or editable by the user">🔒</span>
       </th>
       <td><%- user.adminNote ?? "none" %></td>
       <td class="actions">
@@ -85,10 +87,16 @@
       <td colspan="2"><%- user.expiresAt %></td>
     </tr>
     <% } %>
+    <% if (user.meta) { %>
+    <tr>
+      <th scope="row">Meta</th>
+      <td colspan="2"><%- JSON.stringify(user.meta) %></td>
+    </tr>
+    <% } %>
   </tbody>
 </table>
 
-<form style="display:none" id="current-values">
+<form style="display: none" id="current-values">
   <input type="hidden" name="token" value="<%- user.token %>" />
   <% ["nickname", "type", "disabledAt", "disabledReason", "maxIps", "adminNote"].forEach(function (key) { %>
   <input type="hidden" name="<%- key %>" value="<%- user[key] %>" />
@@ -102,7 +110,8 @@
   <input type="hidden" name="_csrf" value="<%- csrfToken %>" />
   <button type="submit" class="btn btn-primary">Refresh Quotas for User</button>
 </form>
-<% } %> <%- include("partials/shared_quota-info", { quota, user }) %>
+<% } %>
+<%- include("partials/shared_quota-info", { quota, user }) %>
 
 <p><a href="/admin/manage/list-users">Back to User List</a></p>
 
@@ -144,4 +153,5 @@
   });
 </script>
 
-<%- include("partials/admin-ban-xhr-script") %> <%- include("partials/admin-footer") %>
+<%- include("partials/admin-ban-xhr-script") %>
+<%- include("partials/admin-footer") %>

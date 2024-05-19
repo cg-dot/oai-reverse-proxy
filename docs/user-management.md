@@ -12,6 +12,7 @@ Several of these features require you to set secrets in your environment. If usi
   - [Memory](#memory)
   - [Firebase Realtime Database](#firebase-realtime-database)
     - [Firebase setup instructions](#firebase-setup-instructions)
+- [Whitelisting admin IP addresses](#whitelisting-admin-ip-addresses)
 
 ## No user management (`GATEKEEPER=none`)
 
@@ -61,3 +62,12 @@ To use Firebase Realtime Database to persist user data, set the following enviro
 8. Set `GATEKEEPER_STORE` to `firebase_rtdb` in your environment if you haven't already.
 
 The proxy server will attempt to connect to your Firebase Realtime Database at startup and will throw an error if it cannot connect. If you see this error, check that your `FIREBASE_RTDB_URL` and `FIREBASE_KEY` secrets are set correctly.
+
+## Whitelisting admin IP addresses
+You can add your own IP ranges to the `ADMIN_WHITELIST` environment variable for additional security.
+
+You can provide a comma-separated list containing individual IPv4 or IPv6 addresses, or CIDR ranges.
+
+To whitelist an entire IP range, use CIDR notation. For example, `192.168.0.1/24` would whitelist all addresses from `192.168.0.0` to `192.168.0.255`.
+
+To disable the whitelist, set `ADMIN_WHITELIST=0.0.0.0/0`, which will allow access from any IP address. This is the default behavior.

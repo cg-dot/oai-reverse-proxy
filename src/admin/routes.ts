@@ -1,17 +1,30 @@
 import express, { Router } from "express";
-import { authorize } from "./auth";
+import { createWhitelistMiddleware } from "../shared/cidr";
 import { HttpError } from "../shared/errors";
+import { injectCsrfToken, checkCsrfToken } from "../shared/inject-csrf";
 import { injectLocals } from "../shared/inject-locals";
 import { withSession } from "../shared/with-session";
-import { injectCsrfToken, checkCsrfToken } from "../shared/inject-csrf";
+import { config } from "../config";
 import { renderPage } from "../info-page";
 import { buildInfo } from "../service-info";
+import { authorize } from "./auth";
 import { loginRouter } from "./login";
 import { usersApiRouter as apiRouter } from "./api/users";
 import { usersWebRouter as webRouter } from "./web/manage";
+import { logger } from "../logger";
 
 const adminRouter = Router();
 
+const whitelist = createWhitelistMiddleware(
+  "ADMIN_WHITELIST",
+  config.adminWhitelist
+);
+
+if (!whitelist.ranges.length && config.adminKey?.length) {
+  logger.error("ADMIN_WHITELIST is empty. No admin requests will be allowed. Set 0.0.0.0/0 to allow all.");
+}
+
+adminRouter.use(whitelist);
 adminRouter.use(
   express.json({ limit: "20mb" }),
   express.urlencoded({ extended: true, limit: "20mb" })

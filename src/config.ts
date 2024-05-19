@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import dotenv from "dotenv";
 import type firebase from "firebase-admin";
 import path from "path";
@@ -107,9 +108,28 @@ type Config = {
    * `maxIpsPerUser` limit, or if only connections from new IPs are be rejected.
    */
   maxIpsAutoBan: boolean;
-  /** Per-IP limit for requests per minute to text and chat models. */
+  /**
+   * Which captcha verification mode to use. Requires `user_token` gatekeeper.
+   * Allows users to automatically obtain a token by solving a captcha.
+   * - `none`: No captcha verification; tokens are issued manually.
+   * - `proof_of_work`: Users must solve an Argon2 proof of work to obtain a
+   *    temporary usertoken valid for a limited period.
+   */
+  captchaMode: "none" | "proof_of_work";
+  /**
+   * Duration in hours for which a PoW-issued temporary user token is valid.
+   */
+  powTokenHours: number;
+  /** Maximum number of IPs allowed per PoW-issued temporary user token. */
+  powTokenMaxIps: number;
+  /**
+   * Difficulty level for the proof-of-work. Refer to docs/pow-captcha.md for
+   * details on the available modes.
+   */
+  powDifficultyLevel: "low" | "medium" | "high" | "extreme";
+  /** Per-user limit for requests per minute to text and chat models. */
   textModelRateLimit: number;
-  /** Per-IP limit for requests per minute to image generation models. */
+  /** Per-user limit for requests per minute to image generation models. */
   imageModelRateLimit: number;
   /**
    * For OpenAI, the maximum number of context tokens (prompt + max output) a
@@ -264,6 +284,20 @@ type Config = {
    * A leading slash is required.
    */
   proxyEndpointRoute: string;
+  /**
+   * If set, only requests from these IP addresses will be permitted to use the
+   * admin API and UI. Provide a comma-separated list of IP addresses or CIDR
+   * ranges. If not set, the admin API and UI will be open to all requests.
+   */
+  adminWhitelist: string[];
+  /**
+   * If set, requests from these IP addresses will be blocked from using the
+   * application. Provide a comma-separated list of IP addresses or CIDR ranges.
+   * If not set, no IP addresses will be blocked.
+   *
+   * Takes precedence over the adminWhitelist.
+   */
+  ipBlacklist: string[];
 };
 
 // To change configs, create a file called .env in the root directory.
@@ -283,7 +317,11 @@ export const config: Config = {
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
   gatekeeperStore: getEnvWithDefault("GATEKEEPER_STORE", "memory"),
   maxIpsPerUser: getEnvWithDefault("MAX_IPS_PER_USER", 0),
-  maxIpsAutoBan: getEnvWithDefault("MAX_IPS_AUTO_BAN", true),
+  maxIpsAutoBan: getEnvWithDefault("MAX_IPS_AUTO_BAN", false),
+  captchaMode: getEnvWithDefault("CAPTCHA_MODE", "none"),
+  powTokenHours: getEnvWithDefault("POW_TOKEN_HOURS", 24),
+  powTokenMaxIps: getEnvWithDefault("POW_TOKEN_MAX_IPS", 2),
+  powDifficultyLevel: getEnvWithDefault("POW_DIFFICULTY_LEVEL", "low"),
   firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
   firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
   textModelRateLimit: getEnvWithDefault("TEXT_MODEL_RATE_LIMIT", 4),
@@ -320,7 +358,7 @@ export const config: Config = {
     "azure-gpt4",
     "azure-gpt4-32k",
     "azure-gpt4-turbo",
-    "azure-gpt4o"
+    "azure-gpt4o",
   ]),
   rejectPhrases: parseCsv(getEnvWithDefault("REJECT_PHRASES", "")),
   rejectMessage: getEnvWithDefault(
@@ -367,19 +405,44 @@ export const config: Config = {
   allowOpenAIToolUsage: getEnvWithDefault("ALLOW_OPENAI_TOOL_USAGE", false),
   allowImagePrompts: getEnvWithDefault("ALLOW_IMAGE_PROMPTS", false),
   proxyEndpointRoute: getEnvWithDefault("PROXY_ENDPOINT_ROUTE", "/proxy"),
+  adminWhitelist: parseCsv(getEnvWithDefault("ADMIN_WHITELIST", "0.0.0.0/0")),
+  ipBlacklist: parseCsv(getEnvWithDefault("IP_BLACKLIST", "")),
 } as const;
 
-function generateCookieSecret() {
+function generateSigningKey() {
   if (process.env.COOKIE_SECRET !== undefined) {
+    // legacy, replaced by SIGNING_KEY
     return process.env.COOKIE_SECRET;
+  } else if (process.env.SIGNING_KEY !== undefined) {
+    return process.env.SIGNING_KEY;
   }
 
-  const seed = "" + config.adminKey + config.openaiKey + config.anthropicKey;
-  const crypto = require("crypto");
+  const secrets = [
+    config.adminKey,
+    config.openaiKey,
+    config.anthropicKey,
+    config.googleAIKey,
+    config.mistralAIKey,
+    config.awsCredentials,
+    config.azureCredentials,
+  ];
+  if (secrets.filter((s) => s).length === 0) {
+    startupLogger.warn(
+      "No SIGNING_KEY or secrets are set. All sessions, cookies, and proofs of work will be invalidated on restart."
+    );
+    return crypto.randomBytes(32).toString("hex");
+  }
+
+  startupLogger.info("No SIGNING_KEY set; one will be generated from secrets.");
+  startupLogger.info(
+    "It's recommended to set SIGNING_KEY explicitly to ensure users' sessions and cookies always persist across restarts."
+  );
+  const seed = secrets.map((s) => s || "n/a").join("");
   return crypto.createHash("sha256").update(seed).digest("hex");
 }
 
-export const COOKIE_SECRET = generateCookieSecret();
+const signingKey = generateSigningKey();
+export const COOKIE_SECRET = signingKey;
 
 export async function assertConfigIsValid() {
   if (process.env.MODEL_RATE_LIMIT !== undefined) {
@@ -413,15 +476,15 @@ export async function assertConfigIsValid() {
     );
   }
 
-  if (config.gatekeeper === "proxy_key" && !config.proxyKey) {
+  if (config.captchaMode === "proof_of_work" && config.gatekeeper !== "user_token") {
     throw new Error(
-      "`proxy_key` gatekeeper mode requires a `PROXY_KEY` to be set."
+      "Captcha mode 'proof_of_work' requires gatekeeper mode 'user_token'."
     );
   }
 
-  if (config.gatekeeper !== "proxy_key" && config.proxyKey) {
+  if (config.gatekeeper === "proxy_key" && !config.proxyKey) {
     throw new Error(
-      "`PROXY_KEY` is set, but gatekeeper mode is not `proxy_key`. Make sure to set `GATEKEEPER=proxy_key`."
+      "`proxy_key` gatekeeper mode requires a `PROXY_KEY` to be set."
     );
   }
 
@@ -494,6 +557,8 @@ export const OMITTED_KEYS = [
   "allowedModelFamilies",
   "trustedProxies",
   "proxyEndpointRoute",
+  "adminWhitelist",
+  "ipBlacklist",
 ] satisfies (keyof Config)[];
 type OmitKeys = (typeof OMITTED_KEYS)[number];
 

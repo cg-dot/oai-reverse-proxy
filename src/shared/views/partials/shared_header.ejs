@@ -1,24 +1,26 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
-    <meta charset="utf-8">
-    <meta name="csrf-token" content="<%= csrfToken %>">
+    <meta charset="utf-8" />
+    <meta name="csrf-token" content="<%= csrfToken %>" />
+    <!-- prettier-ignore -->
     <title><%= title %></title>
     <style>
       body {
         font-family: sans-serif;
         background-color: #f0f0f0;
         padding: 1em;
+        max-width: 800px;
       }
 
       a:hover {
         background-color: #e0e6f6;
       }
-      
+
       a:visited:hover {
         background-color: #e7e0f6;
       }
-      
+
       .pagination {
         list-style-type: none;
         padding: 0;
@@ -35,15 +37,16 @@
         background-color: #58739c;
         color: #fff;
       }
-      
+
       table {
         border-collapse: collapse;
         border: 1px solid #ccc;
       }
       table.striped tr:nth-child(even) {
-        background-color: #eaeaea 
+        background-color: #eaeaea;
       }
-      table td, table th {
+      table td,
+      table th {
         border: 1px solid #ccc;
         padding: 0.25em 0.5em;
       }
@@ -65,12 +68,17 @@
       td.actions:hover {
         background-color: #e0e6f6;
       }
-      
-      @media (max-width: 600px) {
+
+      @media (max-width: 800px) {
+        body {
+          padding: 0.5em;
+        }
+
         table {
           width: 100%;
         }
-        table td, table th {
+        table td,
+        table th {
           display: block;
           width: 100%;
         }
@@ -82,11 +90,13 @@
           color: #eee;
         }
 
-        a:link, a:visited {
+        a:link,
+        a:visited {
           color: #bbe;
         }
 
-        a:link:hover, a:visited:hover {
+        a:link:hover,
+        a:visited:hover {
           background-color: #446;
         }
 
@@ -102,5 +112,5 @@
   </head>
   <body>
     <%- include("partials/shared_flash", { flashData: flash }) %>
-      
-    
+  </body>
+</html>

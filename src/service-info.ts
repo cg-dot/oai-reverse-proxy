@@ -399,7 +399,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
       // Ignore revoked keys for aws logging stats, but include keys where the
       // logging status is unknown.
       const countAsLogged =
-        k.lastChecked && !k.isDisabled && k.awsLoggingStatus !== "disabled";
+        k.lastChecked && !k.isDisabled && k.awsLoggingStatus === "enabled";
       increment(modelStats, `aws-claude__awsLogged`, countAsLogged ? 1 : 0);
       break;
     }
@@ -448,7 +448,7 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
           const logged = modelStats.get(`${family}__awsLogged`) || 0;
           if (logged > 0) {
             info.privacy = config.allowAwsLogging
-              ? `${logged} active keys are potentially logged.`
+              ? `AWS logging verification inactive. Prompts could be logged.`
               : `${logged} active keys are potentially logged and can't be used. Set ALLOW_AWS_LOGGING=true to override.`;
           }
         }
