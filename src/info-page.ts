@@ -16,7 +16,7 @@ const MODEL_FAMILY_FRIENDLY_NAME: { [f in ModelFamily]: string } = {
   gpt4: "GPT-4",
   "gpt4-32k": "GPT-4 32k",
   "gpt4-turbo": "GPT-4 Turbo",
-  "gpt4o": "GPT-4o",
+  gpt4o: "GPT-4o",
   "dall-e": "DALL-E",
   claude: "Claude (Sonnet)",
   "claude-opus": "Claude (Opus)",
@@ -146,11 +146,15 @@ This proxy keeps full logs of all prompts and AI responses. Prompt logs are anon
 
 function getSelfServiceLinks() {
   if (config.gatekeeper !== "user_token") return "";
-  const links = [
-    ["Request a user token", "/user/captcha",],
-    ["Check your user token", "/user/lookup",]
-  ]
-  return `<div style="font-size: 0.8em;">${links.map(([text, link]) => `<a target="_blank" href="${link}">${text}</a>`).join(" / ")}</div><hr />`;
+
+  const links = [["Check your user token", "/user/lookup"]];
+  if (config.captchaMode !== "none") {
+    links.unshift(["Request a user token", "/user/captcha"]);
+  }
+
+  return `<div style="font-size: 0.8em;">${links
+    .map(([text, link]) => `<a target="_blank" href="${link}">${text}</a>`)
+    .join(" / ")}</div><hr />`;
 }
 
 function getServerTitle() {
@@ -262,7 +266,7 @@ if (config.serviceInfoPassword?.length) {
   });
   infoPageRouter.use(checkIfUnlocked);
 }
-infoPageRouter.get("/", handleInfoPage);
+infoPageRouter.get("/", (req, res) => res.sendStatus(204));
 infoPageRouter.get("/status", (req, res) => {
   res.json(buildInfo(req.protocol + "://" + req.get("host"), false));
 });

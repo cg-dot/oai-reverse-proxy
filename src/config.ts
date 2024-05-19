@@ -127,6 +127,15 @@ type Config = {
    * details on the available modes.
    */
   powDifficultyLevel: "low" | "medium" | "high" | "extreme";
+  /**
+   * Duration in minutes before a PoW challenge expires. Users' browsers must
+   * solve the challenge within this time frame or it will be rejected.
+   * Defaults to 30 minutes. It should be kept somewhat low to prevent abusive
+   * clients from working on many challenges in parallel, but you may need to
+   * increase this value for higher difficulty levels or older devices will not
+   * be able to solve the challenge in time.
+   */
+  powChallengeTimeout: number;
   /** Per-user limit for requests per minute to text and chat models. */
   textModelRateLimit: number;
   /** Per-user limit for requests per minute to image generation models. */
@@ -322,6 +331,7 @@ export const config: Config = {
   powTokenHours: getEnvWithDefault("POW_TOKEN_HOURS", 24),
   powTokenMaxIps: getEnvWithDefault("POW_TOKEN_MAX_IPS", 2),
   powDifficultyLevel: getEnvWithDefault("POW_DIFFICULTY_LEVEL", "low"),
+  powChallengeTimeout: getEnvWithDefault("POW_CHALLENGE_TIMEOUT", 30),
   firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
   firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
   textModelRateLimit: getEnvWithDefault("TEXT_MODEL_RATE_LIMIT", 4),

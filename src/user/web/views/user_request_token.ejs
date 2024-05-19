@@ -18,9 +18,7 @@
 </style>
 
 <h1>Request User Token</h1>
-<p>
-  You can request a temporary user token to use this proxy. The token will be valid for <%= tokenLifetime %> hours.
-</p>
+<p>You can request a temporary user token to use this proxy. The token will be valid for <%= tokenLifetime %> hours.</p>
 <% if (keyRequired) { %>
 <div>
   <p>You need to supply the proxy password to request or refresh a token.</p>
@@ -31,10 +29,7 @@
 </div>
 <% } %>
 <div id="existing-token" style="display: none">
-  <p>
-    It looks like you might have an older temporary user token. You can refresh its expiration by completing a
-    faster verification challenge.
-  </p>
+  <p>It looks like you might have an older temporary user token. If it has expired, you can try to refresh it.</p>
   <strong id="existing-token-value">Existing token:</strong>
 </div>
 <div id="request-buttons">

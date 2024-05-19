@@ -71,25 +71,21 @@
 </style>
 <div style="display: none" id="captcha-container">
   <p>
-    Your device needs to perform a verification task before a user token will be issued. This verification might take
-    anywhere from a few seconds to a few minutes, depending on your device and the proxy's security settings.
+    Your device needs to perform a verification task before you can receive access. This might take anywhere from a few
+    seconds to a few minutes, depending on your device and the proxy's security settings.
   </p>
   <p>Click the button below to start.</p>
   <details>
     <summary>What is this?</summary>
     <p>
-      This is an anti-abuse measure to slow down automated requests. It requires your device's CPU to find a solution to
-      a cryptographic puzzle, after which a user token will be issued.
-    </p>
-    <p>
-      Your browser may slow down during the verification process. If you want to do something else while waiting, reduce
-      the number of workers to reduce the load on your device's CPU.
+      This is an anti-abuse measure designed to slow down automated requests. It requires your device's CPU to find a
+      solution to a cryptographic puzzle, after which a user token will be issued.
     </p>
   </details>
   <details>
     <summary>How long does verification take?</summary>
     <p>
-      The exact time depends on the device you're using and the server's difficulty setting (currently
+      It on the device you're using and the verification task's difficulty level (currently
       <strong><%= difficultyLevel %></strong>). It could take anywhere from a few seconds to a few minutes.
     </p>
   </details>
@@ -97,8 +93,19 @@
     <summary>How often do I need to do this?</summary>
     <p>Once you've earned a user token, you can use it for <%= tokenLifetime %> hours before it expires.</p>
     <p>
-      You can refresh an expired token by returning to this page and completing the verification again, which will be
-      faster than the first time.
+      You can refresh an expired token by returning to this page and verifying again. Subsequent verifications will go
+      faster than the first one.
+    </p>
+  </details>
+  <details>
+    <summary>What is the "Workers" setting?</summary>
+    <p>
+      This controls how many CPU cores will be used to solve the verification task. By default, all of your device's
+      cores will be used to solve the task as quickly as possible.
+    </p>
+    <p>
+      If your device gets too hot or you want to use it for other tasks while verification is in progress, reduce the
+      number of workers to lower the CPU load at the cost of slower verification.
     </p>
   </details>
   <details>

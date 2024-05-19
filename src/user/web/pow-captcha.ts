@@ -7,8 +7,6 @@ import { config } from "../../config";
 
 /** HMAC key for signing challenges; regenerated on startup */
 const HMAC_KEY = crypto.randomBytes(32).toString("hex");
-/** Expiry time for a challenge in milliseconds */
-const POW_EXPIRY = 1000 * 60 * 30; // 30 minutes
 /** Lockout time after verification in milliseconds */
 const LOCKOUT_TIME = 1000 * 60; // 60 seconds
 
@@ -95,7 +93,7 @@ setInterval(() => {
   }
 
   for (const [key, timestamp] of solves) {
-    if (now - timestamp > POW_EXPIRY) {
+    if (now - timestamp > config.powChallengeTimeout * 1000 * 60) {
       solves.delete(key);
     }
   }
@@ -118,7 +116,7 @@ function generateChallenge(clientIp?: string, token?: string): Challenge {
     m: argon2Params.ARGON2_MEMORY_KB,
     p: argon2Params.ARGON2_PARALLELISM,
     d: targetValue.toString() + "n",
-    e: Date.now() + POW_EXPIRY,
+    e: Date.now() + config.powChallengeTimeout * 1000 * 60,
     ip: clientIp,
     token,
   };
