@@ -266,7 +266,7 @@ if (config.serviceInfoPassword?.length) {
   });
   infoPageRouter.use(checkIfUnlocked);
 }
-infoPageRouter.get("/", (req, res) => res.sendStatus(204));
+infoPageRouter.get("/", handleInfoPage);
 infoPageRouter.get("/status", (req, res) => {
   res.json(buildInfo(req.protocol + "://" + req.get("host"), false));
 });
