@@ -27,6 +27,8 @@ POW_TOKEN_MAX_IPS=2
 # predefined levels specified below, or you can specify a custom number of
 # expected hash iterations.
 POW_DIFFICULTY_LEVEL=low
+# The time limit for solving the challenge, in minutes
+POW_CHALLENGE_TIMEOUT=30
 ```
 
 ## Difficulty Levels
