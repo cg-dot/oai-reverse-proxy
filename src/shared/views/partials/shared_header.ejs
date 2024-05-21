@@ -1,23 +1,26 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="csrf-token" content="<%= csrfToken %>" />
     <title><%= title %></title>
+    <link rel="stylesheet" href="/res/css/reset.css" media="screen" />
+    <link rel="stylesheet" href="/res/css/sakura.css" media="screen" />
+    <link rel="stylesheet" href="/res/css/sakura-dark.css" media="screen and (prefers-color-scheme: dark)" />
+
     <style>
       body {
         font-family: sans-serif;
-        background-color: #f0f0f0;
         padding: 1em;
         max-width: 800px;
       }
 
-      a:hover {
-        background-color: #e0e6f6;
+      details summary {
+        cursor: pointer;
+        font-weight: bold;
       }
-
-      a:visited:hover {
-        background-color: #e7e0f6;
+      details > *:not(summary) {
+        margin: 0.5em;
       }
 
       .pagination {
@@ -30,6 +33,7 @@
       .pagination li a {
         display: block;
         padding: 0.5em 1em;
+          border-bottom: none;
         text-decoration: none;
       }
       .pagination li.active a {
@@ -37,18 +41,18 @@
         color: #fff;
       }
 
-      table {
-        border-collapse: collapse;
-        border: 1px solid #ccc;
-      }
       table.striped tr:nth-child(even) {
         background-color: #eaeaea;
       }
-      table td,
-      table th {
-        border: 1px solid #ccc;
-        padding: 0.25em 0.5em;
+      table.full-width {
+        width: calc(100vw - 4em);
+        position: relative;
+        left: 50%;
+        right: 50%;
+        margin-left: calc(-50vw + 2em);
+        margin-right: calc(-50vw + 2em);
       }
+
       th.active {
         background-color: #e0e6f6;
       }
@@ -73,32 +77,17 @@
           padding: 0.5em;
         }
 
-        table {
-          width: 100%;
-        }
-        table td,
-        table th {
-          display: block;
-          width: 100%;
-        }
+          table.full-width {
+            width: 100%;
+            position: static;
+            left: auto;
+            right: auto;
+            margin-left: 0;
+            margin-right: 0;
+          }
       }
 
       @media (prefers-color-scheme: dark) {
-        body {
-          background-color: #222;
-          color: #eee;
-        }
-
-        a:link,
-        a:visited {
-          color: #bbe;
-        }
-
-        a:link:hover,
-        a:visited:hover {
-          background-color: #446;
-        }
-
         table.striped tr:nth-child(even) {
           background-color: #333;
         }
@@ -111,3 +100,5 @@
   </head>
   <body>
     <%- include("partials/shared_flash", { flashData: flash }) %>
+  </body>
+</html>

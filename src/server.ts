@@ -70,7 +70,7 @@ app.set("views", [
 app.use("/user_content", express.static(USER_ASSETS_DIR, { maxAge: "2h" }));
 app.use(
   "/res",
-  express.static(path.join(__dirname, "..", "public"), { etag: true })
+  express.static(path.join(__dirname, "..", "public"), { maxAge: "2h", etag: false })
 );
 
 app.get("/health", (_req, res) => res.sendStatus(200));

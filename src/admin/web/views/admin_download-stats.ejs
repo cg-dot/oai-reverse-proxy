@@ -5,18 +5,6 @@
     flex-direction: column;
   }
 
-  #statsForm div {
-    display: flex;
-    flex-direction: row;
-    margin-bottom: 0.5em;
-  }
-
-  #statsForm div label {
-    width: 6em;
-    text-align: right;
-    margin-right: 1em;
-  }
-
   #statsForm ul {
     margin: 0;
     padding-left: 2em;
@@ -33,17 +21,17 @@
   }
 </style>
 <h1>Download Stats</h1>
-<p>
-  Download usage statistics to a Markdown document. You can paste this into a service like Rentry.org to share it.
-</p>
+<p>Download usage statistics to a Markdown document. You can paste this into a service like Rentry.org to share it.</p>
 <div>
   <h3>Options</h3>
-  <form id="statsForm" action="/admin/manage/generate-stats" method="post"
-    style="display: flex; flex-direction: column;">
+  <form
+    id="statsForm"
+    action="/admin/manage/generate-stats"
+    method="post"
+    style="display: flex; flex-direction: column">
     <input id="_csrf" type="hidden" name="_csrf" value="<%= csrfToken %>" />
     <div>
-      <label for="anon">Anonymize</label>
-      <input id="anon" type="checkbox" name="anon" value="true" />
+      <label for="anon"><input id="anon" type="checkbox" name="anon" value="true" /> <span>Anonymize</span></label>
     </div>
     <div>
       <label for="sort">Sort</label>
@@ -64,11 +52,12 @@
       </select>
     </div>
     <div>
-      <label for="format">Custom Format <ul>
-          <li><code>{{header}}</code></li>
-          <li><code>{{stats}}</code></li>
-          <li><code>{{time}}</code></li>
-        </ul></label>
+      <label for="format">Custom Format</label>
+      <ul>
+        <li><code>{{header}}</code></li>
+        <li><code>{{stats}}</code></li>
+        <li><code>{{time}}</code></li>
+      </ul>
       <textarea id="format" name="format" rows="10" cols="50" placeholder="{{stats}}">
 # Stats
 {{header}}
@@ -115,33 +104,35 @@
   loadDefaults();
 
   async function fetchAndCopy() {
-    const form = document.getElementById('statsForm');
+    const form = document.getElementById("statsForm");
     const formData = new FormData(form);
 
     const response = await fetch(form.action, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      credentials: 'same-origin',
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      credentials: "same-origin",
       body: new URLSearchParams(formData),
     });
-
 
     if (response.ok) {
       const content = await response.text();
       copyToClipboard(content);
     } else {
-      throw new Error('Failed to fetch generated stats. Try reloading the page.');
+      throw new Error("Failed to fetch generated stats. Try reloading the page.");
     }
   }
 
   function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-      alert('Copied to clipboard');
-    }).catch(err => {
-      alert('Failed to copy to clipboard. Try downloading the file instead.');
-    });
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        alert("Copied to clipboard");
+      })
+      .catch((err) => {
+        alert("Failed to copy to clipboard. Try downloading the file instead.");
+      });
   }
 
-  document.getElementById('copyButton').addEventListener('click', fetchAndCopy);
+  document.getElementById("copyButton").addEventListener("click", fetchAndCopy);
 </script>
 <%- include("partials/admin-footer") %>

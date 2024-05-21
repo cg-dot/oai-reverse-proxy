@@ -63,27 +63,33 @@ export function renderPage(info: ServiceInfo) {
   const title = getServerTitle();
   const headerHtml = buildInfoPageHeader(info);
 
-  return `<!DOCTYPE html>
+  return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="robots" content="noindex" />
     <title>${title}</title>
+    <link rel="stylesheet" href="/res/css/reset.css" media="screen" />
+    <link rel="stylesheet" href="/res/css/sakura.css" media="screen" />
+    <link rel="stylesheet" href="/res/css/sakura-dark.css" media="screen and (prefers-color-scheme: dark)" />
     <style>
       body {
         font-family: sans-serif;
-        background-color: #f0f0f0;
         padding: 1em;
+        max-width: 900px;
+        margin: 0;
       }
-      @media (prefers-color-scheme: dark) {
-        body {
-          background-color: #222;
-          color: #eee;
-        }
-        
-        a:link, a:visited {
-          color: #bbe;
-        }
+      
+      .self-service-links {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 1em;
+        padding: 0.5em;
+        font-size: 0.8em;
+      }
+      
+      .self-service-links a {
+        margin: 0 0.5em;
       }
     </style>
   </head>
@@ -152,9 +158,9 @@ function getSelfServiceLinks() {
     links.unshift(["Request a user token", "/user/captcha"]);
   }
 
-  return `<div style="font-size: 0.8em;">${links
+  return `<div class="self-service-links"">${links
     .map(([text, link]) => `<a target="_blank" href="${link}">${text}</a>`)
-    .join(" / ")}</div><hr />`;
+    .join(" | ")}</div>`;
 }
 
 function getServerTitle() {

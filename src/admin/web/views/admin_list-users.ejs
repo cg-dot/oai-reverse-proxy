@@ -4,9 +4,8 @@
     <% if (users.length === 0) { %>
     <p>No users found.</p>
     <% } else { %>
-    <input type="checkbox" id="toggle-nicknames" onchange="toggleNicknames()" />
-    <label for="toggle-nicknames">Show Nicknames</label>
-    <table class="striped" style="width: calc(100vw - 3em)">
+    <label for="toggle-nicknames"><input type="checkbox" id="toggle-nicknames" onchange="toggleNicknames()" /> Show Nicknames</label>
+    <table class="striped full-width">
       <thead>
         <tr>
           <th>User</th>

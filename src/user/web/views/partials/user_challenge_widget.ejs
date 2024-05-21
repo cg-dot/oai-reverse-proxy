@@ -10,13 +10,9 @@
   }
   @media (max-width: 1000px) {
     #captcha-container {
-      margin: 20px;
+      max-width: unset;
+      margin: 30px;
     }
-  }
-
-  #captcha-container p {
-    padding: 2px;
-    line-height: 1.5;
   }
 
   #captcha-container details {
@@ -44,6 +40,13 @@
     padding: 10px 20px;
   }
 
+  #captcha-progress-text {
+    width: 100%;
+    height: 18rem;
+    resize: vertical;
+    font-family: monospace;
+  }
+
   #captcha-progress-container {
     margin: 20px 0;
   }
@@ -66,32 +69,39 @@
     width: 0;
     height: 100%;
     background-color: #76c7c0;
-    transition: width 0.2s;
   }
 </style>
 <div style="display: none" id="captcha-container">
   <p>
-    Your device needs to perform a verification task before you can receive access. This might take anywhere from a few
+    Your device needs to perform a verification task before you can receive a token. This might take anywhere from a few
     seconds to a few minutes, depending on your device and the proxy's security settings.
   </p>
   <p>Click the button below to start.</p>
   <details>
     <summary>What is this?</summary>
     <p>
-      This is an anti-abuse measure designed to slow down automated requests. It requires your device's CPU to find a
-      solution to a cryptographic puzzle, after which a user token will be issued.
+      This is a <a href="https://en.wikipedia.org/wiki/Proof_of_work" target="_blank">proof-of-work</a> verification
+      task designed to slow down automated abuse. It requires your device's CPU to find a solution to a cryptographic
+      puzzle, after which a user token will be issued.
     </p>
   </details>
   <details>
     <summary>How long does verification take?</summary>
     <p>
-      It on the device you're using and the verification task's difficulty level (currently
-      <strong><%= difficultyLevel %></strong>). It could take anywhere from a few seconds to a few minutes.
+      It depends on the device you're using and the current difficulty level (<code><%= difficultyLevel %></code>). The
+      faster your device, the quicker it will solve the task.
+    </p>
+    <p>
+      An estimate will be displayed once verification starts. Because the task is probabilistic, your device could solve
+      it more quickly or take longer than the estimate.
     </p>
   </details>
   <details>
     <summary>How often do I need to do this?</summary>
-    <p>Once you've earned a user token, you can use it for <%= tokenLifetime %> hours before it expires.</p>
+    <p>
+      Once you've earned a user token, you can use it for <strong><%= `${tokenLifetime} hours` %></strong> before it
+      expires.
+    </p>
     <p>
       You can refresh an expired token by returning to this page and verifying again. Subsequent verifications will go
       faster than the first one.
@@ -100,26 +110,28 @@
   <details>
     <summary>What is the "Workers" setting?</summary>
     <p>
-      This controls how many CPU cores will be used to solve the verification task. By default, all of your device's
-      cores will be used to solve the task as quickly as possible.
+      This controls how many CPU cores will be used to solve the verification task. If your device gets too hot or slows
+      down too much during verification, reduce the number of workers.
     </p>
     <p>
-      If your device gets too hot or you want to use it for other tasks while verification is in progress, reduce the
-      number of workers to lower the CPU load at the cost of slower verification.
+      For fastest verification, set this to the number of physical CPU cores in your device. Setting more workers than
+      you have actual cores will generally only slow down verification.
     </p>
+    <p>If you don't understand what this means, leave it at the default setting.</p>
   </details>
   <details>
     <summary>Other important information</summary>
     <ul>
-      <li>Verification must be submitted from the same device and IP address that started the verification.</li>
-      <li>Don't close this tab until verification is complete or you will need to start over.</li>
-      <li>You can pause the task, but verification must be finished <strong>within 30 minutes</strong> of issuance.</li>
+      <li>Don't change your IP address during verification.</li>
+      <li>Don't close this tab until verification is complete.</li>
       <li>
-        Up to <strong><%= tokenMaxIps || "unlimited" %></strong> IP addresses can be associated with a user token at
-        once.
+        Verification must be finished within <strong><%= `${challengeTimeout} minutes` %></strong>.
       </li>
-      <li>JavaScript is required to complete verification.</li>
-      <li>If the proxy is restarted, any verification tasks currently in progress will be invalidated.</li>
+      <li>Your user token will be registered to your current IP address.</li>
+      <li>
+        Up to <strong><%= tokenMaxIps || "unlimited" %></strong> IP addresses total can be registered to your user
+        token.
+      </li>
     </ul>
   </details>
   <form id="captcha-form" style="display: none">
@@ -129,7 +141,7 @@
   <div id="captcha-control">
     <div>
       <label for="workers">Workers:</label>
-      <input type="number" id="workers" value="1" min="1" max="16" onchange="spawnWorkers()" />
+      <input type="number" id="workers" value="1" min="1" max="32" onchange="spawnWorkers()" />
     </div>
     <button id="worker-control" onclick="toggleWorker()">Start verification</button>
   </div>
@@ -138,7 +150,7 @@
     <div id="captcha-progress" class="progress-bar">
       <div class="progress"></div>
     </div>
-    <textarea disabled id="captcha-progress-text" style="width: 100%; height: 100px; resize: none"></textarea>
+    <textarea disabled id="captcha-progress-text"></textarea>
   </div>
   <div id="captcha-result"></div>
 </div>
@@ -245,7 +257,7 @@
     workers = [];
 
     const selectedWorkers = document.getElementById("workers").value;
-    const workerCount = Math.min(16, Math.max(1, parseInt(selectedWorkers)));
+    const workerCount = Math.min(32, Math.max(1, parseInt(selectedWorkers)));
     for (let i = 0; i < workerCount; i++) {
       const worker = new Worker("/res/js/hash-worker.js");
       worker.onmessage = handleWorkerMessage;

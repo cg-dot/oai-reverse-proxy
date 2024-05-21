@@ -12,7 +12,7 @@
 
 <script>
   function getPageSize() {
-    var match = window.location.search.match(/perPage=(\d+)/);
+    const match = window.location.search.match(/perPage=(\d+)/);
     if (match) return parseInt(match[1]); else return document.cookie.match(/perPage=(\d+)/)?.[1] ?? 10;
   }
   function setPageSize(size) {
