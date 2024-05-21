@@ -1,6 +1,7 @@
-import type { Request, RequestHandler } from "express";
+import type { Request, Response, RequestHandler } from "express";
 import { config } from "../config";
 import { authenticate, getUser } from "../shared/users/user-store";
+import { sendErrorToClient } from "./middleware/response/error-generator";
 
 const GATEKEEPER = config.gatekeeper;
 const PROXY_KEY = config.proxyKey;
@@ -50,9 +51,9 @@ export const gatekeeper: RequestHandler = (req, res, next) => {
     // IP alone to distinguish between them and prevent usertoken sharing.
     // Risu sends a signed token in the request headers with an anonymous user
     // ID that we can instead use to associate requests with an individual.
-    const ip = req.risuToken?.length ?
-      `risu${req.risuToken}-${req.ip}` :
-      req.ip;
+    const ip = req.risuToken?.length
+      ? `risu${req.risuToken}-${req.ip}`
+      : req.ip;
 
     const { user, result } = authenticate(token, ip);
 
@@ -61,17 +62,47 @@ export const gatekeeper: RequestHandler = (req, res, next) => {
         req.user = user;
         return next();
       case "limited":
-        return res.status(403).json({
-          error: `Forbidden: no more IPs can authenticate with this token`,
-        });
+        return sendError(
+          req,
+          res,
+          403,
+          "Forbidden: no more IPs can authenticate with this user token"
+        );
       case "disabled":
         const bannedUser = getUser(token);
         if (bannedUser?.disabledAt) {
-          const reason = bannedUser.disabledReason || "Token disabled";
-          return res.status(403).json({ error: `Forbidden: ${reason}` });
+          const reason = bannedUser.disabledReason || "User token disabled";
+          return sendError(req, res, 403, `Forbidden: ${reason}`);
         }
     }
   }
 
-  res.status(401).json({ error: "Unauthorized" });
+  sendError(req, res, 401, "Unauthorized");
 };
+
+function sendError(
+  req: Request,
+  res: Response,
+  status: number,
+  message: string
+) {
+  const isPost = req.method === "POST";
+  const hasBody = isPost && req.body;
+  const hasModel = hasBody && req.body.model;
+
+  if (!hasModel) {
+    return res.status(status).json({ error: message });
+  }
+
+  sendErrorToClient({
+    req,
+    res,
+    options: {
+      title: `Proxy gatekeeper error (HTTP ${status})`,
+      message,
+      format: "unknown",
+      statusCode: status,
+      reqId: req.id,
+    },
+  });
+}
