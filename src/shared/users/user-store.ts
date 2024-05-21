@@ -307,7 +307,8 @@ function cleanupExpiredTokens() {
       user.meta.refreshable = config.captchaMode !== "none";
       disabled++;
     }
-    if (user.disabledAt && user.disabledAt + 72 * 60 * 60 * 1000 < now) {
+    const purgeTimeout =  config.powTokenPurgeHours * 60 * 60 * 1000;
+    if (user.disabledAt && user.disabledAt + purgeTimeout < now) {
       users.delete(user.token);
       usersToFlush.add(user.token);
       deleted++;

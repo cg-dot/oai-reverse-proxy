@@ -32,7 +32,12 @@ app.use(
   pinoHttp({
     quietReqLogger: true,
     logger,
-    autoLogging: { ignore: ({ url }) => ["/health"].includes(url as string) },
+    autoLogging: {
+      ignore: ({ url }) => {
+        const ignoreList = ["/health", "/res", "/user_content"];
+        return ignoreList.some((path) => (url as string).startsWith(path));
+      },
+    },
     redact: {
       paths: [
         "req.headers.cookie",

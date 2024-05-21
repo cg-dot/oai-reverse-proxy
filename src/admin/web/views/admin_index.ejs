@@ -32,7 +32,7 @@
 <form id="maintenanceForm" action="/admin/manage/maintenance" method="post">
   <input id="_csrf" type="hidden" name="_csrf" value="<%= csrfToken %>" />
   <input id="hiddenAction" type="hidden" name="action" value="" />
-  <div display="flex" flex-direction="column">
+  <div>
     <fieldset>
       <legend>Key Recheck</legend>
       <button id="recheck-keys" type="button" onclick="submitForm('recheck')">Force Key Recheck</button>

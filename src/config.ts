@@ -117,25 +117,58 @@ type Config = {
    */
   captchaMode: "none" | "proof_of_work";
   /**
-   * Duration in hours for which a PoW-issued temporary user token is valid.
+   * Duration (in hours) for which a PoW-issued temporary user token is valid.
    */
   powTokenHours: number;
-  /** Maximum number of IPs allowed per PoW-issued temporary user token. */
+  /**
+   * The maximum number of IPs from which a single temporary user token can be
+   * used. Upon reaching the limit, the `maxIpsAutoBan` behavior is triggered.
+   */
   powTokenMaxIps: number;
   /**
-   * Difficulty level for the proof-of-work. Refer to docs/pow-captcha.md for
-   * details on the available modes.
+   * Difficulty level for the proof-of-work challenge.
+   * - `low`: 200 iterations
+   * - `medium`: 900 iterations
+   * - `high`: 1900 iterations
+   * - `extreme`: 4000 iterations
+   * - `number`: A custom number of iterations to use.
+   *
+   * Difficulty level only affects the number of iterations used in the PoW,
+   * not the complexity of the hash itself. Therefore, the average time-to-solve
+   * will scale linearly with the number of iterations.
+   *
+   * Refer to docs/proof-of-work.md for guidance and hashrate benchmarks.
    */
-  powDifficultyLevel: "low" | "medium" | "high" | "extreme";
+  powDifficultyLevel: "low" | "medium" | "high" | "extreme" | number;
   /**
-   * Duration in minutes before a PoW challenge expires. Users' browsers must
-   * solve the challenge within this time frame or it will be rejected.
-   * Defaults to 30 minutes. It should be kept somewhat low to prevent abusive
-   * clients from working on many challenges in parallel, but you may need to
-   * increase this value for higher difficulty levels or older devices will not
-   * be able to solve the challenge in time.
+   * Duration (in minutes) before a PoW challenge expires. Users' browsers must
+   * solve the challenge within this time frame or it will be rejected. Should
+   * be kept somewhat low to prevent abusive clients from working on many
+   * challenges in parallel, but you may need to increase this value for higher
+   * difficulty levels or older devices will not be able to solve the challenge
+   * in time.
+   *
+   * Defaults to 30 minutes.
    */
   powChallengeTimeout: number;
+  /**
+   * Duration (in hours) before expired temporary user tokens are purged from
+   * the user database. Users can refresh expired tokens by solving a faster PoW
+   * challenge as long as the original token has not been purged. Once purged,
+   * the user must solve a full PoW challenge to obtain a new token.
+   *
+   * Defaults to 48 hours. At 0, tokens are purged immediately upon expiry.
+   */
+  powTokenPurgeHours: number;
+  /**
+   * Maximum number of active temporary user tokens that can be associated with
+   * a single IP address. Note that this may impact users sending requests from
+   * hosted AI chat clients such as Agnaistic or RisuAI, as they may share IPs.
+   *
+   * When the limit is reached, the oldest token with the same IP will be
+   * expired. At 0, no limit is enforced. Defaults to 0.
+   */
+  // powMaxTokensPerIp: number;
   /** Per-user limit for requests per minute to text and chat models. */
   textModelRateLimit: number;
   /** Per-user limit for requests per minute to image generation models. */
@@ -332,6 +365,7 @@ export const config: Config = {
   powTokenMaxIps: getEnvWithDefault("POW_TOKEN_MAX_IPS", 2),
   powDifficultyLevel: getEnvWithDefault("POW_DIFFICULTY_LEVEL", "low"),
   powChallengeTimeout: getEnvWithDefault("POW_CHALLENGE_TIMEOUT", 30),
+  powTokenPurgeHours: getEnvWithDefault("POW_TOKEN_PURGE_HOURS", 48),
   firebaseRtdbUrl: getEnvWithDefault("FIREBASE_RTDB_URL", undefined),
   firebaseKey: getEnvWithDefault("FIREBASE_KEY", undefined),
   textModelRateLimit: getEnvWithDefault("TEXT_MODEL_RATE_LIMIT", 4),
@@ -486,10 +520,27 @@ export async function assertConfigIsValid() {
     );
   }
 
-  if (config.captchaMode === "proof_of_work" && config.gatekeeper !== "user_token") {
+  if (
+    config.captchaMode === "proof_of_work" &&
+    config.gatekeeper !== "user_token"
+  ) {
     throw new Error(
       "Captcha mode 'proof_of_work' requires gatekeeper mode 'user_token'."
     );
+  }
+
+  if (config.captchaMode === "proof_of_work") {
+    const val = config.powDifficultyLevel;
+    const isDifficulty =
+      typeof val === "string" &&
+      ["low", "medium", "high", "extreme"].includes(val);
+    const isIterations =
+      typeof val === "number" && Number.isInteger(val) && val > 0;
+    if (!isDifficulty && !isIterations) {
+      throw new Error(
+        "Invalid POW_DIFFICULTY_LEVEL. Must be one of: low, medium, high, extreme, or a positive integer."
+      );
+    }
   }
 
   if (config.gatekeeper === "proxy_key" && !config.proxyKey) {
@@ -569,6 +620,7 @@ export const OMITTED_KEYS = [
   "proxyEndpointRoute",
   "adminWhitelist",
   "ipBlacklist",
+  "powTokenPurgeHours",
 ] satisfies (keyof Config)[];
 type OmitKeys = (typeof OMITTED_KEYS)[number];
 

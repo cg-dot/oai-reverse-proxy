@@ -17,6 +17,7 @@ import {
 } from "../../shared/users/schema";
 import { getLastNImages } from "../../shared/file-storage/image-history";
 import { blacklists, parseCidrs, whitelists } from "../../shared/cidr";
+import { invalidatePowHmacKey } from "../../user/web/pow-captcha";
 
 const router = Router();
 
@@ -313,8 +314,10 @@ router.post("/maintenance", (req, res) => {
       const temps = users.filter((u) => u.type === "temporary");
       temps.forEach((user) => {
         user.expiresAt = Date.now();
+        user.disabledReason = "Admin forced expiration."
         userStore.upsertUser(user);
       });
+      invalidatePowHmacKey()
       flash.type = "success";
       flash.message = `${temps.length} temporary users marked for expiration.`;
       break;

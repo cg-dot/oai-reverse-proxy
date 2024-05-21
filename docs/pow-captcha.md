@@ -4,11 +4,13 @@ You can require users to complete a proof-of-work before they can access the
 proxy. This can increase the cost of denial of service attacks and slow down
 automated abuse.
 
-When configured, users access the challenge UI and request a proof of work. The
-server will generate a challenge according to the difficulty level you have set.
-The user can then start the worker to solve the challenge. Once the challenge is
-solved, the user can submit the solution to the server. The server will verify
-the solution and issue a temporary token for that user.
+When configured, users access the challenge UI and request a token. The server
+sends a challenge to the client, which asks the user's browser to find a 
+solution to the challenge that meets a certain constraint (the difficulty
+level). Once the user has found a solution, they can submit it to the server
+and get a user token valid for a period you specify.
+
+The proof-of-work challenge uses the argon2id hash function.
 
 ## Configuration
 
@@ -21,36 +23,72 @@ CAPTCHA_MODE=proof_of_work
 POW_TOKEN_HOURS=24
 # Max number of IPs that can use a user_token issued via proof-of-work
 POW_TOKEN_MAX_IPS=2
-# The difficulty level of the proof-of-work challenge
+# The difficulty level of the proof-of-work challenge. You can use one of the
+# predefined levels specified below, or you can specify a custom number of
+# expected hash iterations.
 POW_DIFFICULTY_LEVEL=low
 ```
 
 ## Difficulty Levels
 
-The difficulty level controls how long it takes to solve the proof-of-work,
-specifically by adjusting the average number of iterations required to find a
-valid solution. Due to randomness, the actual number of iterations required can
-vary significantly.
+The difficulty level controls how long, on average, it will take for a user to
+solve the proof-of-work challenge. Due to randomness, the actual time can very
+significantly; lucky users may solve the challenge in a fraction of the average
+time, while unlucky users may take much longer.
 
-You can adjust the difficulty while the proxy is running from the admin interface.
+The difficulty level doesn't affect the speed of the hash function itself, only
+the number of hashes that will need to be computed. Therefore, the time required
+to complete the challenge scales linearly with the difficulty level's iteration
+count.
 
-### Extreme
+You can adjust the difficulty level while the proxy is running from the admin
+interface.
 
-- Average of 4000 iterations required
-- Not recommended unless you are expecting very high levels of abuse
-
-### High
-
-- Average of 1900 iterations required
-
-### Medium
-
-- Average of 900 iterations required
+Be aware that there is a time limit for solving the challenge, by default set to
+30 minutes. Above 'high' difficulty, you will probably need to increase the time
+limit or it will be very hard for users with slow devices to find a solution
+within the time limit.
 
 ### Low
 
 - Average of 200 iterations required
 - Default setting.
+
+### Medium
+
+- Average of 900 iterations required
+
+### High
+
+- Average of 1900 iterations required
+
+### Extreme
+
+- Average of 4000 iterations required
+- Not recommended unless you are expecting very high levels of abuse
+- May require increasing `POW_CHALLENGE_TIMEOUT`
+
+### Custom
+
+Setting `POW_DIFFICULTY_LEVEL` to an integer will use that number of iterations
+as the difficulty level.
+
+## Other challenge settings
+
+- `POW_CHALLENGE_TIMEOUT`: The time limit for solving the challenge, in minutes.
+  Default is 30.
+- `POW_TOKEN_HOURS`: The period of time for which a user token issued via proof-
+  of-work can be used. Default is 24 hours. Starts when the challenge is solved.
+- `POW_TOKEN_MAX_IPS`: The maximum number of unique IPs that can use a single
+  user token issued via proof-of-work. Default is 2.
+- `POW_TOKEN_PURGE_HOURS`: The period of time after which an expired user token
+  issued via proof-of-work will be removed from the database. Until it is
+  purged, users can refresh expired tokens by completing a half-difficulty
+  challenge. Default is 48 hours.
+- `POW_MAX_TOKENS_PER_IP`: The maximum number of active user tokens that can
+  be associated with a single IP address. After this limit is reached, the
+  oldest token will be forcibly expired when a new token is issued. Set to 0
+  to disable this feature. Default is 0.
 
 ## Custom argon2id parameters
 

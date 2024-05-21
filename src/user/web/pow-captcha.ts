@@ -2,13 +2,27 @@ import crypto from "crypto";
 import express from "express";
 import argon2 from "@node-rs/argon2";
 import { z } from "zod";
-import { createUser, getUser, upsertUser } from "../../shared/users/user-store";
+import {
+  authenticate,
+  createUser,
+  getUser,
+  upsertUser,
+} from "../../shared/users/user-store";
 import { config } from "../../config";
 
-/** HMAC key for signing challenges; regenerated on startup */
-const HMAC_KEY = crypto.randomBytes(32).toString("hex");
 /** Lockout time after verification in milliseconds */
 const LOCKOUT_TIME = 1000 * 60; // 60 seconds
+
+/** HMAC key for signing challenges; regenerated on startup */
+let hmacSecret = crypto.randomBytes(32).toString("hex");
+
+/**
+ * Regenerate the HMAC key used for signing challenges. Calling this function
+ * will invalidate all existing challenges.
+ */
+export function invalidatePowHmacKey() {
+  hmacSecret = crypto.randomBytes(32).toString("hex");
+}
 
 const argon2Params = {
   ARGON2_TIME_COST: parseInt(process.env.ARGON2_TIME_COST || "8"),
@@ -100,11 +114,16 @@ setInterval(() => {
 }, 1000);
 
 function generateChallenge(clientIp?: string, token?: string): Challenge {
-  let workFactor = workFactors[config.powDifficultyLevel];
+  let workFactor =
+    (typeof config.powDifficultyLevel === "number"
+      ? config.powDifficultyLevel
+      : workFactors[config.powDifficultyLevel]) || 1000;
+
+  // If this is a token refresh, halve the work factor
   if (token) {
-    // Challenge difficulty is reduced for token refreshes
     workFactor = Math.floor(workFactor / 2);
   }
+
   const hashBits = BigInt(argon2Params.ARGON2_HASH_LENGTH) * 8n;
   const hashMax = 2n ** hashBits;
   const targetValue = hashMax / BigInt(workFactor);
@@ -123,7 +142,7 @@ function generateChallenge(clientIp?: string, token?: string): Challenge {
 }
 
 function signMessage(msg: any): string {
-  const hmac = crypto.createHmac("sha256", HMAC_KEY);
+  const hmac = crypto.createHmac("sha256", hmacSecret);
   if (typeof msg === "object") {
     hmac.update(JSON.stringify(msg));
   } else {
@@ -154,26 +173,33 @@ async function verifySolution(
   return result;
 }
 
-function verifyTokenRefreshable(token?: string, logger?: any): boolean {
-  if (!token) {
-    logger?.warn("No token provided for refresh");
-    return false;
-  }
+function verifyTokenRefreshable(token: string, req: express.Request) {
+  const ip = req.ip;
 
   const user = getUser(token);
   if (!user) {
-    logger?.warn({ token }, "No user found for token");
+    req.log.warn({ token }, "Cannot refresh token - not found");
     return false;
   }
   if (user.type !== "temporary") {
-    logger?.warn({ token }, "User is not temporary");
+    req.log.warn({ token }, "Cannot refresh token - wrong token type");
     return false;
   }
-  logger?.info(
-    { token, refreshable: user.meta?.refreshable },
-    "Token refreshable"
-  );
-  return user.meta?.refreshable;
+  if (!user.meta?.refreshable) {
+    req.log.warn({ token }, "Cannot refresh token - not refreshable");
+    return false;
+  }
+  if (!user.ip.includes(ip)) {
+    // If there are available slots, add the IP to the list
+    const { result } = authenticate(token, ip);
+    if (result === "limited") {
+      req.log.warn({ token, ip }, "Cannot refresh token - IP limit reached");
+      return false;
+    }
+  }
+
+  req.log.info({ token }, "Allowing token refresh");
+  return true;
 }
 
 const router = express.Router();
@@ -192,12 +218,10 @@ router.post("/challenge", (req, res) => {
   }
 
   if (action === "refresh") {
-    if (!verifyTokenRefreshable(refreshToken, req.log)) {
-      res
-        .status(400)
-        .json({
-          error: "Not allowed to refresh that token; request a new one",
-        });
+    if (!refreshToken || !verifyTokenRefreshable(refreshToken, req)) {
+      res.status(400).json({
+        error: "Not allowed to refresh that token; request a new one",
+      });
       return;
     }
     const challenge = generateChallenge(req.ip, refreshToken);
@@ -262,7 +286,7 @@ router.post("/verify", async (req, res) => {
     return;
   }
 
-  if (challenge.token && !verifyTokenRefreshable(challenge.token, req.log)) {
+  if (challenge.token && !verifyTokenRefreshable(challenge.token, req)) {
     res.status(400).json({ error: "Not allowed to refresh that usertoken" });
     return;
   }
@@ -271,6 +295,7 @@ router.post("/verify", async (req, res) => {
   try {
     const success = await verifySolution(challenge, solution, req.log);
     if (!success) {
+      recentAttempts.set(ip, Date.now() + 1000 * 60 * 60 * 6);
       req.log.warn("Solution failed verification");
       res.status(400).json({ error: "Solution failed verification" });
       return;
@@ -294,21 +319,8 @@ router.post("/verify", async (req, res) => {
       return res.json({ success: true, token: challenge.token });
     }
   } else {
-    const token = createUser({
-      type: "temporary",
-      expiresAt: Date.now() + config.powTokenHours * 60 * 60 * 1000,
-    });
-    upsertUser({
-      token,
-      ip: [ip],
-      maxIps: config.powTokenMaxIps,
-      meta: { refreshable: true },
-    });
-    req.log.info(
-      { ip, token: `...${token.slice(-5)}` },
-      "Proof-of-work token issued"
-    );
-    return res.json({ success: true, token });
+    const newToken = issueToken(req);
+    return res.json({ success: true, token: newToken });
   }
 });
 
@@ -318,7 +330,41 @@ router.get("/", (_req, res) => {
     difficultyLevel: config.powDifficultyLevel,
     tokenLifetime: config.powTokenHours,
     tokenMaxIps: config.powTokenMaxIps,
+    challengeTimeout: config.powChallengeTimeout,
   });
 });
+
+// const ipTokenCache = new Map<string, Set<string>>();
+//
+// function buildIpTokenCountCache() {
+//   ipTokenCache.clear();
+//   const users = getUsers().filter((u) => u.type === "temporary");
+//   for (const user of users) {
+//     for (const ip of user.ip) {
+//       if (!ipTokenCache.has(ip)) {
+//         ipTokenCache.set(ip, new Set());
+//       }
+//       ipTokenCache.get(ip)?.add(user.token);
+//     }
+//   }
+// }
+
+function issueToken(req: express.Request) {
+  const token = createUser({
+    type: "temporary",
+    expiresAt: Date.now() + config.powTokenHours * 60 * 60 * 1000,
+  });
+  upsertUser({
+    token,
+    ip: [req.ip],
+    maxIps: config.powTokenMaxIps,
+    meta: { refreshable: true },
+  });
+  req.log.info(
+    { ip: req.ip, token: `...${token.slice(-5)}` },
+    "Proof-of-work token issued"
+  );
+  return token;
+}
 
 export { router as powRouter };
