@@ -34,7 +34,12 @@ userRouter.use(
     const data: any = { message: err.message, stack: err.stack, status: 500 };
 
     if (req.accepts("json", "html") === "json") {
-      return res.status(500).json({ error: err.message });
+      const isCsrfError = err.message === "invalid csrf token";
+      const message = isCsrfError
+        ? "CSRF token mismatch; try refreshing the page"
+        : err.message;
+
+      return res.status(500).json({ error: message });
     } else {
       return res.status(500).render("user_error", { ...data, flash: null });
     }

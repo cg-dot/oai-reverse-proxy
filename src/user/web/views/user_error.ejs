@@ -1,8 +1,11 @@
 <%- include("partials/shared_header", { title: "Error" }) %>
     <div id="error-content" style="color: red; background-color: #eedddd; padding: 1em">
       <p><strong>⚠️ Error <%= status %>:</strong> <%= message %></p>
+      <% if (message.includes('csrf')) { %>
+        <p>ℹ️ Refresh the previous page and then try again. If the problem persists, clear cookies for this site.</p>
+      <% } %>
       <pre><%= stack %></pre>
-      <a href="#" onclick="window.history.back()">Go Back</a>
+      <a href="#" onclick="window.history.back()" style="color:unset">Go Back</a>
     </div>
   </body>
 </html>
