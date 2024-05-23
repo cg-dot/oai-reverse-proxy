@@ -88,16 +88,11 @@
     const data = JSON.parse(existingToken);
     const { token, expires } = data;
     const expiresDate = new Date(expires);
-    const now = new Date();
-    if (expiresDate > now) {
-      document.getElementById(
-        "existing-token-value"
-      ).textContent = `Your token: ${token} (valid until ${expiresDate.toLocaleString()})`;
-      document.getElementById("existing-token").style.display = "block";
-      document.getElementById("refresh-token").disabled = false;
-    } else {
-      localStorage.removeItem("captcha-temp-token");
-    }
+    document.getElementById(
+      "existing-token-value"
+    ).textContent = `Your token: ${token} (valid until ${expiresDate.toLocaleString()})`;
+    document.getElementById("existing-token").style.display = "block";
+    document.getElementById("refresh-token").disabled = false;
   }
 
   const proxyKey = localStorage.getItem("captcha-proxy-key");
