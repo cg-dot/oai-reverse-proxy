@@ -158,7 +158,7 @@ function getSelfServiceLinks() {
     links.unshift(["Request a user token", "/user/captcha"]);
   }
 
-  return `<div class="self-service-links"">${links
+  return `<div class="self-service-links">${links
     .map(([text, link]) => `<a target="_blank" href="${link}">${text}</a>`)
     .join(" | ")}</div>`;
 }

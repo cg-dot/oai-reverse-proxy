@@ -24,9 +24,9 @@ export function parseCidrs(cidrs: string[] | string): [IPv4 | IPv6, number][] {
     .map((input) => {
       try {
         if (input.includes("/")) {
-          return ipaddr.parseCIDR(input);
+          return ipaddr.parseCIDR(input.trim());
         } else {
-          const ip = ipaddr.parse(input);
+          const ip = ipaddr.parse(input.trim());
           return ipaddr.parseCIDR(
             `${input}/${ip.kind() === "ipv4" ? 32 : 128}`
           );
@@ -44,23 +44,25 @@ export function createWhitelistMiddleware(
   base: string[] | string
 ) {
   let cidrs: string[] = [];
-  let matchers: [IPv4 | IPv6, number][] = [];
+  let ranges: Record<string, [IPv4 | IPv6, number][]> = {};
 
-  const middleware = (req: Request, res: Response, next: NextFunction) => {
+  const middleware: IpCheckMiddleware = (req, res, next) => {
     const ip = ipaddr.process(req.ip);
-    const allowed = matchers.some((cidr) => ip.match(cidr));
-    if (allowed) {
+    const match = ipaddr.subnetMatch(ip, ranges, "none");
+    if (match === name) {
       return next();
+    } else {
+      req.log.warn({ ip: req.ip, list: name }, "Request denied by whitelist");
+      res.status(403).json({ error: `Forbidden (by ${name})` });
     }
-    req.log.warn({ ip: req.ip, list: name }, "Request denied by whitelist");
-    res.status(403).json({ error: `Forbidden (by ${name})` });
   };
-  middleware.ranges = [] as string[];
-  middleware.updateRanges = (ranges: string[] | string) => {
-    cidrs = Array.isArray(ranges) ? ranges.slice() : [ranges];
-    matchers = parseCidrs(cidrs);
-    log.info({ list: name, matchers }, "IP whitelist configured");
+  middleware.ranges = cidrs;
+  middleware.updateRanges = (r: string[] | string) => {
+    cidrs = Array.isArray(r) ? r.slice() : [r];
+    const parsed = parseCidrs(cidrs);
+    ranges = { [name]: parsed };
     middleware.ranges = cidrs;
+    log.info({ list: name, ranges }, "IP whitelist configured");
   };
 
   middleware.updateRanges(base);
@@ -74,24 +76,27 @@ export function createBlacklistMiddleware(
   base: string[] | string
 ) {
   let cidrs: string[] = [];
-  let matchers: [IPv4 | IPv6, number][] = [];
+  let ranges: Record<string, [IPv4 | IPv6, number][]> = {};
 
-  const middleware = (req: Request, res: Response, next: NextFunction) => {
+  const middleware: IpCheckMiddleware = (req, res, next) => {
     const ip = ipaddr.process(req.ip);
-    const denied = matchers.some((cidr) => ip.match(cidr));
-    if (denied) {
+    const match = ipaddr.subnetMatch(ip, ranges, "none");
+    if (match === name) {
       req.log.warn({ ip: req.ip, list: name }, "Request denied by blacklist");
       return res.status(403).json({ error: `Forbidden (by ${name})` });
+    } else {
+      return next();
     }
-    return next();
   };
-  middleware.ranges = [] as string[];
-  middleware.updateRanges = (ranges: string[] | string) => {
-    cidrs = Array.isArray(ranges) ? ranges.slice() : [ranges];
-    matchers = parseCidrs(cidrs);
-    log.info({ list: name, matchers }, "IP blacklist configured");
+  middleware.ranges = cidrs;
+  middleware.updateRanges = (r: string[] | string) => {
+    cidrs = Array.isArray(r) ? r.slice() : [r];
+    const parsed = parseCidrs(cidrs);
+    ranges = { [name]: parsed };
     middleware.ranges = cidrs;
+    log.info({ list: name, ranges }, "IP blacklist configured");
   };
+
   middleware.updateRanges(base);
 
   blacklists.set(name, middleware);

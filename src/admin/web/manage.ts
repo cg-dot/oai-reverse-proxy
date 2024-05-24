@@ -314,10 +314,10 @@ router.post("/maintenance", (req, res) => {
       const temps = users.filter((u) => u.type === "temporary");
       temps.forEach((user) => {
         user.expiresAt = Date.now();
-        user.disabledReason = "Admin forced expiration."
+        user.disabledReason = "Admin forced expiration.";
         userStore.upsertUser(user);
       });
-      invalidatePowHmacKey()
+      invalidatePowHmacKey();
       flash.type = "success";
       flash.message = `${temps.length} temporary users marked for expiration.`;
       break;
@@ -370,8 +370,8 @@ router.post("/maintenance", (req, res) => {
               ipv4RangeMap.set(subnet, userSet);
             } else if (parsed.kind() === "ipv6") {
               const subnet =
-                parsed.toNormalizedString().split(":").slice(0, 3).join(":") +
-                "::/56";
+                parsed.toNormalizedString().split(":").slice(0, 4).join(":") +
+                "::/48";
               const userSet = ipv6RangeMap.get(subnet) || new Set<string>();
               userSet.add(u.token);
               ipv6RangeMap.set(subnet, userSet);

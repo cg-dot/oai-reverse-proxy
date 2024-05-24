@@ -335,7 +335,7 @@
     elapsedTime += (Date.now() - lastUpdateTime) / 1000;
     lastUpdateTime = Date.now();
     const hashRate = totalHashes / elapsedTime;
-    const expectedTimeRemaining = (workFactor - totalHashes) / hashRate;
+    const timeRemaining = (workFactor - totalHashes) / hashRate;
     const progress = 100 * (1 - Math.exp(-totalHashes / workFactor));
 
     const formatTime = (time) => {
@@ -362,11 +362,11 @@
 
     document.getElementById("captcha-progress").style.width = Math.min(progress, 100) + "%";
     document.getElementById("captcha-progress-text").value = `
-Average hashes needed: ${workFactor.toLocaleString()}
+Solution probability: 1 in ${workFactor.toLocaleString()} hashes
 Hashes computed: ${totalHashes.toLocaleString()}${note}
 Elapsed time: ${formatTime(elapsedTime)}
 Hash rate: ${hashRate.toFixed(2)} H/s
 Workers: ${workers.length}${isMobileWebkit ? " (iOS/iPadOS detected)" : ""}
-${active ? `Approx. time remaining: ${formatTime(expectedTimeRemaining)}` : "Verification task stopped"}`.trim();
+${active ? `Average time remaining: ${formatTime(timeRemaining)}` : "Verification task stopped"}`.trim();
   }
 </script>
