@@ -179,10 +179,7 @@ function cleanup() {
   process.exit(0);
 }
 
-process.on("exit", () => cleanup());
-process.on("SIGHUP", () => process.exit(128 + 1));
-process.on("SIGINT", () => process.exit(128 + 2));
-process.on("SIGTERM", () => process.exit(128 + 15));
+process.on("SIGINT", cleanup);
 
 function registerUncaughtExceptionHandler() {
   process.on("uncaughtException", (err: any) => {
