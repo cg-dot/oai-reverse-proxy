@@ -45,6 +45,7 @@ app.use(
         'res.headers["set-cookie"]',
         "req.headers.authorization",
         'req.headers["x-api-key"]',
+        'req.headers["api-key"]',
         // Don't log the prompt text on transform errors
         "body.messages",
         "body.prompt",
