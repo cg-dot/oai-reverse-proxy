@@ -23,3 +23,4 @@ export interface LogBackend {
 }
 
 export * as logQueue from "./log-queue";
+export * as eventLogger from "./event-logger";

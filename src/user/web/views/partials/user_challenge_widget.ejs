@@ -204,7 +204,11 @@
         if (solution) {
           return;
         }
-        workers.forEach((w) => w.postMessage({ type: "stop" }));
+        workers.forEach((w, i) => {
+          w.postMessage({ type: "stop" });
+          setTimeout(() => w.terminate(), 1000 + i * 100)
+        });
+        workers = [];
         active = false;
         solution = e.data.nonce;
         document.getElementById("captcha-result").textContent =

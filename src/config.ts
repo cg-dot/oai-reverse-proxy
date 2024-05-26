@@ -208,6 +208,32 @@ type Config = {
    * key and can't attach the policy, you can set this to true.
    */
   allowAwsLogging?: boolean;
+  /**
+   * Path to the SQLite database file for storing data such as event logs. By
+   * default, the database will be stored at `data/database.sqlite`.
+   *
+   * Ensure target is writable by the server process, and be careful not to
+   * select a path that is served publicly. The default path is safe.
+   */
+  sqliteDataPath?: string;
+  /**
+   * Whether to log events, such as generated completions, to the database.
+   * Events are associated with IP+user token pairs. If user_token mode is
+   * disabled, no events will be logged.
+   *
+   * Currently there is no pruning mechanism for the events table, so it will
+   * grow indefinitely. You may want to periodically prune the table manually.
+   */
+  eventLogging?: boolean;
+  /**
+   * When hashing prompt histories, how many messages to trim from the end.
+   * If zero, only the full prompt hash will be stored.
+   * If greater than zero, for each number N, a hash of the prompt with the
+   * last N messages removed will be stored.
+   *
+   * Experimental function, config may change in future versions.
+   */
+  eventLoggingTrim?: number;
   /** Whether prompts and responses should be logged to persistent storage. */
   promptLogging?: boolean;
   /** Which prompt logging backend to use. */
@@ -356,6 +382,12 @@ export const config: Config = {
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
   adminKey: getEnvWithDefault("ADMIN_KEY", ""),
   serviceInfoPassword: getEnvWithDefault("SERVICE_INFO_PASSWORD", ""),
+  sqliteDataPath: getEnvWithDefault(
+    "SQLITE_DATA_PATH",
+    path.join(DATA_DIR, "database.sqlite")
+  ),
+  eventLogging: getEnvWithDefault("EVENT_LOGGING", false),
+  eventLoggingTrim: getEnvWithDefault("EVENT_LOGGING_TRIM", 5),
   gatekeeper: getEnvWithDefault("GATEKEEPER", "none"),
   gatekeeperStore: getEnvWithDefault("GATEKEEPER_STORE", "memory"),
   maxIpsPerUser: getEnvWithDefault("MAX_IPS_PER_USER", 0),
@@ -605,6 +637,9 @@ export const OMITTED_KEYS = [
   "googleSheetsKey",
   "firebaseKey",
   "firebaseRtdbUrl",
+  "sqliteDataPath",
+  "eventLogging",
+  "eventLoggingTrim",
   "gatekeeperStore",
   "maxIpsPerUser",
   "blockedOrigins",

@@ -57,7 +57,7 @@ export function makeOptionalPropsNullable<Schema extends z.AnyZodObject>(
 ) {
   const entries = Object.entries(schema.shape) as [
     keyof Schema["shape"],
-    z.ZodTypeAny
+    z.ZodTypeAny,
   ][];
   const newProps = entries.reduce(
     (acc, [key, value]) => {
@@ -83,4 +83,13 @@ export function redactIp(ip: string) {
 
 export function assertNever(x: never): never {
   throw new Error(`Called assertNever with argument ${x}.`);
+}
+
+export function encodeCursor(v: string) {
+  return Buffer.from(JSON.stringify(v)).toString("base64");
+}
+
+export function decodeCursor(cursor?: string) {
+  if (!cursor) return null;
+  return JSON.parse(Buffer.from(cursor, "base64").toString("utf-8"));
 }

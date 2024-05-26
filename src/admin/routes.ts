@@ -9,7 +9,8 @@ import { renderPage } from "../info-page";
 import { buildInfo } from "../service-info";
 import { authorize } from "./auth";
 import { loginRouter } from "./login";
-import { usersApiRouter as apiRouter } from "./api/users";
+import { eventsApiRouter } from "./api/events";
+import { usersApiRouter } from "./api/users";
 import { usersWebRouter as webRouter } from "./web/manage";
 import { logger } from "../logger";
 
@@ -32,7 +33,8 @@ adminRouter.use(
 adminRouter.use(withSession);
 adminRouter.use(injectCsrfToken);
 
-adminRouter.use("/users", authorize({ via: "header" }), apiRouter);
+adminRouter.use("/users", authorize({ via: "header" }), usersApiRouter);
+adminRouter.use("/events", authorize({ via: "header" }), eventsApiRouter);
 
 adminRouter.use(checkCsrfToken);
 adminRouter.use(injectLocals);

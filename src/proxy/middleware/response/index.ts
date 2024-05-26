@@ -22,6 +22,7 @@ import {
 import { handleBlockingResponse } from "./handle-blocking-response";
 import { handleStreamedResponse } from "./handle-streamed-response";
 import { logPrompt } from "./log-prompt";
+import { logEvent } from "./log-event";
 import { saveImage } from "./save-image";
 
 /**
@@ -84,7 +85,8 @@ export const createOnProxyResHandler = (apiMiddleware: ProxyResMiddleware) => {
           trackKeyRateLimit,
           countResponseTokens,
           incrementUsage,
-          logPrompt
+          logPrompt,
+          logEvent
         );
       } else {
         middlewareStack.push(
@@ -96,6 +98,7 @@ export const createOnProxyResHandler = (apiMiddleware: ProxyResMiddleware) => {
           copyHttpHeaders,
           saveImage,
           logPrompt,
+          logEvent,
           ...apiMiddleware
         );
       }

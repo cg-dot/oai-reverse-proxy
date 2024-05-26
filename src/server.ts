@@ -22,6 +22,7 @@ import { init as initUserStore } from "./shared/users/user-store";
 import { init as initTokenizers } from "./shared/tokenization";
 import { checkOrigin } from "./proxy/check-origin";
 import { sendErrorToClient } from "./proxy/middleware/response/error-generator";
+import { initializeDatabase, getDatabase } from "./shared/database";
 
 const PORT = config.port;
 const BIND_ADDRESS = config.bindAddress;
@@ -70,7 +71,10 @@ app.set("views", [
 app.use("/user_content", express.static(USER_ASSETS_DIR, { maxAge: "2h" }));
 app.use(
   "/res",
-  express.static(path.join(__dirname, "..", "public"), { maxAge: "2h", etag: false })
+  express.static(path.join(__dirname, "..", "public"), {
+    maxAge: "2h",
+    etag: false,
+  })
 );
 
 app.get("/health", (_req, res) => res.sendStatus(200));
@@ -139,6 +143,8 @@ async function start() {
     await logQueue.start();
   }
 
+  await initializeDatabase();
+
   logger.info("Starting request queue...");
   startRequestQueue();
 
@@ -159,6 +165,23 @@ async function start() {
     "Startup complete."
   );
 }
+
+function cleanup() {
+  console.log("Shutting down...");
+  if (config.eventLogging) {
+    try {
+      const db = getDatabase();
+      db.close();
+      console.log("Closed sqlite database.");
+    } catch (error) {}
+  }
+  process.exit(0);
+}
+
+process.on("exit", () => cleanup());
+process.on("SIGHUP", () => process.exit(128 + 1));
+process.on("SIGINT", () => process.exit(128 + 2));
+process.on("SIGTERM", () => process.exit(128 + 15));
 
 function registerUncaughtExceptionHandler() {
   process.on("uncaughtException", (err: any) => {
