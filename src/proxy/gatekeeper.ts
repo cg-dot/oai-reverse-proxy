@@ -66,7 +66,8 @@ export const gatekeeper: RequestHandler = (req, res, next) => {
           req,
           res,
           403,
-          "Forbidden: no more IPs can authenticate with this user token"
+          `Forbidden: no more IP addresses allowed for this user token`,
+          { currentIp: ip, maxIps: user?.maxIps }
         );
       case "disabled":
         const bannedUser = getUser(token);
@@ -84,7 +85,8 @@ function sendError(
   req: Request,
   res: Response,
   status: number,
-  message: string
+  message: string,
+  data: any = {}
 ) {
   const isPost = req.method === "POST";
   const hasBody = isPost && req.body;
@@ -103,6 +105,7 @@ function sendError(
       format: "unknown",
       statusCode: status,
       reqId: req.id,
+      obj: data,
     },
   });
 }
