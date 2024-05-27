@@ -52,7 +52,13 @@ function getMessageContent({
     delete obj.stack;
   }
 
-  return [header, friendlyMessage, serializedObj, prettyTrace].join("\n\n");
+  return [
+    header,
+    friendlyMessage,
+    serializedObj,
+    prettyTrace,
+    "<!-- oai-proxy-error -->",
+  ].join("\n\n");
 }
 
 type ErrorGeneratorOptions = {
@@ -115,6 +121,11 @@ export function sendErrorToClient({
   const event = buildSpoofedSSE({ ...options, format });
   const isStreaming =
     req.isStreaming || req.body.stream === true || req.body.stream === "true";
+
+  if (!res.headersSent) {
+    res.setHeader("x-oai-proxy-error", options.title);
+    res.setHeader("x-oai-proxy-error-status", options.statusCode || 500);
+  }
 
   if (isStreaming) {
     if (!res.headersSent) {
