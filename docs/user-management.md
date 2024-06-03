@@ -70,4 +70,4 @@ You can provide a comma-separated list containing individual IPv4 or IPv6 addres
 
 To whitelist an entire IP range, use CIDR notation. For example, `192.168.0.1/24` would whitelist all addresses from `192.168.0.0` to `192.168.0.255`.
 
-To disable the whitelist, set `ADMIN_WHITELIST=0.0.0.0/0`, which will allow access from any IP address. This is the default behavior.
+To disable the whitelist, set `ADMIN_WHITELIST=0.0.0.0/0,::0`, which will allow access from any IPv4 or IPv6 address. This is the default behavior.

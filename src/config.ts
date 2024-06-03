@@ -481,7 +481,9 @@ export const config: Config = {
   allowOpenAIToolUsage: getEnvWithDefault("ALLOW_OPENAI_TOOL_USAGE", false),
   allowImagePrompts: getEnvWithDefault("ALLOW_IMAGE_PROMPTS", false),
   proxyEndpointRoute: getEnvWithDefault("PROXY_ENDPOINT_ROUTE", "/proxy"),
-  adminWhitelist: parseCsv(getEnvWithDefault("ADMIN_WHITELIST", "0.0.0.0/0")),
+  adminWhitelist: parseCsv(
+    getEnvWithDefault("ADMIN_WHITELIST", "0.0.0.0/0,::/0")
+  ),
   ipBlacklist: parseCsv(getEnvWithDefault("IP_BLACKLIST", "")),
 } as const;
 
