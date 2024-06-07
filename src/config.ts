@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import type firebase from "firebase-admin";
 import path from "path";
 import pino from "pino";
-import type { ModelFamily } from "./shared/models";
+import type { LLMService, ModelFamily } from "./shared/models";
 import { MODEL_FAMILIES } from "./shared/models";
 
 dotenv.config();
@@ -340,13 +340,18 @@ type Config = {
    */
   allowOpenAIToolUsage?: boolean;
   /**
-   * Whether to allow prompts containing images, for use with multimodal models.
-   * Avoid giving this to untrusted users, as they can submit illegal content.
+   * Which services will accept prompts containing images, for use with
+   * multimodal models. Users with `special` role are exempt from this
+   * restriction.
    *
-   * Applies to GPT-4 Vision and Claude Vision. Users with `special` role are
-   * exempt from this restriction.
+   * Do not enable this feature for untrusted users, as malicious users could
+   * send images which violate your provider's terms of service or local laws.
+   *
+   * Defaults to no services, meaning image prompts are disabled. Use a comma-
+   * separated list. Available services are:
+   * openai,anthropic,google-ai,mistral-ai,aws,azure
    */
-  allowImagePrompts?: boolean;
+  allowedVisionServices: LLMService[];
   /**
    * Allows overriding the default proxy endpoint route. Defaults to /proxy.
    * A leading slash is required.
@@ -479,7 +484,9 @@ export const config: Config = {
   staticServiceInfo: getEnvWithDefault("STATIC_SERVICE_INFO", false),
   trustedProxies: getEnvWithDefault("TRUSTED_PROXIES", 1),
   allowOpenAIToolUsage: getEnvWithDefault("ALLOW_OPENAI_TOOL_USAGE", false),
-  allowImagePrompts: getEnvWithDefault("ALLOW_IMAGE_PROMPTS", false),
+  allowedVisionServices: parseCsv(
+    getEnvWithDefault("ALLOWED_VISION_SERVICES", "")
+  ) as LLMService[],
   proxyEndpointRoute: getEnvWithDefault("PROXY_ENDPOINT_ROUTE", "/proxy"),
   adminWhitelist: parseCsv(
     getEnvWithDefault("ADMIN_WHITELIST", "0.0.0.0/0,::/0")
@@ -534,6 +541,17 @@ export async function assertConfigIsValid() {
       { textLimit: limit, imageLimit: config.imageModelRateLimit },
       "MODEL_RATE_LIMIT is deprecated. Use TEXT_MODEL_RATE_LIMIT and IMAGE_MODEL_RATE_LIMIT instead."
     );
+  }
+
+  if (process.env.ALLOW_IMAGE_PROMPTS === "true") {
+    const hasAllowedServices = config.allowedVisionServices.length > 0;
+    if (!hasAllowedServices) {
+      config.allowedVisionServices = ["openai", "anthropic"];
+      startupLogger.warn(
+        { allowedVisionServices: config.allowedVisionServices },
+        "ALLOW_IMAGE_PROMPTS is deprecated. Use ALLOWED_VISION_SERVICES instead."
+      );
+    }
   }
 
   if (config.promptLogging && !config.promptLoggingBackend) {

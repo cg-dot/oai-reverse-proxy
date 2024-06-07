@@ -9,9 +9,14 @@ import { ForbiddenError } from "../../../../shared/errors";
  * Rejects prompts containing images if multimodal prompts are disabled.
  */
 export const validateVision: RequestPreprocessor = async (req) => {
-  if (config.allowImagePrompts) return;
-  if (req.user?.type === "special") return;
+  if (req.service === undefined) {
+    throw new Error("Request service must be set before validateVision");
+  }
 
+  if (req.user?.type === "special") return;
+  if (config.allowedVisionServices.includes(req.service)) return;
+
+  // vision not allowed for req's service, block prompts with images
   let hasImage = false;
   switch (req.outboundApi) {
     case "openai":
