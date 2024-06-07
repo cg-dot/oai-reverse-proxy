@@ -119,7 +119,8 @@ export const transformOpenAIToAnthropicChat: APIFormatTransformer<
     stream: rest.stream,
     temperature: rest.temperature,
     top_p: rest.top_p,
-    stop_sequences: typeof rest.stop === "string" ? [rest.stop] : rest.stop,
+    stop_sequences:
+      typeof rest.stop === "string" ? [rest.stop] : rest.stop || undefined,
     ...(rest.user ? { metadata: { user_id: rest.user } } : {}),
     // Anthropic supports top_k, but OpenAI does not
     // OpenAI supports frequency_penalty, presence_penalty, logit_bias, n, seed,

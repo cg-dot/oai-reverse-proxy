@@ -47,7 +47,7 @@ export const OpenAIV1ChatCompletionSchema = z
     stream: z.boolean().optional().default(false),
     stop: z
       .union([z.string().max(500), z.array(z.string().max(500))])
-      .optional(),
+      .nullish(),
     max_tokens: z.coerce
       .number()
       .int()
