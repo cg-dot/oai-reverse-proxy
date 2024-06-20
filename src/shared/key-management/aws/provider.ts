@@ -105,11 +105,13 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     // each of these should be separate model families, but adding model
     // families is not low enough friction for the rate at which aws claude
     // model variants are added.
-    const needsSonnet =
-      model.includes("sonnet") && neededFamily === "aws-claude";
-    const needsHaiku = model.includes("haiku") && neededFamily === "aws-claude";
     const needsSonnet35 =
       model.includes("claude-3-5-sonnet") && neededFamily === "aws-claude";
+    const needsSonnet =
+      !needsSonnet35 &&
+      model.includes("sonnet") &&
+      neededFamily === "aws-claude";
+    const needsHaiku = model.includes("haiku") && neededFamily === "aws-claude";
 
     const availableKeys = this.keys.filter((k) => {
       const isNotLogged = k.awsLoggingStatus !== "enabled";
