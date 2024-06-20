@@ -99,20 +99,20 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
   }
 
   public get(model: string) {
+    const neededFamily = getAwsBedrockModelFamily(model);
+
+    // this is a horrible mess
+    // each of these should be separate model families, but adding model
+    // families is not low enough friction for the rate at which aws claude
+    // model variants are added.
+    const needsSonnet =
+      model.includes("sonnet") && neededFamily === "aws-claude";
+    const needsHaiku = model.includes("haiku") && neededFamily === "aws-claude";
+    const needsSonnet35 =
+      model.includes("claude-3-5-sonnet") && neededFamily === "aws-claude";
+
     const availableKeys = this.keys.filter((k) => {
       const isNotLogged = k.awsLoggingStatus !== "enabled";
-      const neededFamily = getAwsBedrockModelFamily(model);
-      
-      // this is a horrible mess
-      // each of these should be separate model families, but adding model
-      // families is not low enough friction for the rate at which aws claude
-      // model variants are added.
-      const needsSonnet =
-        model.includes("sonnet") && neededFamily === "aws-claude";
-      const needsHaiku =
-        model.includes("haiku") && neededFamily === "aws-claude";
-      const needsSonnet35 =
-        model.includes("claude-3-5-sonnet") && neededFamily === "aws-claude";
       return (
         !k.isDisabled &&
         (isNotLogged || config.allowAwsLogging) &&
@@ -122,6 +122,20 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
         k.modelFamilies.includes(neededFamily)
       );
     });
+
+    this.log.debug(
+      {
+        model,
+        neededFamily,
+        needsSonnet,
+        needsHaiku,
+        needsSonnet35,
+        availableKeys: availableKeys.length,
+        totalKeys: this.keys.length,
+      },
+      "Selecting AWS key"
+    );
+
     if (availableKeys.length === 0) {
       throw new PaymentRequiredError(
         `No AWS Bedrock keys available for model ${model}`

@@ -64,9 +64,15 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     // a ResourceNotFoundException when trying to invoke it which will fail the
     // entire key As a temporary measure we will trap thrown errors for this
     // particular check and ignore them.
-    checks.unshift(
+    checks.push(
       this.invokeModel("anthropic.claude-3-5-sonnet-20240620-v1:0", key).catch(
-        () => false
+        ({ response }) => {
+          this.log.debug(
+            { key: key.hash, error: response.data, status: response.status },
+            "AWS Sonnet 3.5 model is not accessible."
+          );
+          return false;
+        }
       )
     );
 
@@ -75,9 +81,14 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     const [_logging, claudeV2, sonnet, haiku, opus, sonnet35] =
       await Promise.all(checks);
 
+    this.log.debug(
+      { key: key.hash, _logging, claudeV2, sonnet, haiku, opus, sonnet35 },
+      "AWS model tests complete."
+    );
+
     if (isInitialCheck) {
       const families: AwsBedrockModelFamily[] = [];
-      if (claudeV2 || sonnet || haiku) families.push("aws-claude");
+      if (claudeV2 || sonnet || sonnet35 || haiku) families.push("aws-claude");
       if (opus) families.push("aws-claude-opus");
 
       if (families.length === 0) {
@@ -214,13 +225,6 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
     const correctErrorMessage = errorMessage?.match(/max_tokens/);
     if (!correctErrorType || !correctErrorMessage) {
       return false;
-      // throw new AxiosError(
-      //   `Unexpected error when invoking model ${model}: ${errorMessage}`,
-      //   "AWS_ERROR",
-      //   response.config,
-      //   response.request,
-      //   response
-      // );
     }
 
     this.log.debug(
