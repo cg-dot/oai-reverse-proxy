@@ -57,9 +57,19 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
         this.invokeModel("anthropic.claude-3-sonnet-20240229-v1:0", key),
         this.invokeModel("anthropic.claude-3-haiku-20240307-v1:0", key),
         this.invokeModel("anthropic.claude-3-opus-20240229-v1:0", key),
-        this.invokeModel("anthropic.claude-3-5-sonnet-20240620-v1:0", key),
       ];
     }
+
+    // Sonnet 3.5 is being gradually rolled out and some AWS keys/regions throw
+    // a ResourceNotFoundException when trying to invoke it which will fail the
+    // entire key As a temporary measure we will trap thrown errors for this
+    // particular check and ignore them.
+    checks.unshift(
+      this.invokeModel("anthropic.claude-3-5-sonnet-20240620-v1:0", key).catch(
+        () => false
+      )
+    );
+
     checks.unshift(this.checkLoggingConfiguration(key));
 
     const [_logging, claudeV2, sonnet, haiku, opus, sonnet35] =
