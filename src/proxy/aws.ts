@@ -37,6 +37,7 @@ const getModelsResponse = () => {
     "anthropic.claude-v2:1",
     "anthropic.claude-3-haiku-20240307-v1:0",
     "anthropic.claude-3-sonnet-20240229-v1:0",
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
     "anthropic.claude-3-opus-20240229-v1:0",
   ];
 
@@ -234,65 +235,66 @@ awsRouter.post(
  * - frontends sending Anthropic model names that AWS doesn't recognize
  * - frontends sending OpenAI model names because they expect the proxy to
  *   translate them
+ * 
+ * If client sends AWS model ID it will be used verbatim. Otherwise, various
+ * strategies are used to try to map a non-AWS model name to AWS model ID.
  */
 function maybeReassignModel(req: Request) {
   const model = req.body.model;
 
-  // If client already specified an AWS Claude model ID, use it
+  // If it looks like an AWS model, use it as-is
   if (model.includes("anthropic.claude")) {
     return;
   }
 
+  // Anthropic model names can look like:
+  // - claude-v1
+  // - claude-2.1
+  // - claude-3-5-sonnet-20240620-v1:0
   const pattern =
-    /^(claude-)?(instant-)?(v)?(\d+)(\.(\d+))?(-\d+k)?(-sonnet-?|-opus-?|-haiku-?)(\d*)/i;
+    /^(claude-)?(instant-)?(v)?(\d+)([.-](\d{1}))?(-\d+k)?(-sonnet-|-opus-|-haiku-)?(\d*)/i;
   const match = model.match(pattern);
 
-  // If there's no match, return the latest v2 model
+  // If there's no match, fallback to Claude v2 as it is most likely to be
+  // available on AWS.
   if (!match) {
     req.body.model = `anthropic.claude-v2:${LATEST_AWS_V2_MINOR_VERSION}`;
     return;
   }
 
-  const instant = match[2];
-  const major = match[4];
-  const minor = match[6];
+  const [_, _cl, instant, _v, major, _sep, minor, _ctx, name, _rev] = match;
 
   if (instant) {
     req.body.model = "anthropic.claude-instant-v1";
     return;
   }
-
-  // There's only one v1 model
-  if (major === "1") {
-    req.body.model = "anthropic.claude-v1";
-    return;
-  }
-
-  // Try to map Anthropic API v2 models to AWS v2 models
-  if (major === "2") {
-    if (minor === "0") {
+  
+  const ver = minor ? `${major}.${minor}` : major;
+  switch (ver) {
+    case "1":
+    case "1.0":
+      req.body.model = "anthropic.claude-v1";
+      return;
+    case "2":
+    case "2.0":
       req.body.model = "anthropic.claude-v2";
       return;
-    }
-    req.body.model = `anthropic.claude-v2:${LATEST_AWS_V2_MINOR_VERSION}`;
-    return;
+    case "3":
+    case "3.0":
+      if (name.includes("opus")) {
+        req.body.model = "anthropic.claude-3-opus-20240229-v1:0";
+      } else if (name.includes("haiku")) {
+        req.body.model = "anthropic.claude-3-haiku-20240307-v1:0";
+      } else {
+        req.body.model = "anthropic.claude-3-sonnet-20240229-v1:0";
+      }
+      return;
+    case "3.5":
+      req.body.model = "anthropic.claude-3-5-sonnet-20240620-v1:0";
+      return;
   }
 
-  // AWS currently only supports one v3 model.
-  const variant = match[8]; // sonnet, opus, or haiku
-  const variantVersion = match[9];
-  if (major === "3") {
-    if (variant.includes("opus")) {
-      req.body.model = "anthropic.claude-3-opus-20240229-v1:0";
-    } else if (variant.includes("haiku")) {
-      req.body.model = "anthropic.claude-3-haiku-20240307-v1:0";
-    } else {
-      req.body.model = "anthropic.claude-3-sonnet-20240229-v1:0";
-    }
-    return;
-  }
-
-  // Fallback to latest v2 model
+  // Fallback to Claude 2.1
   req.body.model = `anthropic.claude-v2:${LATEST_AWS_V2_MINOR_VERSION}`;
   return;
 }
@@ -304,7 +306,7 @@ export function handleCompatibilityRequest(
 ) {
   const action = req.params.action;
   const alreadyInChatFormat = Boolean(req.body.messages);
-  const compatModel = "anthropic.claude-3-sonnet-20240229-v1:0";
+  const compatModel = "anthropic.claude-3-5-sonnet-20240620-v1:0";
   req.log.info(
     { inputModel: req.body.model, compatModel, alreadyInChatFormat },
     "Handling AWS compatibility request"

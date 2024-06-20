@@ -26,6 +26,7 @@ export interface AwsBedrockKey extends Key, AwsBedrockKeyUsage {
   awsLoggingStatus: "unknown" | "disabled" | "enabled";
   sonnetEnabled: boolean;
   haikuEnabled: boolean;
+  sonnet35Enabled: boolean;
 }
 
 /**
@@ -77,6 +78,7 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
         lastChecked: 0,
         sonnetEnabled: true,
         haikuEnabled: false,
+        sonnet35Enabled: false,
         ["aws-claudeTokens"]: 0,
         ["aws-claude-opusTokens"]: 0,
       };
@@ -100,15 +102,23 @@ export class AwsBedrockKeyProvider implements KeyProvider<AwsBedrockKey> {
     const availableKeys = this.keys.filter((k) => {
       const isNotLogged = k.awsLoggingStatus !== "enabled";
       const neededFamily = getAwsBedrockModelFamily(model);
+      
+      // this is a horrible mess
+      // each of these should be separate model families, but adding model
+      // families is not low enough friction for the rate at which aws claude
+      // model variants are added.
       const needsSonnet =
         model.includes("sonnet") && neededFamily === "aws-claude";
       const needsHaiku =
         model.includes("haiku") && neededFamily === "aws-claude";
+      const needsSonnet35 =
+        model.includes("claude-3-5-sonnet") && neededFamily === "aws-claude";
       return (
         !k.isDisabled &&
         (isNotLogged || config.allowAwsLogging) &&
         (k.sonnetEnabled || !needsSonnet) && // sonnet and haiku are both under aws-claude, while opus is not
         (k.haikuEnabled || !needsHaiku) &&
+        (k.sonnet35Enabled || !needsSonnet35) &&
         k.modelFamilies.includes(neededFamily)
       );
     });

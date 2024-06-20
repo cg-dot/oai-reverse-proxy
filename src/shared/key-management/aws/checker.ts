@@ -57,11 +57,13 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
         this.invokeModel("anthropic.claude-3-sonnet-20240229-v1:0", key),
         this.invokeModel("anthropic.claude-3-haiku-20240307-v1:0", key),
         this.invokeModel("anthropic.claude-3-opus-20240229-v1:0", key),
+        this.invokeModel("anthropic.claude-3-5-sonnet-20240620-v1:0", key),
       ];
     }
     checks.unshift(this.checkLoggingConfiguration(key));
 
-    const [_logging, claudeV2, sonnet, haiku, opus] = await Promise.all(checks);
+    const [_logging, claudeV2, sonnet, haiku, opus, sonnet35] =
+      await Promise.all(checks);
 
     if (isInitialCheck) {
       const families: AwsBedrockModelFamily[] = [];
@@ -79,6 +81,7 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
       this.updateKey(key.hash, {
         sonnetEnabled: sonnet,
         haikuEnabled: haiku,
+        sonnet35Enabled: sonnet35,
         modelFamilies: families,
       });
     }
