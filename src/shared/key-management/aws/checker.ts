@@ -57,24 +57,9 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
         this.invokeModel("anthropic.claude-3-sonnet-20240229-v1:0", key),
         this.invokeModel("anthropic.claude-3-haiku-20240307-v1:0", key),
         this.invokeModel("anthropic.claude-3-opus-20240229-v1:0", key),
+        this.invokeModel("anthropic.claude-3-5-sonnet-20240620-v1:0", key),
       ];
     }
-
-    // Sonnet 3.5 is being gradually rolled out and some AWS keys/regions throw
-    // a ResourceNotFoundException when trying to invoke it which will fail the
-    // entire key As a temporary measure we will trap thrown errors for this
-    // particular check and ignore them.
-    checks.push(
-      this.invokeModel("anthropic.claude-3-5-sonnet-20240620-v1:0", key).catch(
-        ({ response }) => {
-          this.log.debug(
-            { key: key.hash, error: response.data, status: response.status },
-            "AWS Sonnet 3.5 model is not accessible."
-          );
-          return false;
-        }
-      )
-    );
 
     checks.unshift(this.checkLoggingConfiguration(key));
 
@@ -199,7 +184,7 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
       method: "POST",
       url: POST_INVOKE_MODEL_URL(creds.region, model),
       data: payload,
-      validateStatus: (status) => status === 400 || status === 403,
+      validateStatus: (status) => [400, 403, 404].includes(status),
     };
     config.headers = new AxiosHeaders({
       "content-type": "application/json",
@@ -216,6 +201,16 @@ export class AwsKeyChecker extends KeyCheckerBase<AwsBedrockKey> {
       status === 403 &&
       errorMessage?.match(/access to the model with the specified model ID/)
     ) {
+      return false;
+    }
+    
+    // ResourceNotFound typically indicates that the tested model cannot be used
+    // on the configured region for this set of credentials.
+    if (status === 404) {
+      this.log.debug(
+        { region: creds.region, model, key: key.hash },
+        "Model not supported in this AWS region."
+      );
       return false;
     }
 
