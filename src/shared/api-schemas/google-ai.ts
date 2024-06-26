@@ -103,7 +103,7 @@ export const transformOpenAIToGoogleAI: APIFormatTransformer<
   stops = [...new Set(stops)].slice(0, 5);
 
   return {
-    model: "gemini-pro",
+    model: req.body.model,
     stream: rest.stream,
     contents,
     tools: [],

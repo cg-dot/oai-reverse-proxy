@@ -30,7 +30,12 @@ const getModelsResponse = () => {
 
   if (!config.googleAIKey) return { object: "list", data: [] };
 
-  const googleAIVariants = ["gemini-pro", "gemini-1.0-pro", "gemini-1.5-pro"];
+  const googleAIVariants = [
+    "gemini-pro",
+    "gemini-1.0-pro",
+    "gemini-1.5-pro",
+    "gemini-1.5-pro-latest",
+  ];
 
   const models = googleAIVariants.map((id) => ({
     id,
@@ -124,12 +129,21 @@ googleAIRouter.get("/v1/models", handleModelRequest);
 googleAIRouter.post(
   "/v1/chat/completions",
   ipLimiter,
-  createPreprocessorMiddleware({
-    inApi: "openai",
-    outApi: "google-ai",
-    service: "google-ai",
-  }),
+  createPreprocessorMiddleware(
+    { inApi: "openai", outApi: "google-ai", service: "google-ai" },
+    { afterTransform: [maybeReassignModel] }
+  ),
   googleAIProxy
 );
+
+/** Replaces requests for non-Google AI models with gemini-pro-1.5-latest. */
+function maybeReassignModel(req: Request) {
+  const requested = req.body.model;
+  if (requested.includes("gemini")) {
+    return;
+  }
+  req.log.info({ requested }, "Reassigning model to gemini-pro-1.5-latest");
+  req.body.model = "gemini-pro-1.5-latest";
+}
 
 export const googleAI = googleAIRouter;
