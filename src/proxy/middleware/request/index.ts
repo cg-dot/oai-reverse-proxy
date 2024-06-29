@@ -15,6 +15,7 @@ export { countPromptTokens } from "./preprocessors/count-prompt-tokens";
 export { languageFilter } from "./preprocessors/language-filter";
 export { setApiFormat } from "./preprocessors/set-api-format";
 export { signAwsRequest } from "./preprocessors/sign-aws-request";
+export { signGcpRequest } from "./preprocessors/sign-vertex-ai-request";
 export { transformOutboundPayload } from "./preprocessors/transform-outbound-payload";
 export { validateContextSize } from "./preprocessors/validate-context-size";
 export { validateVision } from "./preprocessors/validate-vision";

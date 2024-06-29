@@ -27,6 +27,8 @@ const MODEL_FAMILY_FRIENDLY_NAME: { [f in ModelFamily]: string } = {
   "mistral-large": "Mistral Large",
   "aws-claude": "AWS Claude (Sonnet)",
   "aws-claude-opus": "AWS Claude (Opus)",
+  "gcp-claude": "GCP Claude (Sonnet)",
+  "gcp-claude-opus": "GCP Claude (Opus)",
   "azure-turbo": "Azure GPT-3.5 Turbo",
   "azure-gpt4": "Azure GPT-4",
   "azure-gpt4-32k": "Azure GPT-4 32k",

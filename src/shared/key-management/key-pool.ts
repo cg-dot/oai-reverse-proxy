@@ -10,6 +10,7 @@ import { AnthropicKeyProvider, AnthropicKeyUpdate } from "./anthropic/provider";
 import { OpenAIKeyProvider, OpenAIKeyUpdate } from "./openai/provider";
 import { GoogleAIKeyProvider } from "./google-ai/provider";
 import { AwsBedrockKeyProvider } from "./aws/provider";
+import { GcpKeyProvider } from "./gcp/provider";
 import { AzureOpenAIKeyProvider } from "./azure/provider";
 import { MistralAIKeyProvider } from "./mistral-ai/provider";
 
@@ -27,6 +28,7 @@ export class KeyPool {
     this.keyProviders.push(new GoogleAIKeyProvider());
     this.keyProviders.push(new MistralAIKeyProvider());
     this.keyProviders.push(new AwsBedrockKeyProvider());
+    this.keyProviders.push(new GcpKeyProvider());
     this.keyProviders.push(new AzureOpenAIKeyProvider());
   }
 
@@ -128,7 +130,11 @@ export class KeyPool {
       return "openai";
     } else if (model.startsWith("claude-")) {
       // https://console.anthropic.com/docs/api/reference#parameters
-      return "anthropic";
+      if (!model.includes('@')) {
+        return "anthropic";
+      } else {
+        return "gcp";
+      }
     } else if (model.includes("gemini")) {
       // https://developers.generativeai.google.com/models/language
       return "google-ai";

@@ -83,6 +83,7 @@ export const addKey: HPMRequestCallback = (proxyReq, req) => {
       proxyReq.setHeader("api-key", azureKey);
       break;
     case "aws":
+    case "gcp":
     case "google-ai":
       throw new Error("add-key should not be used for this service.");
     default:

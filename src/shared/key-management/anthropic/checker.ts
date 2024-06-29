@@ -122,7 +122,7 @@ export class AnthropicKeyChecker extends KeyCheckerBase<AnthropicKey> {
       { key: key.hash, error: error.message },
       "Network error while checking key; trying this key again in a minute."
     );
-    const oneMinute = 10 * 1000;
+    const oneMinute = 60 * 1000;
     const next = Date.now() - (KEY_CHECK_PERIOD - oneMinute);
     this.updateKey(key.hash, { lastChecked: next });
   }

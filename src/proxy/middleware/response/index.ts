@@ -185,6 +185,13 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
     throw new HttpError(statusCode, parseError.message);
   }
 
+  const service = req.key!.service;
+  if (service === "gcp") {
+    if (Array.isArray(errorPayload.error)) {
+      errorPayload.error = errorPayload.error[0];
+    }
+  }
+
   const errorType =
     errorPayload.error?.code ||
     errorPayload.error?.type ||
@@ -198,11 +205,15 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
   // TODO: split upstream error handling into separate modules for each service,
   // this is out of control.
 
-  const service = req.key!.service;
   if (service === "aws") {
     // Try to standardize the error format for AWS
     errorPayload.error = { message: errorPayload.message, type: errorType };
     delete errorPayload.message;
+  } else if (service === "gcp") {
+    // Try to standardize the error format for GCP
+    if (errorPayload.error?.code) { // GCP Error
+      errorPayload.error = { message: errorPayload.error.message, type: errorPayload.error.status || errorPayload.error.code };
+    }
   }
 
   if (statusCode === 400) {
@@ -225,6 +236,7 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         break;
       case "anthropic":
       case "aws":
+      case "gcp":
         await handleAnthropicBadRequestError(req, errorPayload);
         break;
       default:
@@ -275,6 +287,11 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
           default:
             errorPayload.proxy_note = `Received 403 error. Key may be invalid.`;
         }
+        return;
+      case "gcp":
+        keyPool.disable(req.key!, "revoked");
+        errorPayload.proxy_note = `Assigned API key is invalid or revoked, please try again.`;
+        return;
     }
   } else if (statusCode === 429) {
     switch (service) {
@@ -286,6 +303,9 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         break;
       case "aws":
         await handleAwsRateLimitError(req, errorPayload);
+        break;
+      case "gcp":
+        await handleGcpRateLimitError(req, errorPayload);
         break;
       case "azure":
       case "mistral-ai":
@@ -322,6 +342,9 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
         break;
       case "aws":
         errorPayload.proxy_note = `The requested AWS resource might not exist, or the key might not have access to it.`;
+        break;
+      case "gcp":
+        errorPayload.proxy_note = `The requested GCP resource might not exist, or the key might not have access to it.`;
         break;
       case "azure":
         errorPayload.proxy_note = `The assigned Azure deployment does not support the requested model.`;
@@ -424,6 +447,19 @@ async function handleAwsRateLimitError(
       break;
     default:
       errorPayload.proxy_note = `Unrecognized rate limit error from AWS. (${errorType})`;
+  }
+}
+
+async function handleGcpRateLimitError(
+  req: Request,
+  errorPayload: ProxiedErrorPayload
+) {
+  if (errorPayload.error?.type === "RESOURCE_EXHAUSTED") {
+    keyPool.markRateLimited(req.key!);
+    await reenqueueRequest(req);
+    throw new RetryableError("GCP rate-limited request re-enqueued.");
+  } else {
+    errorPayload.proxy_note = `Unrecognized 429 Too Many Requests error from GCP.`;
   }
 }
 

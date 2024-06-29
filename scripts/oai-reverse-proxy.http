@@ -231,6 +231,39 @@ Content-Type: application/json
 }
 
 ###
+# @name Proxy / GCP Claude -- Native Completion
+POST {{proxy-host}}/proxy/gcp/claude/v1/complete
+Authorization: Bearer {{proxy-key}}
+anthropic-version: 2023-01-01
+Content-Type: application/json
+
+{
+  "model": "claude-v2",
+  "max_tokens_to_sample": 10,
+  "temperature": 0,
+  "stream": true,
+  "prompt": "What is genshin impact\n\n:Assistant:"
+}
+
+###
+# @name Proxy / GCP Claude -- OpenAI-to-Anthropic API Translation
+POST {{proxy-host}}/proxy/gcp/claude/chat/completions
+Authorization: Bearer {{proxy-key}}
+Content-Type: application/json
+
+{
+  "model": "gpt-3.5-turbo",
+  "max_tokens": 50,
+  "stream": true,
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is genshin impact?"
+    }
+  ]
+}
+
+###
 # @name Proxy / Azure OpenAI -- Native Chat Completions
 POST {{proxy-host}}/proxy/azure/openai/chat/completions
 Authorization: Bearer {{proxy-key}}

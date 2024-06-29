@@ -46,6 +46,13 @@ type Config = {
    */
   awsCredentials?: string;
   /**
+   * Comma-delimited list of GCP credentials. Each credential item should be a
+   * colon-delimited list of access key, secret key, and GCP region.
+   *
+   * @example `GCP_CREDENTIALS=project1:1@1.com:us-east5:-----BEGIN PRIVATE KEY-----xxx-----END PRIVATE KEY-----,project2:2@2.com:us-east5:-----BEGIN PRIVATE KEY-----xxx-----END PRIVATE KEY-----`
+   */
+  gcpCredentials?: string;
+  /**
    * Comma-delimited list of Azure OpenAI credentials. Each credential item
    * should be a colon-delimited list of Azure resource name, deployment ID, and
    * API key.
@@ -349,7 +356,7 @@ type Config = {
    *
    * Defaults to no services, meaning image prompts are disabled. Use a comma-
    * separated list. Available services are:
-   * openai,anthropic,google-ai,mistral-ai,aws,azure
+   * openai,anthropic,google-ai,mistral-ai,aws,gcp,azure
    */
   allowedVisionServices: LLMService[];
   /**
@@ -383,6 +390,7 @@ export const config: Config = {
   googleAIKey: getEnvWithDefault("GOOGLE_AI_KEY", ""),
   mistralAIKey: getEnvWithDefault("MISTRAL_AI_KEY", ""),
   awsCredentials: getEnvWithDefault("AWS_CREDENTIALS", ""),
+  gcpCredentials: getEnvWithDefault("GCP_CREDENTIALS", ""),
   azureCredentials: getEnvWithDefault("AZURE_CREDENTIALS", ""),
   proxyKey: getEnvWithDefault("PROXY_KEY", ""),
   adminKey: getEnvWithDefault("ADMIN_KEY", ""),
@@ -435,6 +443,8 @@ export const config: Config = {
     "mistral-large",
     "aws-claude",
     "aws-claude-opus",
+    "gcp-claude",
+    "gcp-claude-opus",
     "azure-turbo",
     "azure-gpt4",
     "azure-gpt4-32k",
@@ -509,6 +519,7 @@ function generateSigningKey() {
     config.googleAIKey,
     config.mistralAIKey,
     config.awsCredentials,
+    config.gcpCredentials,
     config.azureCredentials,
   ];
   if (secrets.filter((s) => s).length === 0) {
@@ -646,6 +657,7 @@ export const OMITTED_KEYS = [
   "googleAIKey",
   "mistralAIKey",
   "awsCredentials",
+  "gcpCredentials",
   "azureCredentials",
   "proxyKey",
   "adminKey",
@@ -736,6 +748,7 @@ function getEnvWithDefault<T>(env: string | string[], defaultValue: T): T {
         "ANTHROPIC_KEY",
         "GOOGLE_AI_KEY",
         "AWS_CREDENTIALS",
+        "GCP_CREDENTIALS",
         "AZURE_CREDENTIALS",
       ].includes(String(env))
     ) {

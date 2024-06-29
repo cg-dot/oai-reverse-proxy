@@ -30,10 +30,12 @@ export function getTokenCostUsd(model: ModelFamily, tokens: number) {
       cost = 0.00001;
       break;
     case "aws-claude":
+    case "gcp-claude":
     case "claude":
       cost = 0.000008;
       break;
     case "aws-claude-opus":
+    case "gcp-claude-opus":
     case "claude-opus":
       cost = 0.000015;
       break;

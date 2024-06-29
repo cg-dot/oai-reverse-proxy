@@ -13,6 +13,7 @@ import { v4 as uuid } from "uuid";
 import { config, getFirebaseApp } from "../../config";
 import {
   getAwsBedrockModelFamily,
+  getGcpModelFamily,
   getAzureOpenAIModelFamily,
   getClaudeModelFamily,
   getGoogleAIModelFamily,
@@ -395,6 +396,7 @@ function getModelFamilyForQuotaUsage(
   // differentiate between Azure and OpenAI variants of the same model.
   if (model.includes("azure")) return getAzureOpenAIModelFamily(model);
   if (model.includes("anthropic.")) return getAwsBedrockModelFamily(model);
+  if (model.startsWith("claude-") && model.includes("@")) return getGcpModelFamily(model);
 
   switch (api) {
     case "openai":

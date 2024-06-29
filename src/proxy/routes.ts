@@ -7,6 +7,7 @@ import { anthropic } from "./anthropic";
 import { googleAI } from "./google-ai";
 import { mistralAI } from "./mistral-ai";
 import { aws } from "./aws";
+import { gcp } from "./gcp";
 import { azure } from "./azure";
 import { sendErrorToClient } from "./middleware/response/error-generator";
 
@@ -36,6 +37,7 @@ proxyRouter.use("/anthropic", addV1, anthropic);
 proxyRouter.use("/google-ai", addV1, googleAI);
 proxyRouter.use("/mistral-ai", addV1, mistralAI);
 proxyRouter.use("/aws/claude", addV1, aws);
+proxyRouter.use("/gcp/claude", addV1, gcp);
 proxyRouter.use("/azure/openai", addV1, azure);
 // Redirect browser requests to the homepage.
 proxyRouter.get("*", (req, res, next) => {

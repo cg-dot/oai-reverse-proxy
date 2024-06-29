@@ -1,7 +1,7 @@
 import type { HPMRequestCallback } from "../index";
 
 /**
- * For AWS/Azure/Google requests, the body is signed earlier in the request
+ * For AWS/GCP/Azure/Google requests, the body is signed earlier in the request
  * pipeline, before the proxy middleware. This function just assigns the path
  * and headers to the proxy request.
  */

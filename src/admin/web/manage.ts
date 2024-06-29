@@ -268,7 +268,7 @@ router.post("/maintenance", (req, res) => {
   let flash = { type: "", message: "" };
   switch (action) {
     case "recheck": {
-      const checkable: LLMService[] = ["openai", "anthropic", "aws", "azure"];
+      const checkable: LLMService[] = ["openai", "anthropic", "aws", "gcp","azure"];
       checkable.forEach((s) => keyPool.recheck(s));
       const keyCount = keyPool
         .list()

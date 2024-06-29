@@ -2,6 +2,7 @@ import { config, listConfig } from "./config";
 import {
   AnthropicKey,
   AwsBedrockKey,
+  GcpKey,
   AzureOpenAIKey,
   GoogleAIKey,
   keyPool,
@@ -11,6 +12,7 @@ import {
   AnthropicModelFamily,
   assertIsKnownModelFamily,
   AwsBedrockModelFamily,
+  GcpModelFamily,
   AzureOpenAIModelFamily,
   GoogleAIModelFamily,
   LLM_SERVICES,
@@ -40,6 +42,7 @@ const keyIsGoogleAIKey = (k: KeyPoolKey): k is GoogleAIKey =>
 const keyIsMistralAIKey = (k: KeyPoolKey): k is MistralAIKey =>
   k.service === "mistral-ai";
 const keyIsAwsKey = (k: KeyPoolKey): k is AwsBedrockKey => k.service === "aws";
+const keyIsGcpKey = (k: KeyPoolKey): k is GcpKey => k.service === "gcp";
 
 /** Stats aggregated across all keys for a given service. */
 type ServiceAggregate = "keys" | "uncheckedKeys" | "orgs";
@@ -53,6 +56,8 @@ type ModelAggregates = {
   awsLogged?: number;
   awsSonnet?: number;
   awsHaiku?: number;
+  gcpSonnet?: number;
+  gcpHaiku?: number;
   queued: number;
   queueTime: string;
   tokens: number;
@@ -89,6 +94,10 @@ type AwsInfo = BaseFamilyInfo & {
   sonnetKeys?: number;
   haikuKeys?: number;
 };
+type GcpInfo = BaseFamilyInfo & {
+  sonnetKeys?: number;
+  haikuKeys?: number;
+};
 
 // prettier-ignore
 export type ServiceInfo = {
@@ -101,6 +110,7 @@ export type ServiceInfo = {
     "google-ai"?: string;
     "mistral-ai"?: string;
     aws?: string;
+    gcp?: string;
     azure?: string;
     "openai-image"?: string;
     "azure-image"?: string;
@@ -114,6 +124,7 @@ export type ServiceInfo = {
 } & { [f in OpenAIModelFamily]?: OpenAIInfo }
   & { [f in AnthropicModelFamily]?: AnthropicInfo; }
   & { [f in AwsBedrockModelFamily]?: AwsInfo }
+  & { [f in GcpModelFamily]?: GcpInfo }
   & { [f in AzureOpenAIModelFamily]?: BaseFamilyInfo; }
   & { [f in GoogleAIModelFamily]?: BaseFamilyInfo }
   & { [f in MistralAIModelFamily]?: BaseFamilyInfo };
@@ -150,6 +161,9 @@ const SERVICE_ENDPOINTS: { [s in LLMService]: Record<string, string> } = {
   },
   aws: {
     aws: `%BASE%/aws/claude`,
+  },
+  gcp: {
+    gcp: `%BASE%/gcp/claude`,
   },
   azure: {
     azure: `%BASE%/azure/openai`,
@@ -305,6 +319,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
     k.service === "mistral-ai" ? 1 : 0
   );
   increment(serviceStats, "aws__keys", k.service === "aws" ? 1 : 0);
+  increment(serviceStats, "gcp__keys", k.service === "gcp" ? 1 : 0);
   increment(serviceStats, "azure__keys", k.service === "azure" ? 1 : 0);
 
   let sumTokens = 0;
@@ -403,6 +418,20 @@ function addKeyToAggregates(k: KeyPoolKey) {
       increment(modelStats, `aws-claude__awsLogged`, countAsLogged ? 1 : 0);
       break;
     }
+    case "gcp": {
+      if (!keyIsGcpKey(k)) throw new Error("Invalid key type");
+      k.modelFamilies.forEach((f) => {
+        const tokens = k[`${f}Tokens`];
+        sumTokens += tokens;
+        sumCost += getTokenCostUsd(f, tokens);
+        increment(modelStats, `${f}__tokens`, tokens);
+        increment(modelStats, `${f}__revoked`, k.isRevoked ? 1 : 0);
+        increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
+      });
+      increment(modelStats, `gcp-claude__gcpSonnet`, k.sonnetEnabled ? 1 : 0);
+      increment(modelStats, `gcp-claude__gcpHaiku`, k.haikuEnabled ? 1 : 0);
+      break;
+    }
     default:
       assertNever(k.service);
   }
@@ -414,7 +443,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
 function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
   const tokens = modelStats.get(`${family}__tokens`) || 0;
   const cost = getTokenCostUsd(family, tokens);
-  let info: BaseFamilyInfo & OpenAIInfo & AnthropicInfo & AwsInfo = {
+  let info: BaseFamilyInfo & OpenAIInfo & AnthropicInfo & AwsInfo & GcpInfo = {
     usage: `${prettyTokens(tokens)} tokens${getCostSuffix(cost)}`,
     activeKeys: modelStats.get(`${family}__active`) || 0,
     revokedKeys: modelStats.get(`${family}__revoked`) || 0,
@@ -451,6 +480,12 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
               ? `AWS logging verification inactive. Prompts could be logged.`
               : `${logged} active keys are potentially logged and can't be used. Set ALLOW_AWS_LOGGING=true to override.`;
           }
+        }
+        break;
+      case "gcp":
+        if (family === "gcp-claude") {
+          info.sonnetKeys = modelStats.get(`${family}__gcpSonnet`) || 0;
+          info.haikuKeys = modelStats.get(`${family}__gcpHaiku`) || 0;
         }
         break;
     }

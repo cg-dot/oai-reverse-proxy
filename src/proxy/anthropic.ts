@@ -129,7 +129,7 @@ export function transformAnthropicChatResponseToAnthropicText(
  * is only used for non-streaming requests as streaming requests are handled
  * on-the-fly.
  */
-function transformAnthropicTextResponseToOpenAI(
+export function transformAnthropicTextResponseToOpenAI(
   anthropicBody: Record<string, any>,
   req: Request
 ): Record<string, any> {

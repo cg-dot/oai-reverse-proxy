@@ -51,6 +51,8 @@ function getRandomModelFamily() {
     "mistral-large",
     "aws-claude",
     "aws-claude-opus",
+    "gcp-claude",
+    "gcp-claude-opus",
     "azure-turbo",
     "azure-gpt4",
     "azure-gpt4-32k",

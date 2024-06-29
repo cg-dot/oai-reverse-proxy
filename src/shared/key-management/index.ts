@@ -63,4 +63,5 @@ export { AnthropicKey } from "./anthropic/provider";
 export { OpenAIKey } from "./openai/provider";
 export { GoogleAIKey } from "././google-ai/provider";
 export { AwsBedrockKey } from "./aws/provider";
+export { GcpKey } from "./gcp/provider";
 export { AzureOpenAIKey } from "./azure/provider";
