@@ -20,6 +20,7 @@ This project allows you to run a reverse proxy server for various LLM APIs.
   - [x] [OpenAI](https://openai.com/)
   - [x] [Anthropic](https://www.anthropic.com/)
   - [x] [AWS Bedrock](https://aws.amazon.com/bedrock/)
+  - [x] [Vertex AI](https://cloud.google.com/vertex-ai/)
   - [x] [Google MakerSuite/Gemini API](https://ai.google.dev/)
   - [x] [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service)
 - [x] Translation from OpenAI-formatted prompts to any other API, including streaming responses
