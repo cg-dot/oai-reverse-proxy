@@ -4,7 +4,7 @@ The proxy supports GCP models via the `/proxy/gcp/claude` endpoint. There are a 
 
 - [Setting keys](#setting-keys)
 - [Setup Vertex AI](#setup-vertex-ai)
-- [Note regarding logging](#note-regarding-logging)
+- [Supported model IDs](#supported-model-ids)
 
 ## Setting keys
 
@@ -25,7 +25,7 @@ GCP_CREDENTIALS=my-first-project:xxx@yyy.com:us-east5:-----BEGIN PRIVATE KEY----
 4. On the service account page you just created, create a new key and select "JSON". The JSON file will be downloaded automatically.
 5. The required credential is in the JSON file you just downloaded.
 
-### Supported model IDs
+## Supported model IDs
 Users can send these model IDs to the proxy to invoke the corresponding models.
 - **Claude**
   - `claude-3-haiku@20240307`
