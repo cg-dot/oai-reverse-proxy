@@ -187,8 +187,8 @@ const handleUpstreamErrors: ProxyResHandlerWithBody = async (
 
   const service = req.key!.service;
   if (service === "gcp") {
-    if (Array.isArray(errorPayload.error)) {
-      errorPayload.error = errorPayload.error[0];
+    if (Array.isArray(errorPayload)) {
+      errorPayload = errorPayload[0];
     }
   }
 
