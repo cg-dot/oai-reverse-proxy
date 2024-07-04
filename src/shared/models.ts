@@ -215,7 +215,7 @@ export function getModelFamilyForRequest(req: Request): ModelFamily {
   if (req.service === "aws") {
     modelFamily = getAwsBedrockModelFamily(model);
   } else if (req.service === "gcp") {
-    modelFamily = getAwsBedrockModelFamily(model);
+    modelFamily = getGcpModelFamily(model);
   } else if (req.service === "azure") {
     modelFamily = getAzureOpenAIModelFamily(model);
   } else {
