@@ -66,15 +66,16 @@ export class GcpKeyChecker extends KeyCheckerBase<GcpKey> {
       });
     } else {
       if (key.haikuEnabled) {
-        this.invokeModel("claude-3-haiku@20240307", key, false)
+        await this.invokeModel("claude-3-haiku@20240307", key, false)
       } else if (key.sonnetEnabled) {
-        this.invokeModel("claude-3-sonnet@20240229", key, false)
+        await this.invokeModel("claude-3-sonnet@20240229", key, false)
       } else if (key.sonnet35Enabled) {
-        this.invokeModel("claude-3-5-sonnet@20240620", key, false)
+        await this.invokeModel("claude-3-5-sonnet@20240620", key, false)
       } else {
-        this.invokeModel("claude-3-opus@20240229", key, false)
+        await this.invokeModel("claude-3-opus@20240229", key, false)
       }
 
+      this.updateKey(key.hash, { lastChecked: Date.now() });
       this.log.debug(
         { key: key.hash},
         "GCP key check complete."
@@ -102,9 +103,9 @@ export class GcpKeyChecker extends KeyCheckerBase<GcpKey> {
       } else if (status === 429) {
         this.log.warn(
           { key: key.hash, error: data },
-          "Key is rate limited. Rechecking in 10 seconds."
+          "Key is rate limited. Rechecking in a minute."
         );
-        const next = Date.now() - (KEY_CHECK_PERIOD - 10 * 1000);
+        const next = Date.now() - (KEY_CHECK_PERIOD - 60 * 1000);
         this.updateKey(key.hash, { lastChecked: next });
       } else {
         this.log.error(
@@ -150,15 +151,13 @@ export class GcpKeyChecker extends KeyCheckerBase<GcpKey> {
       payload,
       { 
         headers: GcpKeyChecker.getRequestHeaders(accessToken),
-        validateStatus: initial ? function (status: number) {
-          return (status >= 200 && status < 300) || status === 400 || status === 401 || status === 403;
-        } : undefined
+        validateStatus: initial ? () => true : (status: number) => status >= 200 && status < 300
       }
     );
-    this.log.debug({ data }, "Response from GCP");
+    this.log.debug({ key: key.hash, data }, "Response from GCP");
 
-    if (status === 400 || status === 401 || status === 403) {
-      return false;
+    if (initial) {
+      return (status >= 200 && status < 300) || (status === 429 || status === 529);
     }
 
     return true;
