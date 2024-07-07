@@ -34,7 +34,7 @@ export const anthropicChatToOpenAI: StreamingCompletionTransformer = (
     model: params.fallbackModel,
     choices: [
       {
-        index: params.index,
+        index: 0,
         delta: { content: deltaEvent.delta.text },
         finish_reason: null,
       },
