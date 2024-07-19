@@ -55,8 +55,10 @@ type ModelAggregates = {
   pozzed?: number;
   awsLogged?: number;
   awsSonnet?: number;
+  awsSonnet35?: number;
   awsHaiku?: number;
   gcpSonnet?: number;
+  gcpSonnet35?: number;
   gcpHaiku?: number;
   queued: number;
   queueTime: string;
@@ -92,10 +94,12 @@ type AnthropicInfo = BaseFamilyInfo & {
 type AwsInfo = BaseFamilyInfo & {
   privacy?: string;
   sonnetKeys?: number;
+  sonnet35Keys?: number;
   haikuKeys?: number;
 };
 type GcpInfo = BaseFamilyInfo & {
   sonnetKeys?: number;
+  sonnet35Keys?: number;
   haikuKeys?: number;
 };
 
@@ -409,6 +413,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
         increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
       });
       increment(modelStats, `aws-claude__awsSonnet`, k.sonnetEnabled ? 1 : 0);
+      increment(modelStats, `aws-claude__awsSonnet35`, k.sonnet35Enabled ? 1 : 0);
       increment(modelStats, `aws-claude__awsHaiku`, k.haikuEnabled ? 1 : 0);
 
       // Ignore revoked keys for aws logging stats, but include keys where the
@@ -429,6 +434,7 @@ function addKeyToAggregates(k: KeyPoolKey) {
         increment(modelStats, `${f}__active`, k.isDisabled ? 0 : 1);
       });
       increment(modelStats, `gcp-claude__gcpSonnet`, k.sonnetEnabled ? 1 : 0);
+      increment(modelStats, `gcp-claude__gcpSonnet35`, k.sonnet35Enabled ? 1 : 0);
       increment(modelStats, `gcp-claude__gcpHaiku`, k.haikuEnabled ? 1 : 0);
       break;
     }
@@ -473,6 +479,7 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
       case "aws":
         if (family === "aws-claude") {
           info.sonnetKeys = modelStats.get(`${family}__awsSonnet`) || 0;
+          info.sonnet35Keys = modelStats.get(`${family}__awsSonnet35`) || 0;
           info.haikuKeys = modelStats.get(`${family}__awsHaiku`) || 0;
           const logged = modelStats.get(`${family}__awsLogged`) || 0;
           if (logged > 0) {
@@ -485,6 +492,7 @@ function getInfoForFamily(family: ModelFamily): BaseFamilyInfo {
       case "gcp":
         if (family === "gcp-claude") {
           info.sonnetKeys = modelStats.get(`${family}__gcpSonnet`) || 0;
+          info.sonnet35Keys = modelStats.get(`${family}__gcpSonnet35`) || 0;
           info.haikuKeys = modelStats.get(`${family}__gcpHaiku`) || 0;
         }
         break;
