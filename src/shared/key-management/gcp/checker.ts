@@ -116,8 +116,10 @@ export class GcpKeyChecker extends KeyCheckerBase<GcpKey> {
       }
       return;
     }
+    const { response, cause } = error;
+    const { headers, status, data } = response ?? {};
     this.log.error(
-      { key: key.hash, error: error.message },
+      { key: key.hash, status, headers, data, cause, error: error.message },
       "Network error while checking key; trying this key again in a minute."
     );
     const oneMinute = 60 * 1000;
